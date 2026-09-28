@@ -120,6 +120,7 @@ describe("InlineCodeBlockExtension", () => {
 		expect(editor.state.doc.childCount).toBe(3);
 		expect(editor.state.doc.child(0).textContent).toBe("before");
 		expect(editor.state.doc.child(1).toJSON()).toMatchObject({ type: "codeBlock" });
+		expect(editor.state.doc.child(1).textContent).toBe("");
 		expect(editor.state.doc.child(2).textContent).toBe("after");
 	});
 
