@@ -436,6 +436,20 @@ export function createViteConfig(
 			? [configuredWatchIgnored]
 			: [];
 
+	// Shared admin UI peers that expose React contexts or singleton state.
+	// Pre-bundled as their own chunks in dev so native plugin admin entries,
+	// which are loaded as source, import the same module instance as the host
+	// admin shell. Otherwise the admin pre-bundle can inline its own copy,
+	// giving plugin components a separate React context and breaking hooks
+	// like useLingui() and useQuery().
+	const ADMIN_SHARED_PEERS = [
+		"@emdash-cms/admin > @lingui/core",
+		"@emdash-cms/admin > @lingui/react",
+		"@emdash-cms/admin > @tanstack/react-query",
+		"@emdash-cms/admin > @tanstack/react-router",
+		"@emdash-cms/admin > @cloudflare/kumo",
+	];
+
 	return {
 		// Astro SSR routes resolve version.ts from source (not tsdown dist),
 		// so Vite needs its own define pass for the __EMDASH_*__ placeholders.
@@ -447,7 +461,16 @@ export function createViteConfig(
 			),
 		},
 		resolve: {
-			dedupe: ["@emdash-cms/admin", "react", "react-dom"],
+			dedupe: [
+				"@emdash-cms/admin",
+				"react",
+				"react-dom",
+				"@lingui/core",
+				"@lingui/react",
+				"@tanstack/react-query",
+				"@tanstack/react-router",
+				"@cloudflare/kumo",
+			],
 			// Array form so more-specific entries are checked first.
 			// The styles.css alias must come before the package alias, otherwise
 			// Vite's prefix matching on "@emdash-cms/admin" would resolve
@@ -635,14 +658,20 @@ export function createViteConfig(
 					noExternal: ["emdash", "@emdash-cms/admin"],
 				},
 		optimizeDeps: {
-			// When using source, don't pre-bundle JS — let Vite transform on the fly for HMR.
-			// When using dist, pre-bundle to avoid re-optimization on first hydration.
+			// Don't pre-bundle the admin source files themselves in monorepo dev
+			// mode — let Vite transform them on the fly for HMR. In dist-mode dev
+			// the built admin package is pre-bundled to avoid a re-optimization
+			// cascade on first hydration. Shared admin UI peers that carry React
+			// contexts are always split into their own chunks so native plugin
+			// admin entries (loaded as source) see the same singleton/context
+			// instances as the host admin shell.
 			// lowlight pulls in a CommonJS highlight.js entry, so the inline Portable
 			// Text editor requires these to be pre-bundled with ESM interop in dev.
 			// Bare ids would not resolve on pnpm sites, which have no top-level copy.
 			include: useSource
 				? [
 						"@astrojs/react/client.js",
+						...ADMIN_SHARED_PEERS,
 						"emdash > lowlight",
 						"emdash > highlight.js",
 						"emdash > highlight.js/lib/core",
@@ -650,6 +679,7 @@ export function createViteConfig(
 				: [
 						"@emdash-cms/admin",
 						"@astrojs/react/client.js",
+						...ADMIN_SHARED_PEERS,
 						"emdash > lowlight",
 						"emdash > highlight.js",
 						"emdash > highlight.js/lib/core",

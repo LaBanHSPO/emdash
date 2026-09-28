@@ -303,6 +303,61 @@ describe("createViteConfig inline Portable Text hydration deps", () => {
 	});
 });
 
+describe("createViteConfig admin shared peer separation", () => {
+	const monorepoDemoRoot = new URL("../../../../../demos/simple/", import.meta.url);
+	const externalProjectRoot = new URL("file:///workspace/emdash-site/");
+
+	function buildConfig(root: URL) {
+		return createViteConfig(
+			{
+				serializableConfig: {},
+				resolvedConfig: {} as never,
+				pluginDescriptors: [],
+				astroConfig: {
+					root,
+					adapter: { name: "@astrojs/node" },
+				} as AstroConfig,
+			},
+			"dev",
+		);
+	}
+
+	it("dedupes shared admin peers to a single instance", () => {
+		const config = buildConfig(externalProjectRoot);
+		const dedupe = Array.isArray(config.resolve?.dedupe) ? config.resolve.dedupe : [];
+
+		expect(dedupe).toContain("@lingui/core");
+		expect(dedupe).toContain("@lingui/react");
+		expect(dedupe).toContain("@tanstack/react-query");
+		expect(dedupe).toContain("@tanstack/react-router");
+		expect(dedupe).toContain("@cloudflare/kumo");
+	});
+
+	it("pre-bundles shared admin peers in dist-mode dev", () => {
+		const config = buildConfig(externalProjectRoot);
+		const include = config.optimizeDeps?.include ?? [];
+
+		expect(include).toContain("@emdash-cms/admin");
+		expect(include).toContain("@emdash-cms/admin > @lingui/core");
+		expect(include).toContain("@emdash-cms/admin > @lingui/react");
+		expect(include).toContain("@emdash-cms/admin > @tanstack/react-query");
+		expect(include).toContain("@emdash-cms/admin > @tanstack/react-router");
+		expect(include).toContain("@emdash-cms/admin > @cloudflare/kumo");
+	});
+
+	it("pre-bundles shared admin peers in source-mode dev", () => {
+		const config = buildConfig(monorepoDemoRoot);
+		const include = config.optimizeDeps?.include ?? [];
+
+		expect(include).not.toContain("@emdash-cms/admin");
+		expect(include).toContain("@emdash-cms/admin > @lingui/core");
+		expect(include).toContain("@emdash-cms/admin > @lingui/react");
+		expect(include).toContain("@emdash-cms/admin > @tanstack/react-query");
+		expect(include).toContain("@emdash-cms/admin > @tanstack/react-router");
+		expect(include).toContain("@emdash-cms/admin > @cloudflare/kumo");
+	});
+});
+
 describe("createViteConfig Astro logger optimization", () => {
 	const astroSevenRoot = new URL("../../../../../demos/cloudflare/", import.meta.url);
 	let projectWithoutConsoleLoggerRoot: URL;
