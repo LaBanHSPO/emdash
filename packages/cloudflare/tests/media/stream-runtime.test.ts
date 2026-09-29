@@ -111,3 +111,128 @@ describe("cloudflare stream credential resolution", () => {
 		expect(() => createMediaProvider({})).toThrow("Missing CF_ACCOUNT_ID");
 	});
 });
+
+const PLAYER_URL = "https://customer-abc12345.cloudflarestream.com/UID/watch";
+
+interface StreamApiVideo {
+	uid: string;
+	thumbnail: string;
+	preview?: string;
+	readyToStream: boolean;
+	status: { state: string };
+	size: number;
+	created: string;
+	modified: string;
+	duration: number;
+	input: { width: number; height: number };
+	playback: { hls: string; dash: string };
+	meta: { name: string };
+}
+
+function streamApiVideo(overrides: Partial<StreamApiVideo> = {}): StreamApiVideo {
+	return {
+		uid: "UID",
+		thumbnail: PREVIEW_URL,
+		preview: PLAYER_URL,
+		readyToStream: true,
+		status: { state: "ready" },
+		size: 75431883,
+		created: "2025-01-15T10:30:00Z",
+		modified: "2025-01-15T10:30:00Z",
+		duration: 41,
+		input: { width: 1280, height: 720 },
+		playback: { hls: HLS, dash: DASH },
+		meta: { name: "webinar.mp4" },
+		...overrides,
+	};
+}
+
+/** Build a JSON Response like the Cloudflare Stream API returns. */
+function apiSuccess(body: unknown) {
+	return new Response(JSON.stringify({ success: true, result: body }), {
+		status: 200,
+		headers: { "Content-Type": "application/json" },
+	});
+}
+
+type TestProvider = ReturnType<typeof createMediaProvider>;
+type FetchMock = ReturnType<typeof vi.fn>;
+
+/** Construct a provider with a mocked `fetch` for the duration of the test. */
+function withMockedFetch<T>(fn: (provider: TestProvider, fetchMock: FetchMock) => Promise<T>) {
+	return async () => {
+		const fetchMock = vi.fn();
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = fetchMock;
+		try {
+			const testProvider = createMediaProvider({ accountId: ACCOUNT_ID, apiToken: "test-token" });
+			return await fn(testProvider, fetchMock);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	};
+}
+
+describe("cloudflare stream playerUrl mapping", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it(
+		"maps video.preview to playerUrl in list() results",
+		withMockedFetch(async (mediaProvider, fetchMock) => {
+			fetchMock.mockResolvedValueOnce(apiSuccess([streamApiVideo()]));
+
+			const result = await mediaProvider.list({});
+
+			expect(result.items[0]?.playerUrl).toBe(PLAYER_URL);
+		}),
+	);
+
+	it(
+		"maps video.preview to playerUrl in get() results",
+		withMockedFetch(async (mediaProvider, fetchMock) => {
+			fetchMock.mockResolvedValueOnce(apiSuccess(streamApiVideo()));
+
+			if (!mediaProvider.get) throw new Error("Stream provider does not implement get");
+			const item = await mediaProvider.get("UID");
+
+			expect(item?.playerUrl).toBe(PLAYER_URL);
+		}),
+	);
+
+	it(
+		"maps video.preview to playerUrl in completed upload() results",
+		withMockedFetch(async (mediaProvider, fetchMock) => {
+			const uploadUrl = "https://upload.cloudflarestream.com/direct-upload";
+			fetchMock
+				.mockResolvedValueOnce(
+					apiSuccess({
+						uploadURL: uploadUrl,
+						uid: "UID",
+					}),
+				)
+				.mockResolvedValueOnce(new Response("OK", { status: 200 }))
+				.mockResolvedValueOnce(apiSuccess(streamApiVideo()));
+
+			if (!mediaProvider.upload) throw new Error("Stream provider does not implement upload");
+			const item = await mediaProvider.upload({
+				file: new File(["mp4-bytes"], "webinar.mp4", { type: "video/mp4" }),
+				filename: "webinar.mp4",
+			});
+
+			expect(item.playerUrl).toBe(PLAYER_URL);
+		}),
+	);
+
+	it(
+		"omits playerUrl when the API response has no preview field",
+		withMockedFetch(async (mediaProvider, fetchMock) => {
+			fetchMock.mockResolvedValueOnce(apiSuccess([streamApiVideo({ preview: undefined })]));
+
+			const result = await mediaProvider.list({});
+
+			expect(result.items[0]?.playerUrl).toBeUndefined();
+		}),
+	);
+});

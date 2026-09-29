@@ -98,6 +98,8 @@ export interface MediaProviderItem {
 	alt?: string;
 	/** Preview URL for admin UI thumbnail */
 	previewUrl?: string;
+	/** Hosted player URL for provider-native playback in the admin UI */
+	playerUrl?: string;
 	/** Provider-specific metadata */
 	meta?: Record<string, unknown>;
 }

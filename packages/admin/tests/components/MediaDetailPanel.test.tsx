@@ -5,7 +5,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { MediaDetailPanel } from "../../src/components/MediaDetailPanel";
-import { ApiResponseError, type LocalMediaItem, type MediaItem } from "../../src/lib/api";
+import {
+	ApiResponseError,
+	type LocalMediaItem,
+	type MediaItem,
+	type MediaProviderItem,
+} from "../../src/lib/api";
+import { providerItemToMediaItem } from "../../src/lib/media-utils.js";
 
 import "../../src/media-image-cropper.css";
 import { render } from "../utils/render.tsx";
@@ -154,6 +160,7 @@ function makePdfItem(overrides: Partial<MediaItem> = {}): MediaItem {
 const STREAM_HLS = "https://customer-abc123.cloudflarestream.com/UID/manifest/video.m3u8";
 const STREAM_DASH = "https://customer-abc123.cloudflarestream.com/UID/manifest/video.mpd";
 const STREAM_POSTER = "https://customer-abc123.cloudflarestream.com/UID/thumbnails/thumbnail.jpg";
+const STREAM_PLAYER_URL = "https://customer-abc123.cloudflarestream.com/UID/watch";
 
 /**
  * A Cloudflare Stream item. The distinguishing trait is that `url` is a poster
@@ -2114,9 +2121,43 @@ describe("MediaDetailPanel file URL", () => {
 		expect(fetchMediaFolders).not.toHaveBeenCalled();
 	});
 
+	describe("provider item conversion", () => {
+		it("carries a hosted player URL through to the media item", () => {
+			const providerItem: MediaProviderItem = {
+				id: "stream-1",
+				filename: "webinar.mp4",
+				mimeType: "video/mp4",
+				previewUrl: STREAM_POSTER,
+				playerUrl: STREAM_PLAYER_URL,
+			};
+
+			const mediaItem = providerItemToMediaItem("cloudflare-stream", providerItem);
+
+			expect(mediaItem.playerUrl).toBe(STREAM_PLAYER_URL);
+			expect(mediaItem.provider).toBe("cloudflare-stream");
+		});
+	});
+
 	describe("video preview", () => {
 		// The dialog may portal outside the render container, so query the document.
 		const findVideo = () => document.querySelector("video");
+		const findIframe = () => document.querySelector("iframe");
+
+		it("renders a hosted player iframe when a provider video has a playerUrl", async () => {
+			const screen = await renderPanel({
+				item: makeStreamItem({ playerUrl: STREAM_PLAYER_URL }),
+				providerName: "Cloudflare Stream",
+			});
+			await expect.element(screen.getByText("Media details")).toBeInTheDocument();
+
+			const iframe = findIframe();
+			expect(iframe).not.toBeNull();
+			expect(iframe?.getAttribute("src")).toBe(STREAM_PLAYER_URL);
+
+			// The native video fallback should not be rendered when the hosted
+			// player is available.
+			expect(findVideo()).toBeNull();
+		});
 
 		it("plays a streaming item's HLS/DASH sources rather than its poster URL", async () => {
 			const screen = await renderPanel({

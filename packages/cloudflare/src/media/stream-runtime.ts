@@ -121,6 +121,7 @@ export const createMediaProvider: CreateMediaProviderFn<CloudflareStreamConfig> 
 					width: video.input?.width,
 					height: video.input?.height,
 					previewUrl: video.thumbnail,
+					playerUrl: video.preview,
 					meta: {
 						duration: video.duration,
 						playback: video.playback,
@@ -157,6 +158,7 @@ export const createMediaProvider: CreateMediaProviderFn<CloudflareStreamConfig> 
 				width: video.input?.width,
 				height: video.input?.height,
 				previewUrl: video.thumbnail,
+				playerUrl: video.preview,
 				meta: {
 					duration: video.duration,
 					playback: video.playback,
@@ -255,6 +257,7 @@ export const createMediaProvider: CreateMediaProviderFn<CloudflareStreamConfig> 
 				width: video.input?.width,
 				height: video.input?.height,
 				previewUrl: video.thumbnail,
+				playerUrl: video.preview,
 				meta: {
 					duration: video.duration,
 					playback: video.playback,

@@ -1252,7 +1252,15 @@ export function MediaDetailPanel({
 								)
 							) : (
 								<div className="flex h-64 items-center justify-center overflow-hidden rounded-xl bg-kumo-tint ring ring-kumo-line md:h-80">
-									{isVideo && playback ? (
+									{isVideo && item.playerUrl ? (
+										<iframe
+											src={item.playerUrl}
+											title={t`Video preview`}
+											className="h-full w-full"
+											allow="autoplay; encrypted-media; fullscreen"
+											allowFullScreen
+										/>
+									) : isVideo && playback ? (
 										<video
 											poster={item.url || undefined}
 											controls

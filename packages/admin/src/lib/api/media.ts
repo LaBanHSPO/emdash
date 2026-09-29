@@ -110,6 +110,8 @@ export interface MediaItem {
 	status?: "pending" | "ready" | "failed";
 	/** Provider ID for external media (e.g., "cloudflare-images") */
 	provider?: string;
+	/** Hosted player URL for provider-native playback in the admin UI */
+	playerUrl?: string;
 	/** Provider-specific metadata */
 	meta?: Record<string, unknown>;
 }
@@ -599,6 +601,8 @@ export interface MediaProviderItem {
 	dominantColor?: string;
 	alt?: string;
 	previewUrl?: string;
+	/** Hosted player URL for provider-native playback in the admin UI */
+	playerUrl?: string;
 	meta?: Record<string, unknown>;
 }
 

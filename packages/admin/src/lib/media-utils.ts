@@ -96,6 +96,7 @@ export function providerItemToMediaItem(
 		alt: item.alt,
 		createdAt: new Date().toISOString(),
 		provider: providerId,
+		playerUrl: item.playerUrl,
 		meta: item.meta,
 	};
 }
