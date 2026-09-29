@@ -128,13 +128,13 @@ test.describe("Authentication", () => {
 			await admin.goto("/");
 			await admin.waitForShell();
 
-			// Click the user menu trigger (shows "Dev Admin" text)
-			await admin.page.getByText("Dev Admin").click();
+			await admin.page.getByRole("button", { name: "Dev Admin" }).click();
 
-			// Should show menu options
-			await expect(admin.page.locator("text=Log out")).toBeVisible();
-			await expect(admin.page.locator("text=Security Settings")).toBeVisible();
-			await expect(admin.page.locator("text=Settings").last()).toBeVisible();
+			const menu = admin.page.getByRole("menu");
+			await expect(menu.getByText("Dev Admin")).toBeVisible();
+			await expect(menu.getByRole("menuitem", { name: "Security" })).toBeVisible();
+			await expect(menu.getByRole("menuitem", { name: "Site settings" })).toBeVisible();
+			await expect(menu.getByRole("menuitem", { name: "Log out" })).toBeVisible();
 		});
 
 		test("security settings link navigates correctly", async ({ admin }) => {
@@ -142,15 +142,11 @@ test.describe("Authentication", () => {
 			await admin.goto("/");
 			await admin.waitForShell();
 
-			// Open user menu
-			await admin.page.getByText("Dev Admin").click();
+			await admin.page.getByRole("button", { name: "Dev Admin" }).click();
+			await admin.page.getByRole("menuitem", { name: SECURITY_MENUITEM_REGEX }).click();
 
-			// Click security settings (if present in menu)
-			const securityLink = admin.page.getByRole("menuitem", { name: SECURITY_MENUITEM_REGEX });
-			if (await securityLink.isVisible({ timeout: 2000 }).catch(() => false)) {
-				await securityLink.click();
-				await expect(admin.page).toHaveURL(SECURITY_SETTINGS_URL_PATTERN);
-			}
+			await expect(admin.page).toHaveURL(SECURITY_SETTINGS_URL_PATTERN);
+			await expect(admin.page.getByRole("menu")).toBeHidden();
 		});
 	});
 });

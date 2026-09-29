@@ -53,7 +53,7 @@ const { Header } = await import("../../src/components/Header");
 // Constants
 // ---------------------------------------------------------------------------
 
-const THEME_BUTTON_REGEX = /Switch to (light|dark)/;
+const THEME_BUTTON_REGEX = /^Theme: /;
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
 	const qc = new QueryClient({
@@ -80,8 +80,6 @@ describe("Header", () => {
 				<Header />
 			</TestWrapper>,
 		);
-		// ThemeToggle exposes its next action in the aria-label.
-		// (Kumo 2.x wraps `<Button title>` as a Tooltip popup, not a DOM title.)
 		const themeButton = screen.getByLabelText(THEME_BUTTON_REGEX);
 		await expect.element(themeButton).toBeInTheDocument();
 	});
@@ -94,6 +92,21 @@ describe("Header", () => {
 		);
 		// User data loads async via react-query
 		await expect.element(screen.getByText("Matt Kane")).toBeInTheDocument();
+	});
+
+	it("opens the account menu from the user name", async () => {
+		const screen = await render(
+			<TestWrapper>
+				<Header />
+			</TestWrapper>,
+		);
+		await screen.getByRole("button", { name: "Matt Kane" }).click();
+
+		const menu = screen.getByRole("menu");
+		await expect.element(menu.getByText("matt@test.com")).toBeVisible();
+		await expect.element(menu.getByRole("menuitem", { name: "Security" })).toBeVisible();
+		await expect.element(menu.getByRole("menuitem", { name: "Site settings" })).toBeVisible();
+		await expect.element(menu.getByRole("menuitem", { name: "Log out" })).toBeVisible();
 	});
 
 	it("View Site link is present", async () => {
