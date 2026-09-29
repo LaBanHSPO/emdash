@@ -115,19 +115,11 @@ let emailSendCallback: SandboxEmailSendCallback | null = null;
 const CONTENT_CREATE_CALLBACKS_KEY = Symbol.for("emdash:sandbox-content-create-callbacks");
 const TAXONOMY_WRITE_CALLBACKS_KEY = Symbol.for("emdash:sandbox-taxonomy-write-callbacks");
 const CONTENT_ACTION_CALLBACKS_KEY = Symbol.for("emdash:sandbox-content-action-callbacks");
-const MEDIA_STORAGE_CALLBACK_KEY = Symbol.for("emdash:sandbox-media-storage-callback");
 let cronRescheduleCallback: (() => void) | null = null;
 let cronNowCallback: (() => Date) | null = null;
 let commentModerateCallback: SandboxCommentModerateCallback | null = null;
 const httpFetchCallbacks = new Map<string, typeof fetch>();
-
-function getMediaStorageCallback(): Pick<Storage, "download"> | null {
-	const store = globalThis as Record<symbol, unknown>;
-	const callback = store[MEDIA_STORAGE_CALLBACK_KEY];
-	if (callback === undefined || callback === null) return null;
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- this private Symbol stores only the media storage callback set below
-	return callback as Pick<Storage, "download">;
-}
+const mediaStorageCallbacks = new Map<string, Pick<Storage, "download">>();
 
 function contentCreateCallbacks(): Map<string, SandboxContentCreateCallback> {
 	const store = globalThis as Record<symbol, unknown>;
@@ -222,9 +214,12 @@ export function setCommentModerateCallback(callback: SandboxCommentModerateCallb
 	commentModerateCallback = callback;
 }
 
-export function setMediaStorageCallback(storage: Pick<Storage, "download"> | null): void {
-	const store = globalThis as Record<symbol, unknown>;
-	store[MEDIA_STORAGE_CALLBACK_KEY] = storage;
+export function setMediaStorageCallback(
+	key: string,
+	storage: Pick<Storage, "download"> | null,
+): void {
+	if (storage) mediaStorageCallbacks.set(key, storage);
+	else mediaStorageCallbacks.delete(key);
 }
 
 export function setTaxonomyWriteCallback(
@@ -405,6 +400,7 @@ export interface PluginBridgeProps {
 		trailingSlash?: "always" | "never" | "ignore";
 	};
 	httpFetchKey?: string;
+	mediaStorageKey?: string;
 	/** Per-collection storage config (matches manifest.storage entries) */
 	storageConfig?: Record<
 		string,
@@ -442,6 +438,12 @@ export class PluginBridge extends WorkerEntrypoint<PluginBridgeEnv, PluginBridge
 		if (!COLLECTION_NAME_REGEX.test(collection)) {
 			throw new Error(`Invalid collection name: ${collection}`);
 		}
+	}
+
+	private getMediaStorageCallback(): Pick<Storage, "download"> | null {
+		const key = this.ctx.props.mediaStorageKey;
+		if (!key) return null;
+		return mediaStorageCallbacks.get(key) ?? null;
 	}
 
 	private async contentAccess() {
@@ -1656,9 +1658,11 @@ export class PluginBridge extends WorkerEntrypoint<PluginBridgeEnv, PluginBridge
 		if (maxBytes !== undefined && typeof maxBytes !== "number") {
 			throw new TypeError("media/readBytes: maxBytes must be a number");
 		}
+		const storage = this.getMediaStorageCallback();
+		if (!storage) throw new Error("Media storage is not configured");
 		const { D1Dialect, Kysely, readPluginMediaBytes } = await loadBridgeRuntime();
 		const db = new Kysely<Database>({ dialect: new D1Dialect({ database: this.env.DB }) });
-		return readPluginMediaBytes(db, getMediaStorageCallback() ?? undefined, id, { maxBytes });
+		return readPluginMediaBytes(db, storage, id, { maxBytes });
 	}
 
 	async mediaUpdateMetadata(id: string, patch: unknown): Promise<PluginMediaItem> {
