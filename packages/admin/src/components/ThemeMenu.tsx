@@ -14,7 +14,11 @@ interface ThemeOption {
 	icon: Icon;
 }
 
-const SYSTEM_OPTION: ThemeOption = { value: "system", label: msg`System`, icon: Monitor };
+const SYSTEM_OPTION: ThemeOption = {
+	value: "system",
+	label: msg({ message: "System", context: "color scheme" }),
+	icon: Monitor,
+};
 
 const THEME_OPTIONS: ThemeOption[] = [
 	{ value: "light", label: msg`Light`, icon: Sun },
@@ -58,7 +62,7 @@ export function ThemeMenu({
 				className="w-44 origin-[var(--transform-origin)] rounded-xl p-1.5 transition-[transform,scale,opacity] duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[instant]:duration-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0 motion-reduce:transition-none"
 			>
 				<DropdownMenu.RadioGroup
-					aria-label={t`Theme`}
+					aria-label={t({ message: "Theme", context: "color scheme" })}
 					value={theme}
 					onValueChange={(value) => {
 						if (isThemeSetting(value)) setTheme(value);

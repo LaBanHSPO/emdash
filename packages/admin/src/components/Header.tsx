@@ -98,24 +98,28 @@ export function Header() {
 						align="end"
 						className="w-64 origin-[var(--transform-origin)] rounded-xl p-1.5 transition-[transform,scale,opacity] duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[instant]:duration-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0 motion-reduce:transition-none"
 					>
-						<div className="px-2 pt-2 pb-2.5 text-base">
-							<div className="truncate font-medium">{user?.name || t`User`}</div>
-							{user?.email && <div className="truncate text-sm text-kumo-subtle">{user.email}</div>}
-						</div>
-						<DropdownMenu.Item
-							href="/settings/security"
-							className={menuItemClass}
-							icon={<Shield className={menuIconClass} aria-hidden="true" />}
-						>
-							{t`Security`}
-						</DropdownMenu.Item>
-						<DropdownMenu.Item
-							href="/settings"
-							className={menuItemClass}
-							icon={<Gear className={menuIconClass} aria-hidden="true" />}
-						>
-							{t`Site settings`}
-						</DropdownMenu.Item>
+						<DropdownMenu.Group>
+							<DropdownMenu.Label className="px-2 pt-2 pb-2.5 font-normal">
+								<div className="truncate font-medium">{user?.name || t`User`}</div>
+								{user?.email && (
+									<div className="truncate text-sm text-kumo-subtle">{user.email}</div>
+								)}
+							</DropdownMenu.Label>
+							<DropdownMenu.Item
+								href="/settings/security"
+								className={menuItemClass}
+								icon={<Shield className={menuIconClass} aria-hidden="true" />}
+							>
+								{t`Security`}
+							</DropdownMenu.Item>
+							<DropdownMenu.Item
+								href="/settings"
+								className={menuItemClass}
+								icon={<Gear className={menuIconClass} aria-hidden="true" />}
+							>
+								{t`Settings`}
+							</DropdownMenu.Item>
+						</DropdownMenu.Group>
 						<DropdownMenu.Separator />
 						<DropdownMenu.Item
 							variant="danger"

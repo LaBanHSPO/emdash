@@ -54,6 +54,7 @@ const { Header } = await import("../../src/components/Header");
 // ---------------------------------------------------------------------------
 
 const THEME_BUTTON_REGEX = /^Theme: /;
+const ACCOUNT_GROUP_NAME_REGEX = /Matt Kane.*matt@test\.com/;
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
 	const qc = new QueryClient({
@@ -103,9 +104,9 @@ describe("Header", () => {
 		await screen.getByRole("button", { name: "Matt Kane" }).click();
 
 		const menu = screen.getByRole("menu");
-		await expect.element(menu.getByText("matt@test.com")).toBeVisible();
+		await expect.element(menu.getByRole("group", { name: ACCOUNT_GROUP_NAME_REGEX })).toBeVisible();
 		await expect.element(menu.getByRole("menuitem", { name: "Security" })).toBeVisible();
-		await expect.element(menu.getByRole("menuitem", { name: "Site settings" })).toBeVisible();
+		await expect.element(menu.getByRole("menuitem", { name: "Settings" })).toBeVisible();
 		await expect.element(menu.getByRole("menuitem", { name: "Log out" })).toBeVisible();
 	});
 
