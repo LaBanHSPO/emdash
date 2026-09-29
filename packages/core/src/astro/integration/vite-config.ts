@@ -401,6 +401,40 @@ function createWorkersBuiltinsExternalPlugin(): Plugin {
 	};
 }
 
+const RUNTIME_HOLDER_KEY = Symbol.for("emdash:runtime-holder");
+
+/**
+ * Vite plugin that shuts down the EmDash runtime when the dev server closes.
+ *
+ * EmDash stores its runtime on globalThis so it survives module duplication
+ * in SSR bundles. The same persistence means the runtime outlives an Astro dev
+ * server restart; the old scheduler keeps ticking and fails because its Vite
+ * module runner has already closed. closeBundle fires during dev server
+ * teardown, so clear the holder and stop background work so the next request
+ * builds a fresh runtime.
+ */
+function createRuntimeShutdownPlugin(): Plugin {
+	return {
+		name: "emdash-shutdown-runtime",
+		apply: "serve",
+		async closeBundle() {
+			const runtimeFlagStore = globalThis as Record<symbol, unknown>;
+			// eslint-disable-next-line typescript/no-unsafe-type-assertion -- globalThis symbol slot used by middleware.ts
+			const holder = runtimeFlagStore[RUNTIME_HOLDER_KEY] as
+				| { instance: { shutdown(): Promise<void> } | null }
+				| undefined;
+			const runtime = holder?.instance;
+			if (!runtime) return;
+			holder.instance = null;
+			try {
+				await runtime.shutdown();
+			} catch (error) {
+				console.error("[emdash-shutdown-runtime] Failed to shut down runtime:", error);
+			}
+		},
+	};
+}
+
 function canResolveProjectDependency(projectRoot: string, specifier: string): boolean {
 	try {
 		createRequire(resolve(projectRoot, "package.json")).resolve(specifier);
@@ -498,6 +532,9 @@ export function createViteConfig(
 			// and redirect locale .mjs imports to dist/.
 			// In production, macros are pre-compiled by tsdown in the admin package.
 			...(useSource ? [linguiMacroPlugin(adminSourcePath, adminDistPath)] : []),
+			// On Astro dev restart, stop the old runtime so its cron scheduler
+			// does not keep ticking against the closed Vite module runner.
+			...(isDev ? [createRuntimeShutdownPlugin()] : []),
 		] as NonNullable<AstroConfig["vite"]>["plugins"],
 		server: {
 			watch: {

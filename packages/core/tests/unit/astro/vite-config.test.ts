@@ -5,7 +5,8 @@ import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { AstroConfig } from "astro";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Plugin } from "vite";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
 	createViteConfig,
@@ -350,5 +351,81 @@ describe("createViteConfig Astro logger optimization", () => {
 		const config = buildConfig(projectWithoutConsoleLoggerRoot);
 
 		expect(config.ssr?.optimizeDeps?.include).not.toContain("astro/logger/console");
+	});
+});
+
+describe("createViteConfig dev server shutdown plugin", () => {
+	const RUNTIME_HOLDER_KEY = Symbol.for("emdash:runtime-holder");
+	const projectRoot = new URL("file:///workspace/emdash-site/");
+	let originalHolder: unknown;
+
+	beforeEach(() => {
+		originalHolder = (globalThis as Record<symbol, unknown>)[RUNTIME_HOLDER_KEY];
+	});
+
+	afterEach(() => {
+		(globalThis as Record<symbol, unknown>)[RUNTIME_HOLDER_KEY] = originalHolder;
+	});
+
+	function buildConfig(command: "dev" | "build" | "preview" | "sync" = "dev") {
+		return createViteConfig(
+			{
+				serializableConfig: {},
+				resolvedConfig: {} as never,
+				pluginDescriptors: [],
+				astroConfig: {
+					root: projectRoot,
+					adapter: { name: "@astrojs/node" },
+				} as AstroConfig,
+			},
+			command,
+		);
+	}
+
+	function getShutdownPlugin(config: ReturnType<typeof createViteConfig>): Plugin | undefined {
+		const plugins = config.plugins ?? [];
+		return plugins.find(
+			(p): p is Plugin =>
+				p !== null && typeof p === "object" && "name" in p && p.name === "emdash-shutdown-runtime",
+		);
+	}
+
+	it("registers a dev-only plugin that shuts down the runtime on closeBundle", async () => {
+		const shutdown = vi.fn().mockResolvedValue(undefined);
+		const holder = { instance: { shutdown }, lock: null };
+		(globalThis as Record<symbol, unknown>)[RUNTIME_HOLDER_KEY] = holder;
+
+		const config = buildConfig("dev");
+		const plugin = getShutdownPlugin(config);
+		expect(plugin).toBeDefined();
+		// eslint-disable-next-line vitest/no-conditional-in-test -- plugin is asserted above
+		expect(plugin?.apply).toBe("serve");
+
+		const closeBundle = unwrapHook(plugin?.closeBundle);
+		// eslint-disable-next-line typescript/no-unsafe-type-assertion -- the hook does not use its Rollup context.
+		await closeBundle.call({} as never);
+
+		expect(shutdown).toHaveBeenCalledOnce();
+		expect(holder.instance).toBeNull();
+	});
+
+	it("is absent outside dev", () => {
+		for (const command of ["build", "preview", "sync"] as const) {
+			const config = buildConfig(command);
+			const plugin = getShutdownPlugin(config);
+			expect(plugin).toBeUndefined();
+		}
+	});
+
+	it("no-ops when there is no runtime to shut down", async () => {
+		(globalThis as Record<symbol, unknown>)[RUNTIME_HOLDER_KEY] = { instance: null, lock: null };
+
+		const config = buildConfig("dev");
+		const plugin = getShutdownPlugin(config);
+		expect(plugin).toBeDefined();
+
+		const closeBundle = unwrapHook(plugin?.closeBundle);
+		// eslint-disable-next-line typescript/no-unsafe-type-assertion -- the hook does not use its Rollup context.
+		await expect(closeBundle.call({} as never)).resolves.toBeUndefined();
 	});
 });
