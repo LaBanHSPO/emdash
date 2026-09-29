@@ -19,7 +19,7 @@ import { test, expect } from "../fixtures";
 const LOGIN_URL_PATTERN = /\/login/;
 const ADMIN_URL_PATTERN = /\/_emdash\/admin\/?$/;
 const USERS_URL_PATTERN = /\/users/;
-const SECURITY_SETTINGS_URL_PATTERN = /\/settings\/security/;
+const SECURITY_SETTINGS_URL_PATTERN = /\/_emdash\/admin\/settings\/security\/?$/;
 const SETTINGS_URL_PATTERN = /\/_emdash\/admin\/settings\/?$/;
 const LOGIN_OR_ADMIN_URL_PATTERN = /\/(login|admin)/;
 const SECURITY_MENUITEM_REGEX = /Security/i;
