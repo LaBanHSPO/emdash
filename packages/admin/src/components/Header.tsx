@@ -49,8 +49,8 @@ function UserAvatar({ user, className }: { user: CurrentUser | undefined; classN
 	);
 }
 
-const headerButtonClass = "h-8 gap-1.5 px-2.5 text-sm font-normal text-kumo-default";
-const headerIconClass = "size-3.5 text-kumo-subtle group-hover:text-kumo-default";
+const headerButtonClass = "h-8 gap-1.5 px-2.5 text-sm";
+const headerIconClass = "size-3.5";
 const menuItemClass = "gap-2.5 py-2 data-highlighted:bg-kumo-tint";
 const menuIconClass = "size-4 text-kumo-subtle in-data-highlighted:text-kumo-default";
 
