@@ -1050,6 +1050,10 @@ describe("ContentEditPage actions during a save conflict", () => {
 		autosave.resolve(new Response());
 		await vi.advanceTimersByTimeAsync(1000);
 
+		// Waiting for the conflict also keeps the refused publish from leaking into the next test.
+		await expect
+			.element(screen.getByRole("button", { name: "Save anyway", exact: true }))
+			.toBeVisible();
 		expect(publishRequests()).toEqual([]);
 		expect(server.entry.data).toMatchObject({ title: "Other writer" });
 	});
