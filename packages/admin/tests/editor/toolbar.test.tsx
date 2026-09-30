@@ -298,7 +298,9 @@ describe("Toolbar Presence and Structure", () => {
 		await expect.element(screen.getByRole("menuitem", { name: "Heading 1" })).toBeVisible();
 		await expect.element(screen.getByRole("menuitem", { name: "Heading 2" })).toBeVisible();
 		await expect.element(screen.getByRole("menuitem", { name: "Heading 3" })).toBeVisible();
-		expect(screen.getByRole("menuitem", { name: "Heading 4" }).query()).toBeNull();
+		await expect.element(screen.getByRole("menuitem", { name: "Heading 4" })).toBeVisible();
+		await expect.element(screen.getByRole("menuitem", { name: "Heading 5" })).toBeVisible();
+		await expect.element(screen.getByRole("menuitem", { name: "Heading 6" })).toBeVisible();
 		expect(
 			screen
 				.getByRole("menuitem", { name: "Heading 1" })
@@ -310,7 +312,16 @@ describe("Toolbar Presence and Structure", () => {
 			document.querySelectorAll<HTMLElement>('[role="menuitem"]'),
 			(item) => item.textContent?.trim(),
 		);
-		expect(headingLabels).toEqual(expect.arrayContaining(["Heading 1", "Heading 2", "Heading 3"]));
+		expect(headingLabels).toEqual(
+			expect.arrayContaining([
+				"Heading 1",
+				"Heading 2",
+				"Heading 3",
+				"Heading 4",
+				"Heading 5",
+				"Heading 6",
+			]),
+		);
 	});
 
 	it("uses the light interaction surface for highlighted heading choices", async () => {
@@ -964,16 +975,16 @@ describe("Formatting Button Toggle States", () => {
 		});
 	});
 
-	it("Heading 6: lists the level for a block that uses it, and clears it", async () => {
+	it("Heading 6: click changes to h6", async () => {
 		const { screen, editor } = await renderEditor();
-		editor.chain().focus().setNode("heading", { level: 6 }).run();
+		editor.commands.focus();
 
-		const { item } = await getHeadingMenuItem(screen, "Heading 6");
+		const { trigger, item } = await getHeadingMenuItem(screen, "Heading 6");
 		item.element().click();
 
 		await vi.waitFor(() => {
-			expect(editor.isActive("heading")).toBe(false);
-			expect(editor.isActive("paragraph")).toBe(true);
+			expect(trigger.element().hasAttribute("aria-pressed")).toBe(false);
+			expect(editor.isActive("heading", { level: 6 })).toBe(true);
 		});
 	});
 

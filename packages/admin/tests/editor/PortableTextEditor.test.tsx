@@ -1226,6 +1226,21 @@ describe("Editor component behaviour", () => {
 		}
 	});
 
+	it("continues writing at the end when the space below the page is clicked", async () => {
+		const { screen, editor, pm } = await renderAndGetEditor({
+			variant: "document",
+			value: [textBlock("Hello")],
+		});
+		const before = editor.getJSON();
+
+		await userEvent.click(screen.getByText("1 word"));
+
+		expect(document.activeElement).toBe(pm);
+		expect(editor.state.selection.empty).toBe(true);
+		expect(editor.state.selection.from).toBe(editor.state.doc.content.size - 1);
+		expect(editor.getJSON()).toEqual(before);
+	});
+
 	it("sets contenteditable=false when editable is false", async () => {
 		await render(<PortableTextEditor editable={false} value={[textBlock("Read only")]} />);
 		const pm = await waitForEditor();
@@ -1413,6 +1428,9 @@ describe("Toolbar", () => {
 		await expect.element(screen.getByRole("menuitem", { name: "Heading 1" })).toBeInTheDocument();
 		await expect.element(screen.getByRole("menuitem", { name: "Heading 2" })).toBeInTheDocument();
 		await expect.element(screen.getByRole("menuitem", { name: "Heading 3" })).toBeInTheDocument();
+		await expect.element(screen.getByRole("menuitem", { name: "Heading 4" })).toBeInTheDocument();
+		await expect.element(screen.getByRole("menuitem", { name: "Heading 5" })).toBeInTheDocument();
+		await expect.element(screen.getByRole("menuitem", { name: "Heading 6" })).toBeInTheDocument();
 	});
 
 	it("has list buttons", async () => {

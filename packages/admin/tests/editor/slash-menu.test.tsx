@@ -984,6 +984,26 @@ describe("Slash Command Menu", () => {
 		);
 	});
 
+	it("moves the highlight in the order the menu lists commands", async () => {
+		// A plugin block in a built-in category is listed with that category's
+		// commands, so the arrow keys must reach it there too.
+		const { editor, pm } = await renderEditor({
+			pluginBlocks: [
+				{ pluginId: "video-plugin", type: "video", label: "Video", category: "Media" },
+			],
+		});
+		await focusEditor(pm);
+		editor.commands.insertContent("/");
+
+		const menu = await waitForSlashMenu();
+		const listed = getSlashMenuItems(menu).map((item) => Number(item.dataset.index));
+
+		expect(listed).toEqual(listed.map((_, position) => position));
+		expect(menu.querySelector('[role="group"][aria-label="Media"]')?.textContent).toContain(
+			"Video",
+		);
+	});
+
 	it("renders plugin block commands without a category (default Embeds)", async () => {
 		// Existing plugins that omit `category` must continue to render under
 		// the default category. This guards against regressions in the type

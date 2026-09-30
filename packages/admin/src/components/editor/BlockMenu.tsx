@@ -88,8 +88,13 @@ export function BlockMenu({
 	const nodeLabel = selectedNode ? NODE_LABELS[selectedNode.type.name] : undefined;
 	const blockLabel = activeType ? t(activeType.label) : nodeLabel ? t(nodeLabel) : t`Block`;
 	const canAlign = selectedNode?.type.name === "paragraph" || selectedNode?.type.name === "heading";
+	// No alignment means the start edge, which is the right in right-to-left text.
+	const startAlignment =
+		isOpen && getComputedStyle(editor.view.dom).direction === "rtl" ? "right" : "left";
 	const currentAlignment =
-		typeof selectedNode?.attrs.textAlign === "string" ? selectedNode.attrs.textAlign : "left";
+		typeof selectedNode?.attrs.textAlign === "string"
+			? selectedNode.attrs.textAlign
+			: startAlignment;
 	const isOrderedList = selectedNode?.type.name === "orderedList";
 
 	const handleDelete = () => {

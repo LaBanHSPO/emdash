@@ -1817,7 +1817,7 @@ const defaultSlashCommands: SlashCommandItem[] = [
 		title: msg`Code`,
 		description: msg`Insert a code block`,
 		icon: CodeBlock,
-		aliases: ["code block", "pre", "snippet", "```"],
+		aliases: ["pre", "snippet", "```"],
 		markdown: "```",
 		category: BASIC_BLOCKS_CATEGORY,
 		command: ({ editor, range }) => {
@@ -3012,16 +3012,8 @@ function DocumentEnd({
 			onMouseDown={(event) => {
 				if (event.button !== 0) return;
 				event.preventDefault();
-				const last = editor.state.doc.lastChild;
-				if (last?.type.name === "paragraph" && last.content.size === 0) {
-					editor.chain().focus("end").run();
-					return;
-				}
-				editor
-					.chain()
-					.insertContentAt(editor.state.doc.content.size, { type: "paragraph" })
-					.focus("end")
-					.run();
+				// The trailing-node extension keeps a paragraph after any other last block.
+				editor.commands.focus("end");
 			}}
 		>
 			{children}
@@ -3341,9 +3333,18 @@ export function PortableTextEditor({
 	// the extension to be recreated.
 	const filterCommandsRef = React.useRef((_q: string): SlashCommandItem[] => []);
 	filterCommandsRef.current = (query: string) => {
-		if (!query.trim()) return slashCommands.filter((item) => !item.searchOnly);
 		const text = (label: MessageDescriptor | string) =>
 			typeof label === "string" ? label : t(label);
+		if (!query.trim()) {
+			// The menu groups commands by category, so arrow keys must follow that order.
+			const visible = slashCommands.filter((item) => !item.searchOnly);
+			const categories = [
+				...new Set(visible.map((item) => text(item.category ?? BASIC_BLOCKS_CATEGORY))),
+			];
+			const rank = (item: SlashCommandItem) =>
+				categories.indexOf(text(item.category ?? BASIC_BLOCKS_CATEGORY));
+			return visible.toSorted((a, b) => rank(a) - rank(b));
+		}
 		return slashCommands
 			.map((item, order) => ({
 				item,
@@ -4315,29 +4316,14 @@ function EditorBubbleMenu({
 		}
 	}, [showLinkInput, editor]);
 
-	// ⌘K / Ctrl+K opens the link field for the selection, or for the link under the caret.
-	React.useEffect(() => {
-		const dom = editor.view.dom;
-		const handleKeyDown = (event: KeyboardEvent) => {
-			if (event.key.toLowerCase() !== "k" || event.altKey || event.shiftKey) return;
-			if (!(event.metaKey || event.ctrlKey) || !editor.isEditable) return;
-			const { selection } = editor.state;
-			if (!(selection instanceof TextSelection) || editor.isActive("codeBlock")) return;
-			if (selection.empty) {
-				if (!editor.isActive("link")) return;
-				editor.chain().extendMarkRange("link").run();
-			}
-			event.preventDefault();
-			setShowLinkInput(true);
-		};
-		dom.addEventListener("keydown", handleKeyDown);
-		return () => dom.removeEventListener("keydown", handleKeyDown);
-	}, [editor]);
-
 	const closeLinkInput = () => {
 		setShowLinkInput(false);
 		setLinkUrl("");
 	};
+	const showLinkInputRef = React.useRef(showLinkInput);
+	showLinkInputRef.current = showLinkInput;
+	const closeLinkInputRef = React.useRef(closeLinkInput);
+	closeLinkInputRef.current = closeLinkInput;
 
 	const handleSetLink = () => {
 		if (linkUrl.trim() === "") {
@@ -4375,11 +4361,23 @@ function EditorBubbleMenu({
 					elements: { floating: HTMLElement };
 				}) => {
 					elements.floating.style.maxWidth = `${Math.max(0, availableWidth)}px`;
-					elements.floating.style.overflowX = "auto";
-					elements.floating.style.borderRadius = "10px";
+					// The surface scrolls itself, so no wrapper clips its rounded ring.
+					const surface = elements.floating.firstElementChild;
+					if (surface instanceof HTMLElement) {
+						surface.style.maxWidth = "100%";
+						surface.style.overflowX = "auto";
+					}
 				},
 			}),
-			onShow: () => playBubbleEntrance(menuRef.current),
+			onShow: () => {
+				playBubbleEntrance(menuRef.current);
+				// Edit link opens the field while this menu is still hidden, too early to focus it.
+				if (showLinkInputRef.current) menuRef.current?.querySelector("input")?.focus();
+			},
+			// A link edit left open doesn't carry over to the next selection.
+			onHide: () => {
+				if (showLinkInputRef.current) closeLinkInputRef.current();
+			},
 		}),
 		[getCollisionOptions],
 	);
@@ -4590,7 +4588,11 @@ function TurnIntoMenu({ editor, activeId }: { editor: Editor; activeId: TextBloc
 			</Menu.Trigger>
 			<Menu.Portal>
 				<Menu.Positioner side="bottom" align="start" sideOffset={8} className="z-[110]">
-					<Menu.Popup {...{ [BUBBLE_POPUP_ATTR]: "" }} className={editorMenuPopupClassName}>
+					<Menu.Popup
+						{...{ [BUBBLE_POPUP_ATTR]: "" }}
+						finalFocus={() => (editor.isDestroyed ? false : editor.view.dom)}
+						className={editorMenuPopupClassName}
+					>
 						<Menu.RadioGroup
 							value={activeId}
 							onValueChange={(id) =>
@@ -4645,7 +4647,11 @@ function MoreFormattingMenu({
 			</Menu.Trigger>
 			<Menu.Portal>
 				<Menu.Positioner side="bottom" align="end" sideOffset={8} className="z-[110]">
-					<Menu.Popup {...{ [BUBBLE_POPUP_ATTR]: "" }} className={editorMenuPopupClassName}>
+					<Menu.Popup
+						{...{ [BUBBLE_POPUP_ATTR]: "" }}
+						finalFocus={() => (editor.isDestroyed ? false : editor.view.dom)}
+						className={editorMenuPopupClassName}
+					>
 						<EditorMenuCheckboxItem
 							icon={TextSubscript}
 							label={t`Subscript`}
@@ -5592,24 +5598,8 @@ function EditorToolbar({
 	const isDocument = variant === "document";
 	const linkLabel = editorState.isImage ? t`Image link` : t`Insert Link`;
 
-	// A mouse wheel scrolls a toolbar that overflows sideways, as a trackpad does.
-	const scrollerRef = React.useRef<HTMLDivElement>(null);
-	React.useEffect(() => {
-		const scroller = scrollerRef.current;
-		if (!scroller) return;
-		const handleWheel = (event: WheelEvent) => {
-			if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
-			if (scroller.scrollWidth <= scroller.clientWidth) return;
-			event.preventDefault();
-			scroller.scrollLeft += event.deltaY;
-		};
-		scroller.addEventListener("wheel", handleWheel, { passive: false });
-		return () => scroller.removeEventListener("wheel", handleWheel);
-	}, []);
-
 	const controls = (
 		<div
-			ref={scrollerRef}
 			className={cn(
 				"emdash-editor-toolbar flex flex-nowrap items-center gap-0.5 overflow-x-auto rounded-[inherit] p-1",
 				isDocument && "justify-between",
@@ -5684,7 +5674,6 @@ function EditorToolbar({
 			<ToolbarGroup>
 				<HeadingDropdownMenu
 					editor={editor}
-					levels={TOOLBAR_HEADING_LEVELS}
 					className={toolbarButtonClassName}
 					activeClassName={toolbarActiveClassName}
 				/>
@@ -5923,9 +5912,6 @@ function EditorToolbar({
 		</TooltipProvider>
 	);
 }
-
-/** Headings 4 to 6 are one search away in the slash menu. */
-const TOOLBAR_HEADING_LEVELS = [1, 2, 3] as const;
 
 function ToolbarGroup({ children }: { children: React.ReactNode }) {
 	return <div className="flex flex-none gap-0.5">{children}</div>;

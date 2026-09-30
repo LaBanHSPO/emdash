@@ -80,7 +80,7 @@ export function useHeadingDropdownMenu(config: UseHeadingDropdownMenuConfig = {}
 	const state = useEditorState({
 		editor,
 		selector: ({ editor: currentEditor }) => {
-			const activeLevel = getActiveHeadingLevel(currentEditor);
+			const activeLevel = getActiveHeadingLevel(currentEditor, levels);
 			const canToggle = canToggleHeading(currentEditor, levels);
 			return {
 				activeLevel,
@@ -98,8 +98,7 @@ export function useHeadingDropdownMenu(config: UseHeadingDropdownMenuConfig = {}
 		activeLevel,
 		isActive: state?.isActive ?? false,
 		canToggle: state?.canToggle ?? false,
-		// A block already using a level outside `levels` still shows it, checked.
-		levels: activeLevel && !levels.includes(activeLevel) ? [...levels, activeLevel] : levels,
+		levels,
 		Icon: activeLevel ? HEADING_ICONS[activeLevel] : TextH,
 	};
 }
@@ -125,14 +124,7 @@ export const HeadingDropdownMenu = React.forwardRef<HTMLButtonElement, HeadingDr
 	) {
 		const { t } = useLingui();
 		const [open, setOpen] = React.useState(false);
-		const {
-			isVisible,
-			activeLevel,
-			isActive,
-			canToggle,
-			Icon,
-			levels: menuLevels,
-		} = useHeadingDropdownMenu({
+		const { isVisible, activeLevel, isActive, canToggle, Icon } = useHeadingDropdownMenu({
 			editor,
 			levels,
 			hideWhenUnavailable,
@@ -181,7 +173,7 @@ export const HeadingDropdownMenu = React.forwardRef<HTMLButtonElement, HeadingDr
 					}
 				/>
 				<DropdownMenu.Content align="start" className="min-w-44">
-					{menuLevels.map((level) => {
+					{levels.map((level) => {
 						const HeadingIcon = HEADING_ICONS[level];
 						return (
 							<DropdownMenu.Item

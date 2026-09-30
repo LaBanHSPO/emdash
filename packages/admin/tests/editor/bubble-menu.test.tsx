@@ -375,12 +375,15 @@ describe("Bubble Menu", () => {
 		expect(menu).toBeTruthy();
 	});
 
-	it("rounds the scrollable positioning wrapper to preserve every menu corner", async () => {
+	it("scrolls inside its own rounded surface, so no wrapper clips its corners", async () => {
 		const { editor, pm } = await renderEditor();
 		await focusAndSelectAll(editor, pm);
 
 		const menu = await waitForBubbleMenu();
-		await vi.waitFor(() => expectRoundedFloatingWrapper(menu));
+		await vi.waitFor(() => {
+			expect(getComputedStyle(menu).overflowX).toBe("auto");
+			expect(findScrollableAncestor(menu)).toBeNull();
+		});
 	});
 
 	it("flips below a top-line selection when the sticky toolbar blocks the preferred position", async () => {
@@ -845,6 +848,32 @@ describe("Bubble Menu", () => {
 		await vi.waitFor(() => {
 			expect(getBubbleButton(menu, "Remove link")).toBeTruthy();
 		});
+	});
+
+	it("focuses the URL field when a link is edited from its preview", async () => {
+		const linkValue = [
+			{
+				_type: "block" as const,
+				_key: "1",
+				style: "normal" as const,
+				children: [{ _type: "span" as const, _key: "s1", text: "Click here", marks: ["link1"] }],
+				markDefs: [{ _type: "link", _key: "link1", href: "https://example.com" }],
+			},
+		];
+		const { editor, pm } = await renderEditor({ value: linkValue });
+		pm.focus();
+		editor.commands.setTextSelection(3);
+		const preview = await vi.waitFor(() => {
+			const element = document.querySelector<HTMLElement>("[data-emdash-link-bubble-menu]");
+			expect(element && getBubbleButton(element, "Edit link")).toBeTruthy();
+			return element!;
+		});
+
+		getBubbleButton(preview, "Edit link")!.click();
+		await vi.waitFor(() => expect(document.activeElement).toBe(getLinkInput()));
+		await userEvent.keyboard("x");
+
+		expect(editor.getText()).toBe("Click here");
 	});
 
 	it("removes link when Remove link button is clicked", async () => {
