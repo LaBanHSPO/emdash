@@ -69,16 +69,16 @@ export function Header() {
 			<Sidebar.Trigger className="me-auto cursor-pointer md:hidden rtl:rotate-180" />
 
 			<div className="flex items-center gap-1">
-				<LinkButton variant="ghost" href="/" external className={headerButtonClass}>
-					<ArrowSquareOut className={headerIconClass} aria-hidden="true" />
-					<span className="max-sm:sr-only">{t`View Site`}</span>
-				</LinkButton>
-
 				<ThemeToggle
 					className={headerButtonClass}
 					iconClassName={headerIconClass}
 					labelClassName="max-sm:sr-only"
 				/>
+
+				<LinkButton variant="ghost" href="/" external className={headerButtonClass}>
+					<ArrowSquareOut className={headerIconClass} aria-hidden="true" />
+					<span className="max-sm:sr-only">{t`View Site`}</span>
+				</LinkButton>
 
 				<DropdownMenu>
 					<DropdownMenu.Trigger
