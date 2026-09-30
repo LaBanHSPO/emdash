@@ -68,10 +68,13 @@ function isHtmlResponse(response: Response): boolean {
 	return response.headers.get("content-type")?.includes("text/html") ?? false;
 }
 
+const DOCUMENT_START_RE = /^\s*<(?:!doctype|html)\b/i;
+
 /**
- * Inject HTML before `</body>` if the response is an HTML page with a body
- * end tag. Does not touch cache headers — callers decide whether the result
- * is still shareable. `injected` tells the caller whether anything changed.
+ * Inject HTML before the page's closing `</body>` if the response is a whole
+ * HTML document with one. Does not touch cache headers — callers decide
+ * whether the result is still shareable. `injected` tells the caller whether
+ * anything changed.
  */
 async function injectBeforeBodyEnd(
 	response: Response,
@@ -80,12 +83,16 @@ async function injectBeforeBodyEnd(
 	if (!isHtmlResponse(response)) return { response, injected: false };
 
 	const html = await response.text();
-	if (!html.includes("</body>")) {
+	// The page's own closing tag is its last `</body>`. Astro leaves `<` and `>`
+	// unescaped in attribute values, so an earlier one, or one in a fragment
+	// such as a server island, can be author text inside an attribute.
+	const bodyEnd = DOCUMENT_START_RE.test(html) ? html.lastIndexOf("</body>") : -1;
+	if (bodyEnd === -1) {
 		// Body already consumed — rebuild the response unchanged.
 		return { response: new Response(html, response), injected: false };
 	}
 
-	const injected = html.replace("</body>", `${htmlToInject}</body>`);
+	const injected = html.slice(0, bodyEnd) + htmlToInject + html.slice(bodyEnd);
 	return {
 		response: new Response(injected, {
 			status: response.status,
