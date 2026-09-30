@@ -576,26 +576,28 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 }
 
 /*
- * A selected block (block handle, Escape, or Select All twice) gets a tint
+ * A selected block (block handle, Escape, or Select All) gets a tint
  * that reaches just past its edges, so each block reads as its own container.
  * It shows while the editor or its block menu has focus, like the image
  * toolbar, and the text inside isn't highlighted a second time.
  */
-.emdash-document {
+[data-emdash-editor-floating-root] .ProseMirror {
 	--emdash-block-selection: color-mix(in oklab, var(--color-kumo-brand) 14%, transparent);
 }
 
-.emdash-document[data-emdash-block-selection] ::selection {
+[data-emdash-editor-floating-root] .ProseMirror[data-emdash-block-selection] ::selection {
 	background-color: transparent;
 }
 
-.emdash-document > :is(.ProseMirror-selectednode, .emdash-block-selected):not(.node-image) {
+[data-emdash-editor-floating-root]
+	.ProseMirror
+	> :is(.ProseMirror-selectednode, .emdash-block-selected):not(.node-image) {
 	position: relative;
 	outline: none;
 }
 
 :is([data-emdash-editor-floating-root]:focus-within, [data-emdash-block-menu-open])
-	.emdash-document
+	.ProseMirror
 	> :is(.ProseMirror-selectednode, .emdash-block-selected):not(.node-image)::after {
 	position: absolute;
 	inset: -1px -0.375rem;
@@ -608,9 +610,8 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 
 /* Framed blocks keep the tint's corners concentric with their own. */
 :is([data-emdash-editor-floating-root]:focus-within, [data-emdash-block-menu-open])
-	.emdash-document
+	.ProseMirror
 	> :is(.ProseMirror-selectednode, .emdash-block-selected):is(
-		.node-codeBlock,
 		.node-htmlBlock,
 		.node-pluginBlock,
 		.node-gallery
@@ -619,16 +620,23 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 	border-radius: calc(0.5rem + 0.375rem);
 }
 
+:is([data-emdash-editor-floating-root]:focus-within, [data-emdash-block-menu-open])
+	.ProseMirror
+	> :is(.ProseMirror-selectednode, .emdash-block-selected).node-codeBlock::after {
+	inset: -0.375rem;
+	border-radius: calc(0.375rem + 0.375rem);
+}
+
 /* Table wrappers scroll sideways, which would clip a tint drawn outside them. */
 :is([data-emdash-editor-floating-root]:focus-within, [data-emdash-block-menu-open])
-	.emdash-document
+	.ProseMirror
 	> :is(.ProseMirror-selectednode, .emdash-block-selected).tableWrapper::after {
 	inset: 0;
 	border-radius: 0;
 }
 
 :is([data-emdash-editor-floating-root]:focus-within, [data-emdash-block-menu-open])
-	.emdash-document
+	.ProseMirror
 	> :is(.ProseMirror-selectednode, .emdash-block-selected).node-image
 	img {
 	box-shadow: 0 0 0 0.375rem var(--emdash-block-selection);
@@ -649,7 +657,7 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 
 @media (forced-colors: active) {
 	:is([data-emdash-editor-floating-root]:focus-within, [data-emdash-block-menu-open])
-		.emdash-document
+		.ProseMirror
 		> :is(.ProseMirror-selectednode, .emdash-block-selected) {
 		outline: 2px solid Highlight;
 		outline-offset: 2px;
@@ -657,12 +665,12 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.emdash-document > * {
+	[data-emdash-editor-floating-root] .ProseMirror > * {
 		animation: none;
 	}
 
-	.emdash-document > *::after,
-	.emdash-document > * img {
+	[data-emdash-editor-floating-root] .ProseMirror > *::after,
+	[data-emdash-editor-floating-root] .ProseMirror > * img {
 		animation: none !important;
 	}
 }
@@ -738,16 +746,17 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 }
 
 /*
- * Page layout for the document variant: the host reserves a gutter with
- * inline padding and the editor extends into it, so its text aligns with the
- * fields around it while block handles and their hover area sit in the margin.
+ * Page layout for the document variant. The page's inline padding is its
+ * margin, which widens into a gutter for the block handles where they show.
+ * The editor extends into it, so its text aligns with the fields around it
+ * while the handles and their hover area sit in the margin.
  */
 .emdash-editor-page {
-	--emdash-editor-gutter: 0rem;
+	--emdash-editor-gutter: 1rem;
 	padding-inline: var(--emdash-editor-gutter);
 }
 
-@media (min-width: 40rem) and (hover: hover) {
+@media (min-width: 40rem) {
 	.emdash-editor-page {
 		--emdash-editor-gutter: 3.25rem;
 	}
@@ -764,6 +773,19 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
  */
 [data-emdash-editor-bar] :is(button, a):not(:focus-visible) {
 	--tw-ring-inset: inset;
+}
+
+/* On touch screens a bar button's target spans the bar's height and half of each gap. */
+@media (pointer: coarse) {
+	[data-emdash-editor-bar] :is(button, a) {
+		position: relative;
+	}
+
+	[data-emdash-editor-bar] :is(button, a)::after {
+		position: absolute;
+		inset: -0.6875rem -0.1875rem;
+		content: "";
+	}
 }
 
 /**

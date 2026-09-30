@@ -3481,12 +3481,9 @@ export function PortableTextEditor({
 	const editorProps = React.useMemo(
 		() => ({
 			attributes: {
-				class: cn(
-					"emdash-document flow-root focus:outline-none",
-					isDocument
-						? "min-h-32 pb-2"
-						: "w-full max-w-[calc(75ch+8rem)] mx-auto min-h-[200px] p-4 ps-14 pe-14 sm:ps-16 sm:pe-16",
-				),
+				class: isDocument
+					? "emdash-document flow-root min-h-32 pb-2 focus:outline-none"
+					: "prose prose-sm sm:prose-base dark:prose-invert flow-root w-full max-w-[calc(75ch+8rem)] mx-auto focus:outline-none min-h-[200px] p-4 ps-14 pe-14 sm:ps-16 sm:pe-16",
 				dir: "auto",
 			},
 		}),
@@ -4759,7 +4756,7 @@ function TableBubbleMenu({
 			data-emdash-table-bubble-menu
 			role="group"
 			aria-label={t`Table controls`}
-			className="z-[100] flex items-center gap-0.5 rounded-lg bg-kumo-base p-1 shadow-lg ring ring-kumo-line"
+			className="z-[100] flex items-center gap-0.5 rounded-[10px] bg-kumo-control p-1 shadow-lg ring ring-kumo-line"
 		>
 			{controls && (controls.rows > 1 || controls.columns > 1) && (
 				<span className="px-2 text-xs text-kumo-subtle">
@@ -5076,7 +5073,7 @@ function ImageBubbleMenu({
 				role="group"
 				aria-label={t`Image controls`}
 				className={cn(
-					"z-[100] flex items-center gap-0.5 rounded-lg border bg-kumo-base p-1 shadow-lg",
+					"z-[100] flex items-center gap-0.5 rounded-[10px] bg-kumo-control p-1 shadow-lg ring ring-kumo-line",
 					"origin-[var(--transform-origin)]",
 					mode === "controls" && "flex-wrap justify-center",
 				)}
@@ -5897,9 +5894,11 @@ function EditorToolbar({
 				className={cn(
 					"sticky z-10",
 					// The band of page colour above the card hides text scrolling under the stuck toolbar.
+					// The boxed toolbar sticks 1.5rem above its scroll container's top, past the padding
+					// most hosts give it; a host without that padding sets --emdash-editor-sticky-top.
 					isDocument
 						? "top-0 -mt-2 mb-4 bg-(--emdash-editor-surface) pt-2"
-						: "-top-6 border-b bg-kumo-tint",
+						: "top-[var(--emdash-editor-sticky-top,-1.5rem)] border-b bg-kumo-tint",
 				)}
 				onKeyDown={handleKeyDown}
 			>

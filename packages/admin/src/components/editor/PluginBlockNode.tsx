@@ -258,7 +258,7 @@ function PluginBlockNodeView({
 
 	return (
 		<NodeViewWrapper
-			className="plugin-block relative my-3"
+			className="plugin-block relative my-4"
 			contentEditable={false}
 			data-drag-handle
 		>

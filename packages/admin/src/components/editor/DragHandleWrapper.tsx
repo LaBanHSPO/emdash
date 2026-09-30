@@ -44,7 +44,7 @@ export function _getDragHandlePlacement(direction: "ltr" | "rtl") {
  * of text. Blocks without text (images, code, tables) keep it near the top.
  */
 function firstLineOffset(block: HTMLElement): number {
-	if (block.matches("hr")) return Math.max(0, (block.offsetHeight - HANDLE_SIZE_PX) / 2);
+	if (block.matches("hr")) return (block.offsetHeight - HANDLE_SIZE_PX) / 2;
 	const line = block.matches(TEXT_BLOCK_SELECTOR)
 		? block
 		: block.matches("ul, ol, blockquote")
@@ -190,7 +190,7 @@ export function DragHandleWrapper({ editor, onInsertBlock }: DragHandleWrapperPr
 				editor={editor}
 				onNodeChange={handleNodeChange}
 				computePositionConfig={computePositionConfig}
-				className="drag-handle pointer-coarse:hidden"
+				className="drag-handle max-sm:hidden"
 			>
 				<TooltipProvider>
 					<div

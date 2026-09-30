@@ -77,7 +77,7 @@ function HtmlBlockNodeView({ node, updateAttributes, selected, deleteNode }: Nod
 	);
 
 	return (
-		<NodeViewWrapper className="html-block relative my-3" contentEditable={false} data-drag-handle>
+		<NodeViewWrapper className="html-block relative my-4" contentEditable={false} data-drag-handle>
 			<div className="relative group">
 				{/* Drag handle */}
 				<div

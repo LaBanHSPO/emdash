@@ -283,16 +283,21 @@ function TimestampRow({
 }
 
 /**
- * Discard-draft confirmation shared by the settings action bar and the
- * distraction-free overlay, so the copy and behavior can't drift.
+ * When the editor bar is narrow, its secondary buttons keep only their icon so
+ * the bar stays on one row. The buttons distraction-free mode adds give up
+ * their labels first, at a wider bar.
  */
-/**
- * Below the `sm` breakpoint the editor bar's secondary buttons keep only
- * their icon, so the bar stays on one row on phones.
- */
-export const compactBarButtonClassName = "max-sm:w-6.5 max-sm:justify-center max-sm:px-0";
-export const compactBarLabelClassName = "max-sm:sr-only";
+export const compactBarButtonClassName =
+	"@max-3xl/editor-bar:w-6.5 @max-3xl/editor-bar:justify-center @max-3xl/editor-bar:px-0";
+export const compactBarLabelClassName = "@max-3xl/editor-bar:sr-only";
+const compactBarExtraButtonClassName =
+	"@max-5xl/editor-bar:w-6.5 @max-5xl/editor-bar:justify-center @max-5xl/editor-bar:px-0";
+const compactBarExtraLabelClassName = "@max-5xl/editor-bar:sr-only";
 
+/**
+ * Discard-draft confirmation shared by the settings panel and the
+ * distraction-free bar, so the copy and behavior can't drift.
+ */
 export function DiscardDraftDialog({
 	onDiscard,
 	triggerVariant = "ghost",
@@ -315,10 +320,10 @@ export function DiscardDraftDialog({
 						type="button"
 						variant={triggerVariant}
 						size={triggerSize}
-						className={compact ? compactBarButtonClassName : undefined}
+						className={compact ? compactBarExtraButtonClassName : undefined}
 						icon={<X />}
 					>
-						<span className={compact ? compactBarLabelClassName : undefined}>
+						<span className={compact ? compactBarExtraLabelClassName : undefined}>
 							{t`Discard changes`}
 						</span>
 					</Button>
@@ -575,7 +580,7 @@ export function ScheduleActions({
 					size="sm"
 					className={cn(
 						"min-w-0 justify-center overflow-hidden whitespace-nowrap",
-						inline ? compactBarButtonClassName : "w-full",
+						inline ? compactBarExtraButtonClassName : "w-full",
 					)}
 					icon={
 						hasSchedule ? <CalendarDots aria-hidden="true" /> : <CalendarPlus aria-hidden="true" />
@@ -584,7 +589,7 @@ export function ScheduleActions({
 					disabled={disabled || isUnscheduling}
 					onClick={onOpenSchedule}
 				>
-					<span className={inline ? compactBarLabelClassName : undefined}>
+					<span className={inline ? compactBarExtraLabelClassName : undefined}>
 						{hasSchedule ? t`Change schedule` : t`Schedule`}
 					</span>
 				</Button>
@@ -596,7 +601,7 @@ export function ScheduleActions({
 					size="sm"
 					className={cn(
 						"min-w-0 justify-center overflow-hidden whitespace-nowrap",
-						inline ? compactBarButtonClassName : "w-full",
+						inline ? compactBarExtraButtonClassName : "w-full",
 					)}
 					icon={<CalendarX aria-hidden="true" />}
 					loading={isUnscheduling}
@@ -604,7 +609,7 @@ export function ScheduleActions({
 					onClick={() => void Promise.resolve(onUnschedule?.()).catch(() => undefined)}
 				>
 					<span
-						className={inline ? compactBarLabelClassName : undefined}
+						className={inline ? compactBarExtraLabelClassName : undefined}
 					>{t`Remove schedule`}</span>
 				</Button>
 			) : null}
@@ -653,7 +658,7 @@ export function EditorActions({
 				size="sm"
 				variant={saveVariant}
 				className={cn("min-w-0", compactBarButtonClassName)}
-				labelClassName="max-sm:hidden"
+				labelClassName="@max-3xl/editor-bar:hidden"
 				isDirty={isDirty}
 				isSaving={busy}
 				disabled={saveDisabled}

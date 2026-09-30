@@ -1409,10 +1409,7 @@ export function ContentEditor({
 	const editorBar = (
 		<div
 			data-emdash-editor-bar=""
-			className={cn(
-				"flex min-h-12 shrink-0 items-center gap-1.5 border-b border-kumo-line px-3 py-2 sm:px-4",
-				!pinEditorBar && "-mx-4 sm:-mx-6",
-			)}
+			className="@container/editor-bar flex min-h-12 shrink-0 items-center gap-1.5 border-b border-kumo-line px-3 py-2 sm:px-4"
 		>
 			{/* The title gives up its width first; the actions wrap only when even
 			    their icons don't fit. */}
@@ -1438,11 +1435,11 @@ export function ContentEditor({
 							search={{ locale: undefined }}
 							tabIndex={-1}
 							aria-hidden="true"
-							className="hidden shrink-0 text-base text-kumo-subtle no-underline hover:text-kumo-default sm:block"
+							className="hidden max-w-48 shrink-0 truncate text-base text-kumo-subtle no-underline hover:text-kumo-default @3xl/editor-bar:block"
 						>
 							{collectionListLabel}
 						</Link>
-						<span aria-hidden="true" className="hidden text-kumo-inactive sm:block">
+						<span aria-hidden="true" className="hidden text-kumo-inactive @3xl/editor-bar:block">
 							/
 						</span>
 					</>
@@ -1579,7 +1576,10 @@ export function ContentEditor({
 			>
 				{pinEditorBar && editorBar}
 				<div className="flex min-h-0 flex-1">
-					<div data-emdash-editor-canvas="" className="min-w-0 flex-1 overflow-y-auto px-4 sm:px-6">
+					<div
+						data-emdash-editor-canvas=""
+						className="min-w-0 flex-1 overflow-y-auto [--emdash-editor-sticky-top:0px]"
+					>
 						{!pinEditorBar && editorBar}
 						<div className="emdash-editor-page mx-auto max-w-[52rem] space-y-6 pt-8 pb-16 sm:pt-12">
 							{notice}
