@@ -56,7 +56,6 @@ const menuIconClass = "size-4 text-kumo-subtle in-data-highlighted:text-kumo-def
 
 /**
  * Admin header with mobile menu toggle and user actions.
- * Uses useSidebar() hook from kumo Sidebar.Provider context.
  */
 export function Header() {
 	const { t } = useLingui();
