@@ -82,8 +82,9 @@ async function decodePersistedPluginSetting(
  * Site settings (title, logo, SEO defaults) change rarely but are read on
  * every public request. Caching across the isolate's lifetime drops the
  * `options WHERE name LIKE 'site:%'` prefix scan from once-per-request to
- * once-per-isolate. Cross-isolate staleness is bounded by isolate lifetime
- * (workerd typically recycles within minutes); acceptable for chrome.
+ * once-per-isolate. Cross-isolate staleness is bounded by a per-isolate TTL
+ * (default 30 s) and the optional distributed object cache, so writes from
+ * another isolate become visible quickly.
  *
  * Backed by single-flight-cache.ts: concurrent cold reads coalesce onto one
  * query via a reclaimable single-flight lock and the resolved *value* is
@@ -92,7 +93,9 @@ async function decodePersistedPluginSetting(
  * Symbol.for key so Vite SSR chunk duplication doesn't produce two
  * independent caches (same pattern as request-context.ts).
  */
+const SETTINGS_CACHE_TTL_MS = 30_000;
 const SITE_SETTINGS_CACHE_KEY = Symbol.for("emdash:site-settings");
+const SITE_SETTINGS_EXPIRES_AT_KEY = Symbol.for("emdash:site-settings-expires-at");
 const g = globalThis as Record<symbol, unknown>;
 const settingsCache: SingleFlightCache<Partial<SiteSettings>> =
 	// eslint-disable-next-line typescript/no-unsafe-type-assertion -- globalThis singleton pattern (see request-context.ts)
@@ -102,16 +105,26 @@ const settingsCache: SingleFlightCache<Partial<SiteSettings>> =
 		g[SITE_SETTINGS_CACHE_KEY] = c;
 		return c;
 	})();
+const settingsExpiresAt: { value: number } =
+	// eslint-disable-next-line typescript/no-unsafe-type-assertion -- globalThis singleton pattern (see request-context.ts)
+	(g[SITE_SETTINGS_EXPIRES_AT_KEY] as { value: number } | undefined) ??
+	(() => {
+		const e = { value: 0 };
+		g[SITE_SETTINGS_EXPIRES_AT_KEY] = e;
+		return e;
+	})();
 
 /**
  * Bump the isolate-wide site-settings cache version, forcing the next
  * `getSiteSettings()` to re-query the database.
  *
- * Called from every `site:*` write path. Other isolates still serve their
- * own cached copy until they expire — staleness bounded by isolate lifetime.
+ * Called from every `site:*` write path. Other warm isolates keep serving
+ * their cached copy until its TTL expires; with the default 30 s TTL their
+ * lag is bounded rather than unbounded.
  */
 export function invalidateSiteSettingsCache(): void {
 	invalidateSingleFlightCache(settingsCache);
+	settingsExpiresAt.value = 0;
 	// Cross-isolate invalidation for the optional distributed object cache.
 	invalidateObjectCache(SETTINGS_CACHE_NAMESPACE);
 }
@@ -260,27 +273,35 @@ export async function getSiteSettingWithDb<K extends SiteSettingKey>(
  * console.log(settings.logo?.url); // "/_emdash/api/media/file/abc123"
  * ```
  */
+async function loadSiteSettings(): Promise<Partial<SiteSettings>> {
+	const value = await cachedQuery({
+		namespace: SETTINGS_CACHE_NAMESPACE,
+		key: "all",
+		load: async () => {
+			const db = await getDb();
+			return getSiteSettingsWithDb(db);
+		},
+	});
+	settingsExpiresAt.value = Date.now() + SETTINGS_CACHE_TTL_MS;
+	return value;
+}
+
 export function getSiteSettings(): Promise<Partial<SiteSettings>> {
 	// requestCached dedupes within a single request; singleFlightCached
-	// coalesces across requests and caches the resolved value for the
-	// global scope's lifetime without ever sharing an awaitable promise. The
-	// distributed object cache (cachedQuery) sits beneath both, backing cold
-	// isolates without a database round-trip.
-	return requestCached("siteSettings", () =>
-		singleFlightCached(
-			settingsCache,
-			() =>
-				cachedQuery({
-					namespace: SETTINGS_CACHE_NAMESPACE,
-					key: "all",
-					load: async () => {
-						const db = await getDb();
-						return getSiteSettingsWithDb(db);
-					},
-				}),
-			{ anchor: (promise) => after(() => promise), ownerTimeoutMs: 30_000 },
-		),
-	);
+	// coalesces across requests and caches the resolved value. The per-isolate
+	// TTL bounds cross-isolate staleness: after 30 s the next caller re-fetches
+	// (via cachedQuery, falling through to the DB) so writes handled by other
+	// isolates become visible. The distributed object cache backs cold isolates
+	// without a database round-trip.
+	return requestCached("siteSettings", async () => {
+		if (settingsCache.hasValue && Date.now() >= settingsExpiresAt.value) {
+			invalidateSiteSettingsCache();
+		}
+		return singleFlightCached(settingsCache, loadSiteSettings, {
+			anchor: (promise) => after(() => promise),
+			ownerTimeoutMs: 30_000,
+		});
+	});
 }
 
 /**

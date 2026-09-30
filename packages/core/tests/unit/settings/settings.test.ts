@@ -634,6 +634,78 @@ describe("Site Settings caching", () => {
 	});
 });
 
+describe("Site Settings cache TTL", () => {
+	beforeEach(() => {
+		invalidateSiteSettingsCache();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("serves the cached value within the TTL even if the database changed", async () => {
+		const { db, queries, reset } = await setupCountingDb();
+		await setSiteSettings({ title: "Original" }, db);
+
+		const cachedAt = await runWithContext({ editMode: false, db }, async () => {
+			const before = await getSiteSettings();
+			expect(before.title).toBe("Original");
+			return Date.now();
+		});
+
+		// Simulate a write from another isolate by mutating the options table
+		// directly. This isolate's cache was not invalidated, so a read
+		// inside the TTL should still come from the isolate cache.
+		await db
+			.updateTable("options")
+			.set({ value: JSON.stringify("Updated") })
+			.where("name", "=", "site:title")
+			.execute();
+
+		vi.useFakeTimers();
+		vi.setSystemTime(cachedAt + 30_000 - 5_000);
+
+		reset();
+		await runWithContext({ editMode: false, db }, async () => {
+			const after = await getSiteSettings();
+			expect(after.title).toBe("Original");
+		});
+
+		const prefixScans = queries.filter((q) => q.includes("LIKE") && q.includes("options"));
+		expect(prefixScans.length).toBe(0);
+	});
+
+	it("refetches settings after the cache TTL expires", async () => {
+		const { db, queries, reset } = await setupCountingDb();
+		await setSiteSettings({ title: "Original" }, db);
+
+		const cachedAt = await runWithContext({ editMode: false, db }, async () => {
+			const before = await getSiteSettings();
+			expect(before.title).toBe("Original");
+			return Date.now();
+		});
+
+		// Simulate a write from another isolate.
+		await db
+			.updateTable("options")
+			.set({ value: JSON.stringify("Updated") })
+			.where("name", "=", "site:title")
+			.execute();
+
+		vi.useFakeTimers();
+		vi.setSystemTime(cachedAt + 30_000 + 5_000);
+
+		reset();
+		await runWithContext({ editMode: false, db }, async () => {
+			const after = await getSiteSettings();
+			expect(after.title).toBe("Updated");
+		});
+
+		const prefixScans = queries.filter((q) => q.includes("LIKE") && q.includes("options"));
+		expect(prefixScans.length).toBe(1);
+	});
+});
+
 // ---------------------------------------------------------------------------
 // Cross-mutation cache invalidation
 //
