@@ -80,7 +80,7 @@ export function useHeadingDropdownMenu(config: UseHeadingDropdownMenuConfig = {}
 	const state = useEditorState({
 		editor,
 		selector: ({ editor: currentEditor }) => {
-			const activeLevel = getActiveHeadingLevel(currentEditor, levels);
+			const activeLevel = getActiveHeadingLevel(currentEditor);
 			const canToggle = canToggleHeading(currentEditor, levels);
 			return {
 				activeLevel,
@@ -98,13 +98,16 @@ export function useHeadingDropdownMenu(config: UseHeadingDropdownMenuConfig = {}
 		activeLevel,
 		isActive: state?.isActive ?? false,
 		canToggle: state?.canToggle ?? false,
-		levels,
+		// A block already using a level outside `levels` still shows it, checked.
+		levels: activeLevel && !levels.includes(activeLevel) ? [...levels, activeLevel] : levels,
 		Icon: activeLevel ? HEADING_ICONS[activeLevel] : TextH,
 	};
 }
 
 export interface HeadingDropdownMenuProps extends UseHeadingDropdownMenuConfig {
 	className?: string;
+	/** Classes for the trigger while the selection is a heading. */
+	activeClassName?: string;
 	onOpenChange?: (isOpen: boolean) => void;
 }
 
@@ -115,13 +118,21 @@ export const HeadingDropdownMenu = React.forwardRef<HTMLButtonElement, HeadingDr
 			levels = DEFAULT_LEVELS,
 			hideWhenUnavailable = false,
 			className,
+			activeClassName = "bg-kumo-interact/50 text-kumo-default",
 			onOpenChange,
 		},
 		ref,
 	) {
 		const { t } = useLingui();
 		const [open, setOpen] = React.useState(false);
-		const { isVisible, activeLevel, isActive, canToggle, Icon } = useHeadingDropdownMenu({
+		const {
+			isVisible,
+			activeLevel,
+			isActive,
+			canToggle,
+			Icon,
+			levels: menuLevels,
+		} = useHeadingDropdownMenu({
 			editor,
 			levels,
 			hideWhenUnavailable,
@@ -152,8 +163,9 @@ export const HeadingDropdownMenu = React.forwardRef<HTMLButtonElement, HeadingDr
 									variant="ghost"
 									className={cn(
 										"h-8 min-w-11 flex-none gap-0.5 px-2 hover:bg-kumo-interact/50",
-										isActive && "bg-kumo-interact/50 text-kumo-default",
 										className,
+										"w-auto min-w-10 px-1.5",
+										isActive && activeClassName,
 									)}
 									disabled={!canToggle}
 									onMouseDown={(event) => event.preventDefault()}
@@ -169,7 +181,7 @@ export const HeadingDropdownMenu = React.forwardRef<HTMLButtonElement, HeadingDr
 					}
 				/>
 				<DropdownMenu.Content align="start" className="min-w-44">
-					{levels.map((level) => {
+					{menuLevels.map((level) => {
 						const HeadingIcon = HEADING_ICONS[level];
 						return (
 							<DropdownMenu.Item

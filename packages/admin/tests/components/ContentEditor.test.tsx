@@ -122,6 +122,10 @@ const defaultFields: Record<string, FieldDescriptor> = {
 };
 
 const MOVE_TO_TRASH_PATTERN = /Move to Trash/i;
+
+function getEditorBar(): HTMLElement {
+	return document.querySelector<HTMLElement>("[data-emdash-editor-bar]")!;
+}
 const URL_FIELD_ERROR_PATTERN = /Enter a valid URL/;
 
 function makeItem(overrides: Partial<ContentItem> = {}): ContentItem {
@@ -1706,18 +1710,30 @@ describe("ContentEditor", () => {
 			}
 		});
 
-		it("keeps the editor header in the document flow below lg", async () => {
+		it("keeps the editor bar in the document flow below lg", async () => {
 			const media = installMatchMedia(true);
 			try {
 				const screen = await renderEditor({ isNew: false, item: makeItem() });
-				const heading = screen.getByRole("heading", { name: "Edit Post" }).element();
-				const header = heading.parentElement?.parentElement;
+				const canvas = screen
+					.getByLabelText("Title")
+					.element()
+					.closest("[data-emdash-editor-canvas]");
 
-				expect(header).not.toHaveClass("sticky", "top-0", "z-20");
-				expect(header).toHaveClass("bg-kumo-elevated/95", "py-3", "backdrop-blur");
+				expect(canvas?.contains(getEditorBar())).toBe(true);
 			} finally {
 				media.restore();
 			}
+		});
+
+		it("pins the editor bar above the scrolling page on wide screens", async () => {
+			const screen = await renderEditor({ isNew: false, item: makeItem() });
+			const canvas = screen
+				.getByLabelText("Title")
+				.element()
+				.closest("[data-emdash-editor-canvas]");
+
+			expect(canvas).toBeTruthy();
+			expect(canvas?.contains(getEditorBar())).toBe(false);
 		});
 
 		it("labels and closes the settings sheet below lg", async () => {
@@ -2047,23 +2063,23 @@ describe("ContentEditor", () => {
 			const initialImagePicker = screen
 				.getByRole("button", { name: /browse for Featured image/i })
 				.element();
+			const initialCanvasWidth = screen
+				.getByTestId("portable-text-editor")
+				.element()
+				.closest(".mx-auto")
+				?.getBoundingClientRect().width;
 			await screen.getByRole("button", { name: "Enter distraction-free mode" }).click();
 
-			const titleInput = screen.getByLabelText("Title").element();
 			const imagePicker = screen
 				.getByRole("button", { name: /browse for Featured image/i })
 				.element();
 			const portableTextEditor = screen.getByTestId("portable-text-editor").element();
 			const editorCanvas = portableTextEditor.closest(".mx-auto");
 
-			expect(editorCanvas).toHaveClass("max-w-3xl");
-			expect(editorCanvas).not.toHaveClass("max-w-4xl");
-			expect(titleInput).not.toHaveClass("px-0", "text-lg");
+			expect(editorCanvas?.getBoundingClientRect().width).toBe(initialCanvasWidth);
 			expect(imagePicker).toBe(initialImagePicker);
 			expect(portableTextProps.current?.minimal).not.toBe(true);
-			expect(portableTextProps.current?.className).toContain("bg-kumo-control");
-			expect(portableTextProps.current?.className).toContain("focus-within:ring-kumo-focus/50");
-			expect(portableTextProps.current?.className).toContain("focus-within:ring-[1.5px]");
+			expect(portableTextProps.current?.variant).toBe("document");
 		});
 
 		it("matches the settings action order and size", async () => {
@@ -2082,8 +2098,8 @@ describe("ContentEditor", () => {
 
 			await screen.getByRole("button", { name: "Enter distraction-free mode" }).click();
 
-			const heading = screen.getByRole("heading", { name: "Edit Post" }).element();
-			const actionContainer = heading.parentElement?.parentElement?.lastElementChild;
+			const bar = getEditorBar();
+			const actionContainer = bar.lastElementChild;
 			const actions = [...(actionContainer?.querySelectorAll("button, a") ?? [])];
 			const actionNames = actions.map(
 				(action) => action.getAttribute("aria-label") ?? action.textContent?.trim(),
@@ -2097,8 +2113,8 @@ describe("ContentEditor", () => {
 				"Exit distraction-free mode",
 			]);
 			for (const action of actions.slice(0, -1)) expect(action).toHaveClass("h-6.5");
-			expect(actions.at(-1)).toHaveClass("size-9");
-			expect(heading.parentElement?.querySelector("button")).toBeNull();
+			expect(actions.at(-1)).toHaveClass("size-6.5");
+			expect(bar.firstElementChild?.querySelector("button, a")).toBeNull();
 		});
 
 		it("keeps the editor canvas and distraction-free header on the elevated surface", async () => {
@@ -2110,10 +2126,8 @@ describe("ContentEditor", () => {
 
 			await screen.getByRole("button", { name: "Enter distraction-free mode" }).click();
 
-			const heading = screen.getByRole("heading", { name: "New Post" }).element();
-			const header = heading.parentElement?.parentElement;
 			expect(form).toHaveClass("bg-kumo-elevated");
-			expect(header).toHaveClass("bg-kumo-elevated/95");
+			expect(getEditorBar().className).not.toMatch(/\bbg-/);
 		});
 
 		it("toggle adds fixed class for distraction-free mode", async () => {
@@ -2155,9 +2169,9 @@ describe("ContentEditor", () => {
 
 			await screen.getByRole("button", { name: "Enter distraction-free mode" }).click();
 
-			// The settings panel stays mounted while hidden, so the overlay adds a
-			// second Live View link rather than replacing the panel's copy.
-			expect(screen.getByRole("link", { name: "Live View" }).all()).toHaveLength(2);
+			const liveView = screen.getByRole("link", { name: "Live View" });
+			expect(liveView.all()).toHaveLength(1);
+			await expect.element(liveView).toBeVisible();
 		});
 
 		it("keeps scheduling available in distraction-free mode", async () => {
@@ -2168,8 +2182,7 @@ describe("ContentEditor", () => {
 			});
 
 			await screen.getByRole("button", { name: "Enter distraction-free mode" }).click();
-			const heading = screen.getByRole("heading", { name: "Edit Post" }).element();
-			const actionContainer = heading.parentElement?.parentElement?.lastElementChild;
+			const actionContainer = getEditorBar().lastElementChild;
 			const schedule = [...(actionContainer?.querySelectorAll("button") ?? [])].find(
 				(action) => action.textContent?.trim() === "Schedule",
 			);
@@ -2191,8 +2204,7 @@ describe("ContentEditor", () => {
 			});
 
 			await screen.getByRole("button", { name: "Enter distraction-free mode" }).click();
-			const heading = screen.getByRole("heading", { name: "Edit Post" }).element();
-			const actionContainer = heading.parentElement?.parentElement?.lastElementChild;
+			const actionContainer = getEditorBar().lastElementChild;
 			const actions = [...(actionContainer?.querySelectorAll("button") ?? [])];
 			const changeSchedule = actions.find(
 				(action) => action.textContent?.trim() === "Change schedule",
@@ -2318,7 +2330,7 @@ describe("ContentEditor", () => {
 
 	describe("heading", () => {
 		it("preserves configured collection label casing", async () => {
-			const item = makeItem();
+			const item = makeItem({ data: { title: "", body: "" } });
 			const screen = await renderEditor({ isNew: false, item, collectionLabel: "API Docs" });
 
 			await expect
@@ -2331,17 +2343,24 @@ describe("ContentEditor", () => {
 			const heading = screen.getByRole("heading", { name: "New Post" });
 
 			await expect.element(heading).toBeInTheDocument();
-			await expect.element(heading).toHaveClass("text-lg", "font-semibold", "truncate");
-			expect(heading.element().parentElement).toHaveClass("min-w-0", "items-center", "gap-3");
+			await expect.element(heading).toHaveClass("text-base", "truncate");
 		});
 
-		it("shows a quiet heading for existing items", async () => {
+		it("names existing items by their title", async () => {
 			const item = makeItem();
 			const screen = await renderEditor({ isNew: false, item, collectionLabel: "Post" });
-			const heading = screen.getByRole("heading", { name: "Edit Post" });
 
-			await expect.element(heading).toBeInTheDocument();
-			await expect.element(heading).toHaveClass("text-lg", "font-semibold", "truncate");
+			await expect.element(screen.getByRole("heading", { name: "My Post" })).toBeInTheDocument();
+		});
+
+		it("follows the title as it is edited", async () => {
+			const screen = await renderEditor({ isNew: true, collectionLabel: "Post" });
+
+			await screen.getByLabelText("Title").fill("A fresh start");
+
+			await expect
+				.element(screen.getByRole("heading", { name: "A fresh start" }))
+				.toBeInTheDocument();
 		});
 	});
 

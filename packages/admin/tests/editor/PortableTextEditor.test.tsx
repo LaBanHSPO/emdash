@@ -1382,14 +1382,22 @@ describe("Toolbar", () => {
 		const { editor } = await renderAndGetEditor({ onChange, value: [textBlock("2")] });
 		editor.chain().focus().selectAll().run();
 
-		let bubbleButton: HTMLButtonElement | null = null;
+		let moreFormatting: HTMLButtonElement | null = null;
 		await vi.waitFor(() => {
-			bubbleButton = document.querySelector(
-				`[data-emdash-inline-bubble-menu] [aria-label="${label}"]`,
+			moreFormatting = document.querySelector(
+				'[data-emdash-inline-bubble-menu] [aria-label="More formatting"]',
 			);
-			expect(bubbleButton).toBeTruthy();
+			expect(moreFormatting).toBeTruthy();
 		});
-		bubbleButton!.click();
+		moreFormatting!.click();
+		const item = await vi.waitFor(() => {
+			const match = [...document.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')].find(
+				(candidate) => candidate.textContent?.includes(label),
+			);
+			expect(match).toBeTruthy();
+			return match!;
+		});
+		item.click();
 
 		await vi.waitFor(() => expect(onChange).toHaveBeenCalled(), { timeout: 2000 });
 		const blocks = onChange.mock.calls.at(-1)![0] as Array<{
@@ -1405,9 +1413,6 @@ describe("Toolbar", () => {
 		await expect.element(screen.getByRole("menuitem", { name: "Heading 1" })).toBeInTheDocument();
 		await expect.element(screen.getByRole("menuitem", { name: "Heading 2" })).toBeInTheDocument();
 		await expect.element(screen.getByRole("menuitem", { name: "Heading 3" })).toBeInTheDocument();
-		await expect.element(screen.getByRole("menuitem", { name: "Heading 4" })).toBeInTheDocument();
-		await expect.element(screen.getByRole("menuitem", { name: "Heading 5" })).toBeInTheDocument();
-		await expect.element(screen.getByRole("menuitem", { name: "Heading 6" })).toBeInTheDocument();
 	});
 
 	it("has list buttons", async () => {

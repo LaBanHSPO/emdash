@@ -198,12 +198,13 @@ function getToolbarButton(screen: Awaited<ReturnType<typeof render>>, name: stri
 }
 
 function expectVisibleActiveState(element: HTMLElement) {
-	expect(element.classList.contains("bg-kumo-interact/50")).toBe(true);
-	expect(element.classList.contains("hover:bg-kumo-interact/50")).toBe(true);
+	expect(element.classList.contains("bg-kumo-tint")).toBe(true);
+	expect(element.classList.contains("text-kumo-link")).toBe(true);
 }
 
 function expectNoVisibleActiveState(element: HTMLElement) {
-	expect(element.classList.contains("bg-kumo-interact/50")).toBe(false);
+	expect(element.classList.contains("bg-kumo-tint")).toBe(false);
+	expect(element.classList.contains("text-kumo-link")).toBe(false);
 }
 
 function getTextPosition(editor: Editor, text: string): number {
@@ -272,9 +273,10 @@ describe("Toolbar Presence and Structure", () => {
 	it("centers controls when they fit and preserves horizontal overflow", async () => {
 		const { screen } = await renderEditor();
 		const toolbar = screen.getByRole("toolbar", { name: "Text formatting" }).element();
+		const controls = toolbar.firstElementChild as HTMLElement;
 
-		expect(toolbar.className).toContain("overflow-x-auto");
-		expect(getComputedStyle(toolbar).justifyContent).toBe("safe center");
+		expect(controls.className).toContain("overflow-x-auto");
+		expect(getComputedStyle(controls).justifyContent).toBe("safe center");
 	});
 
 	it("has all formatting buttons", async () => {
@@ -296,9 +298,7 @@ describe("Toolbar Presence and Structure", () => {
 		await expect.element(screen.getByRole("menuitem", { name: "Heading 1" })).toBeVisible();
 		await expect.element(screen.getByRole("menuitem", { name: "Heading 2" })).toBeVisible();
 		await expect.element(screen.getByRole("menuitem", { name: "Heading 3" })).toBeVisible();
-		await expect.element(screen.getByRole("menuitem", { name: "Heading 4" })).toBeVisible();
-		await expect.element(screen.getByRole("menuitem", { name: "Heading 5" })).toBeVisible();
-		await expect.element(screen.getByRole("menuitem", { name: "Heading 6" })).toBeVisible();
+		expect(screen.getByRole("menuitem", { name: "Heading 4" }).query()).toBeNull();
 		expect(
 			screen
 				.getByRole("menuitem", { name: "Heading 1" })
@@ -310,16 +310,7 @@ describe("Toolbar Presence and Structure", () => {
 			document.querySelectorAll<HTMLElement>('[role="menuitem"]'),
 			(item) => item.textContent?.trim(),
 		);
-		expect(headingLabels).toEqual(
-			expect.arrayContaining([
-				"Heading 1",
-				"Heading 2",
-				"Heading 3",
-				"Heading 4",
-				"Heading 5",
-				"Heading 6",
-			]),
-		);
+		expect(headingLabels).toEqual(expect.arrayContaining(["Heading 1", "Heading 2", "Heading 3"]));
 	});
 
 	it("uses the light interaction surface for highlighted heading choices", async () => {
@@ -728,7 +719,7 @@ describe("Toolbar Presence and Structure", () => {
 
 		expect(buttons.length).toBeGreaterThan(0);
 		for (const button of buttons) {
-			expect(button.classList.contains("hover:bg-kumo-interact/50")).toBe(true);
+			expect(button.classList.contains("hover:bg-kumo-tint")).toBe(true);
 		}
 	});
 
@@ -973,16 +964,16 @@ describe("Formatting Button Toggle States", () => {
 		});
 	});
 
-	it("Heading 6: click changes to h6", async () => {
+	it("Heading 6: lists the level for a block that uses it, and clears it", async () => {
 		const { screen, editor } = await renderEditor();
-		editor.commands.focus();
+		editor.chain().focus().setNode("heading", { level: 6 }).run();
 
-		const { trigger, item } = await getHeadingMenuItem(screen, "Heading 6");
+		const { item } = await getHeadingMenuItem(screen, "Heading 6");
 		item.element().click();
 
 		await vi.waitFor(() => {
-			expect(trigger.element().hasAttribute("aria-pressed")).toBe(false);
-			expect(editor.isActive("heading", { level: 6 })).toBe(true);
+			expect(editor.isActive("heading")).toBe(false);
+			expect(editor.isActive("paragraph")).toBe(true);
 		});
 	});
 

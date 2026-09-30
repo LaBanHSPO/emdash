@@ -258,10 +258,7 @@ function PluginBlockNodeView({
 
 	return (
 		<NodeViewWrapper
-			className={cn(
-				"plugin-block relative my-3",
-				selected && "ring-2 ring-kumo-brand ring-offset-2 rounded-lg",
-			)}
+			className="plugin-block relative my-3"
 			contentEditable={false}
 			data-drag-handle
 		>

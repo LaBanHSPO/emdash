@@ -8,14 +8,14 @@
  * - Duplicate block preserves content
  * - Delete block removes content
  *
- * These transformations are used by the BlockMenu component.
+ * These transformations back the Turn into menus.
  */
 
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
-import { blockTransforms } from "../../src/components/editor/BlockMenu";
+import { textBlockTypes } from "../../src/components/editor/blockTypes";
 
 describe("Block Transforms", () => {
 	let editor: Editor;
@@ -40,7 +40,7 @@ describe("Block Transforms", () => {
 			editor.commands.setHeading({ level: 1 });
 			expect(editor.isActive("heading", { level: 1 })).toBe(true);
 
-			const transform = blockTransforms.find((t) => t.id === "paragraph");
+			const transform = textBlockTypes.find((t) => t.id === "paragraph");
 			transform?.transform(editor);
 
 			expect(editor.isActive("heading")).toBe(false);
@@ -49,7 +49,7 @@ describe("Block Transforms", () => {
 
 		it("preserves text content when transforming to paragraph", () => {
 			editor.commands.setHeading({ level: 2 });
-			const transform = blockTransforms.find((t) => t.id === "paragraph");
+			const transform = textBlockTypes.find((t) => t.id === "paragraph");
 			transform?.transform(editor);
 
 			expect(editor.getText().trim()).toBe("Test content");
@@ -58,39 +58,39 @@ describe("Block Transforms", () => {
 
 	describe("Transform to Heading", () => {
 		it("transforms paragraph to heading 1", () => {
-			const transform = blockTransforms.find((t) => t.id === "heading1");
+			const transform = textBlockTypes.find((t) => t.id === "heading1");
 			transform?.transform(editor);
 
 			expect(editor.isActive("heading", { level: 1 })).toBe(true);
 		});
 
 		it("transforms paragraph to heading 2", () => {
-			const transform = blockTransforms.find((t) => t.id === "heading2");
+			const transform = textBlockTypes.find((t) => t.id === "heading2");
 			transform?.transform(editor);
 
 			expect(editor.isActive("heading", { level: 2 })).toBe(true);
 		});
 
 		it("transforms paragraph to heading 3", () => {
-			const transform = blockTransforms.find((t) => t.id === "heading3");
+			const transform = textBlockTypes.find((t) => t.id === "heading3");
 			transform?.transform(editor);
 
 			expect(editor.isActive("heading", { level: 3 })).toBe(true);
 		});
 
 		it("preserves text content when transforming to heading", () => {
-			const transform = blockTransforms.find((t) => t.id === "heading1");
+			const transform = textBlockTypes.find((t) => t.id === "heading1");
 			transform?.transform(editor);
 
 			expect(editor.getText().trim()).toBe("Test content");
 		});
 
 		it("can change heading level", () => {
-			const h1Transform = blockTransforms.find((t) => t.id === "heading1");
+			const h1Transform = textBlockTypes.find((t) => t.id === "heading1");
 			h1Transform?.transform(editor);
 			expect(editor.isActive("heading", { level: 1 })).toBe(true);
 
-			const h2Transform = blockTransforms.find((t) => t.id === "heading2");
+			const h2Transform = textBlockTypes.find((t) => t.id === "heading2");
 			h2Transform?.transform(editor);
 			expect(editor.isActive("heading", { level: 2 })).toBe(true);
 			expect(editor.isActive("heading", { level: 1 })).toBe(false);
@@ -99,100 +99,103 @@ describe("Block Transforms", () => {
 
 	describe("Transform to Blockquote", () => {
 		it("transforms paragraph to blockquote", () => {
-			const transform = blockTransforms.find((t) => t.id === "blockquote");
+			const transform = textBlockTypes.find((t) => t.id === "blockquote");
 			transform?.transform(editor);
 
 			expect(editor.isActive("blockquote")).toBe(true);
 		});
 
 		it("preserves text content when transforming to blockquote", () => {
-			const transform = blockTransforms.find((t) => t.id === "blockquote");
+			const transform = textBlockTypes.find((t) => t.id === "blockquote");
 			transform?.transform(editor);
 
 			expect(editor.getText().trim()).toBe("Test content");
 		});
 
-		it("toggles blockquote off when already active", () => {
-			const transform = blockTransforms.find((t) => t.id === "blockquote");
+		it("keeps a blockquote when it is turned into one again", () => {
+			const transform = textBlockTypes.find((t) => t.id === "blockquote");
 			transform?.transform(editor);
 			expect(editor.isActive("blockquote")).toBe(true);
 
 			transform?.transform(editor);
-			expect(editor.isActive("blockquote")).toBe(false);
+			expect(editor.isActive("blockquote")).toBe(true);
+			expect(editor.getText().trim()).toBe("Test content");
 		});
 	});
 
 	describe("Transform to Code Block", () => {
 		it("transforms paragraph to code block", () => {
-			const transform = blockTransforms.find((t) => t.id === "codeBlock");
+			const transform = textBlockTypes.find((t) => t.id === "codeBlock");
 			transform?.transform(editor);
 
 			expect(editor.isActive("codeBlock")).toBe(true);
 		});
 
 		it("preserves text content when transforming to code block", () => {
-			const transform = blockTransforms.find((t) => t.id === "codeBlock");
+			const transform = textBlockTypes.find((t) => t.id === "codeBlock");
 			transform?.transform(editor);
 
 			expect(editor.getText().trim()).toBe("Test content");
 		});
 
-		it("toggles code block off when already active", () => {
-			const transform = blockTransforms.find((t) => t.id === "codeBlock");
+		it("keeps a code block when it is turned into one again", () => {
+			const transform = textBlockTypes.find((t) => t.id === "codeBlock");
 			transform?.transform(editor);
 			expect(editor.isActive("codeBlock")).toBe(true);
 
 			transform?.transform(editor);
-			expect(editor.isActive("codeBlock")).toBe(false);
+			expect(editor.isActive("codeBlock")).toBe(true);
+			expect(editor.getText().trim()).toBe("Test content");
 		});
 	});
 
 	describe("Transform to Bullet List", () => {
 		it("transforms paragraph to bullet list", () => {
-			const transform = blockTransforms.find((t) => t.id === "bulletList");
+			const transform = textBlockTypes.find((t) => t.id === "bulletList");
 			transform?.transform(editor);
 
 			expect(editor.isActive("bulletList")).toBe(true);
 		});
 
 		it("preserves text content when transforming to bullet list", () => {
-			const transform = blockTransforms.find((t) => t.id === "bulletList");
+			const transform = textBlockTypes.find((t) => t.id === "bulletList");
 			transform?.transform(editor);
 
 			expect(editor.getText().trim()).toBe("Test content");
 		});
 
-		it("toggles bullet list off when already active", () => {
-			const transform = blockTransforms.find((t) => t.id === "bulletList");
+		it("keeps a bullet list when it is turned into one again", () => {
+			const transform = textBlockTypes.find((t) => t.id === "bulletList");
 			transform?.transform(editor);
 			expect(editor.isActive("bulletList")).toBe(true);
 
 			transform?.transform(editor);
-			expect(editor.isActive("bulletList")).toBe(false);
+			expect(editor.isActive("bulletList")).toBe(true);
+			expect(editor.getText().trim()).toBe("Test content");
 		});
 	});
 
 	describe("Transform to Ordered List", () => {
 		it("transforms paragraph to ordered list", () => {
-			const transform = blockTransforms.find((t) => t.id === "orderedList");
+			const transform = textBlockTypes.find((t) => t.id === "orderedList");
 			transform?.transform(editor);
 
 			expect(editor.isActive("orderedList")).toBe(true);
 		});
 
 		it("preserves text content when transforming to ordered list", () => {
-			const transform = blockTransforms.find((t) => t.id === "orderedList");
+			const transform = textBlockTypes.find((t) => t.id === "orderedList");
 			transform?.transform(editor);
 
 			expect(editor.getText().trim()).toBe("Test content");
 		});
 
 		it("can switch between bullet and ordered list", () => {
-			const bulletTransform = blockTransforms.find((t) => t.id === "bulletList");
+			const bulletTransform = textBlockTypes.find((t) => t.id === "bulletList");
 			bulletTransform?.transform(editor);
 			expect(editor.isActive("bulletList")).toBe(true);
 
-			const orderedTransform = blockTransforms.find((t) => t.id === "orderedList");
+			const orderedTransform = textBlockTypes.find((t) => t.id === "orderedList");
 			orderedTransform?.transform(editor);
 			expect(editor.isActive("orderedList")).toBe(true);
 			expect(editor.isActive("bulletList")).toBe(false);
@@ -213,7 +216,7 @@ describe("Block Transforms", () => {
 			];
 
 			for (const id of expectedIds) {
-				const transform = blockTransforms.find((t) => t.id === id);
+				const transform = textBlockTypes.find((t) => t.id === id);
 				expect(transform, `Transform "${id}" should exist`).toBeDefined();
 				expect(transform?.label, `Transform "${id}" should have a label`).toBeTruthy();
 				expect(transform?.icon, `Transform "${id}" should have an icon`).toBeDefined();

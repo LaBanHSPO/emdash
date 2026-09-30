@@ -100,7 +100,7 @@ describe("DragHandleWrapper interactions", () => {
 
 	it("uses Kumo buttons for both drag-handle controls", async () => {
 		const editor = {
-			view: { dom: document.createElement("div") },
+			view: { dom: document.createElement("div"), nodeDOM: () => null },
 		} as unknown as Editor;
 		const screen = await render(<DragHandleWrapper editor={editor} onInsertBlock={vi.fn()} />);
 
@@ -124,7 +124,7 @@ describe("DragHandleWrapper interactions", () => {
 			return true;
 		});
 		const editor = {
-			view: { dom: editorElement },
+			view: { dom: editorElement, nodeDOM: () => null },
 			commands: { setMeta },
 		} as unknown as Editor;
 		const screen = await render(<DragHandleWrapper editor={editor} onInsertBlock={vi.fn()} />);
@@ -150,7 +150,7 @@ describe("DragHandleWrapper interactions", () => {
 		const editorElement = document.createElement("div");
 		editorElement.dir = "ltr";
 		const editor = {
-			view: { dom: editorElement },
+			view: { dom: editorElement, nodeDOM: () => null },
 		} as unknown as Editor;
 
 		try {
@@ -180,7 +180,7 @@ describe("DragHandleWrapper interactions", () => {
 			return true;
 		});
 		const editor = {
-			view: { dom: document.createElement("div") },
+			view: { dom: document.createElement("div"), nodeDOM: () => null },
 			commands: { setMeta },
 			chain: () => ({
 				setNodeSelection(pos: number) {
@@ -222,7 +222,7 @@ describe("DragHandleWrapper interactions", () => {
 			return true;
 		});
 		const editor = {
-			view: { dom: document.createElement("div") },
+			view: { dom: document.createElement("div"), nodeDOM: () => null },
 			commands: { setMeta },
 			chain: () => ({
 				setNodeSelection() {

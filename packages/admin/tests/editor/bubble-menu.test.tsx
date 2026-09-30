@@ -404,18 +404,20 @@ describe("Bubble Menu", () => {
 	});
 
 	it("stays above the selection when there is room below the sticky toolbar", async () => {
-		const value = ["First line", "Second line", "Third line"].map((text, index) => ({
-			_type: "block" as const,
-			_key: String(index),
-			style: "normal" as const,
-			children: [{ _type: "span" as const, _key: `span-${index}`, text }],
-		}));
+		const value = ["First line", "Second line", "Third line", "Fourth line", "Fifth line"].map(
+			(text, index) => ({
+				_type: "block" as const,
+				_key: String(index),
+				style: "normal" as const,
+				children: [{ _type: "span" as const, _key: `span-${index}`, text }],
+			}),
+		);
 		const { editor, pm } = await renderEditor({ value }, 58);
 		pm.focus();
 
 		let textPosition = 0;
 		editor.state.doc.descendants((node, position) => {
-			if (node.isText && node.text === "Third line") {
+			if (node.isText && node.text === "Fifth line") {
 				textPosition = position;
 				return false;
 			}
@@ -593,9 +595,25 @@ describe("Bubble Menu", () => {
 		expect(getBubbleButton(menu, "Italic")).toBeTruthy();
 		expect(getBubbleButton(menu, "Underline")).toBeTruthy();
 		expect(getBubbleButton(menu, "Strikethrough")).toBeTruthy();
-		expect(getBubbleButton(menu, "Subscript")).toBeTruthy();
-		expect(getBubbleButton(menu, "Superscript")).toBeTruthy();
 		expect(getBubbleButton(menu, "Code")).toBeTruthy();
+	});
+
+	it("keeps subscript and superscript in the More formatting menu", async () => {
+		const { editor, pm } = await renderEditor();
+		await focusAndSelectAll(editor, pm);
+
+		const menu = await waitForBubbleMenu();
+		menu.querySelector<HTMLElement>('[aria-label="More formatting"]')!.click();
+		const subscript = await vi.waitFor(() => {
+			const item = document.querySelector<HTMLElement>('[role="menuitemcheckbox"]');
+			expect(item?.textContent).toContain("Subscript");
+			return item!;
+		});
+		expect(subscript).toHaveAttribute("aria-checked", "false");
+
+		subscript.click();
+
+		await vi.waitFor(() => expect(editor.isActive("subscript")).toBe(true));
 	});
 
 	it("shows Add link button", async () => {

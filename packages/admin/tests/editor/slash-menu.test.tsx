@@ -215,12 +215,21 @@ function getSlashMenuItems(menu: HTMLElement): HTMLButtonElement[] {
 	return [...menu.querySelectorAll("button[data-index]")];
 }
 
-/**
- * Check if an item is the selected/highlighted item.
- * Selected items use the semantic interaction surface.
- */
+function itemTitle(item: HTMLElement): string {
+	return item.querySelector("[data-slash-item-title]")?.textContent ?? "";
+}
+
+function getItemTitles(menu: HTMLElement): string[] {
+	return getSlashMenuItems(menu).map(itemTitle);
+}
+
+function findItem(menu: HTMLElement, title: string): HTMLButtonElement | undefined {
+	return getSlashMenuItems(menu).find((item) => itemTitle(item) === title);
+}
+
+/** Whether an item is the highlighted one that Enter would run. */
 function isItemSelected(el: HTMLElement): boolean {
-	return el.className.split(WHITESPACE_SPLIT_REGEX).includes("bg-kumo-interact");
+	return el.getAttribute("aria-current") === "true";
 }
 
 function isSlashSuggestionActive(editor: Editor): boolean {
@@ -399,7 +408,7 @@ describe("Slash Command Menu", () => {
 
 		await screen.getByRole("button", { name: "Test gutter insert" }).click();
 		const menu = await waitForSlashMenu();
-		getSlashMenuItems(menu)[0]?.click();
+		findItem(menu, "Heading 1")?.click();
 		await waitForSlashMenuClosed();
 
 		const content = editor.getJSON().content;
@@ -458,7 +467,7 @@ describe("Slash Command Menu", () => {
 		const menu = await waitForSlashMenu();
 		const items = getSlashMenuItems(menu);
 
-		// Default commands: heading1-6, bullet/numbered list, quote, code block, divider, image, section
+		// Default commands: text, headings 1-3, lists, quote, code, divider, table, media, and more
 		expect(items.length).toBeGreaterThanOrEqual(8);
 	});
 
@@ -468,22 +477,56 @@ describe("Slash Command Menu", () => {
 		editor.commands.insertContent("/");
 
 		const menu = await waitForSlashMenu();
-		const items = getSlashMenuItems(menu);
-		const titles = items.map((btn) => btn.querySelector(".font-medium")?.textContent ?? "");
+		const titles = getItemTitles(menu);
 
+		expect(titles[0]).toBe("Text");
 		expect(titles).toContain("Heading 1");
 		expect(titles).toContain("Heading 2");
 		expect(titles).toContain("Heading 3");
-		expect(titles).toContain("Heading 4");
-		expect(titles).toContain("Heading 5");
-		expect(titles).toContain("Heading 6");
-		expect(titles).toContain("Bullet List");
-		expect(titles).toContain("Numbered List");
+		expect(titles).toContain("Bulleted list");
+		expect(titles).toContain("Numbered list");
 		expect(titles).toContain("Quote");
-		expect(titles).toContain("Code Block");
+		expect(titles).toContain("Code");
 		expect(titles).toContain("HTML");
 		expect(titles).toContain("Divider");
 		expect(titles).toContain("Table");
+	});
+
+	it("keeps headings 4 to 6 out of the list until a search asks for them", async () => {
+		const { editor, pm } = await renderEditor();
+		await focusEditor(pm);
+		editor.commands.insertContent("/");
+
+		const menu = await waitForSlashMenu();
+		expect(getItemTitles(menu)).not.toContain("Heading 4");
+
+		await userEvent.keyboard("h4");
+
+		await vi.waitFor(() => {
+			expect(getItemTitles(getSlashMenu()!)[0]).toBe("Heading 4");
+		});
+		await userEvent.keyboard("{Enter}");
+		await vi.waitFor(() => expect(pm.querySelector("h4")).toBeTruthy());
+	});
+
+	it("groups the unfiltered list by category and flattens it while searching", async () => {
+		const { editor, pm } = await renderEditor();
+		await focusEditor(pm);
+		editor.commands.insertContent("/");
+
+		const menu = await waitForSlashMenu();
+		const groupLabels = Array.from(menu.querySelectorAll('[role="group"]'), (group) =>
+			group.getAttribute("aria-label"),
+		);
+		expect(groupLabels).toEqual(["Basic blocks", "Media", "Advanced"]);
+
+		await userEvent.keyboard("image");
+
+		await vi.waitFor(() => {
+			const groups = getSlashMenu()!.querySelectorAll('[role="group"]');
+			expect(groups).toHaveLength(1);
+			expect(groups[0]?.hasAttribute("aria-label")).toBe(false);
+		});
 	});
 
 	it("opens the shared table picker and preserves the query on Escape", async () => {
@@ -541,19 +584,19 @@ describe("Slash Command Menu", () => {
 		expect(editor.getText()).toContain("/table");
 	});
 
-	it("shows descriptions for each command", async () => {
+	it("describes the highlighted command below the list", async () => {
 		const { editor, pm } = await renderEditor();
 		await focusEditor(pm);
 		editor.commands.insertContent("/");
 
 		const menu = await waitForSlashMenu();
-		const items = getSlashMenuItems(menu);
+		expect(menu.textContent).toContain("Start writing with plain text");
 
-		for (const item of items) {
-			const description = item.querySelector(".text-xs");
-			expect(description).toBeTruthy();
-			expect(description!.textContent!.length).toBeGreaterThan(0);
-		}
+		await userEvent.keyboard("{ArrowDown}");
+
+		await vi.waitFor(() => {
+			expect(getSlashMenu()!.textContent).toContain("Large section heading");
+		});
 	});
 
 	it("filters commands by query text", async () => {
@@ -569,8 +612,7 @@ describe("Slash Command Menu", () => {
 			() => {
 				const menu = getSlashMenu();
 				expect(menu).toBeTruthy();
-				const items = getSlashMenuItems(menu!);
-				const titles = items.map((btn) => btn.querySelector(".font-medium")?.textContent ?? "");
+				const titles = getItemTitles(menu!);
 				expect(titles.length).toBeGreaterThanOrEqual(1);
 				expect(titles.every((t) => t.toLowerCase().includes("heading"))).toBe(true);
 			},
@@ -608,8 +650,7 @@ describe("Slash Command Menu", () => {
 				const menu = getSlashMenu()!;
 				const items = getSlashMenuItems(menu);
 				expect(isItemSelected(items[0]!)).toBe(true);
-				expect(items[0]?.getAttribute("aria-current")).toBe("true");
-				expect(menu.querySelector('[role="status"]')?.textContent).toBe("Selected Heading 1");
+				expect(menu.querySelector('[role="status"]')?.textContent).toBe("Selected Text");
 			},
 			{ timeout: 3000 },
 		);
@@ -621,41 +662,9 @@ describe("Slash Command Menu", () => {
 		editor.commands.insertContent("/");
 
 		const menu = await waitForSlashMenu();
-		const selectedItem = getSlashMenuItems(menu)[0]!;
-		const classes = selectedItem.className.split(WHITESPACE_SPLIT_REGEX);
-		expect(classes).toContain("bg-kumo-interact");
-		expect(classes).not.toContain("bg-kumo-tint");
-	});
-
-	it("uses a quieter interaction surface for light-mode selection", async () => {
-		const root = document.documentElement;
-		const previousMode = root.getAttribute("data-mode");
-		const previousTheme = root.getAttribute("data-theme");
-		root.dataset.mode = "light";
-		root.dataset.theme = "classic";
-
-		try {
-			const { editor, pm } = await renderEditor();
-			await focusEditor(pm);
-			editor.commands.insertContent("/");
-
-			const menu = await waitForSlashMenu();
-			const selectedItem = getSlashMenuItems(menu)[0]!;
-			const tintReference = document.createElement("div");
-			tintReference.style.backgroundColor = "var(--color-kumo-tint)";
-			document.body.append(tintReference);
-			const expectedColor = getComputedStyle(tintReference).backgroundColor;
-			tintReference.remove();
-
-			await vi.waitFor(() => {
-				expect(getComputedStyle(selectedItem).backgroundColor).toBe(expectedColor);
-			});
-		} finally {
-			if (previousMode === null) root.removeAttribute("data-mode");
-			else root.setAttribute("data-mode", previousMode);
-			if (previousTheme === null) root.removeAttribute("data-theme");
-			else root.setAttribute("data-theme", previousTheme);
-		}
+		const [selectedItem, otherItem] = getSlashMenuItems(menu);
+		expect(selectedItem!.className.split(WHITESPACE_SPLIT_REGEX)).toContain("bg-kumo-tint");
+		expect(otherItem!.className.split(WHITESPACE_SPLIT_REGEX)).not.toContain("bg-kumo-tint");
 	});
 
 	it("moves selection down with ArrowDown", async () => {
@@ -671,9 +680,8 @@ describe("Slash Command Menu", () => {
 			const items = getSlashMenuItems(menu);
 			expect(isItemSelected(items[1]!)).toBe(true);
 			expect(isItemSelected(items[0]!)).toBe(false);
-			expect(items[1]?.getAttribute("aria-current")).toBe("true");
 			expect(items[0]?.hasAttribute("aria-current")).toBe(false);
-			expect(menu.querySelector('[role="status"]')?.textContent).toBe("Selected Heading 2");
+			expect(menu.querySelector('[role="status"]')?.textContent).toBe("Selected Heading 1");
 		});
 	});
 
@@ -719,7 +727,8 @@ describe("Slash Command Menu", () => {
 		editor.commands.insertContent("/");
 		await waitForSlashMenu();
 
-		// First item is "Heading 1"
+		await userEvent.keyboard("h1");
+		await vi.waitFor(() => expect(getItemTitles(getSlashMenu()!)[0]).toBe("Heading 1"));
 		await userEvent.keyboard("{Enter}");
 
 		await waitForSlashMenuClosed();
@@ -751,9 +760,7 @@ describe("Slash Command Menu", () => {
 
 		const menu = await waitForSlashMenu();
 		const items = getSlashMenuItems(menu);
-		const quoteBtn = items.find(
-			(btn) => btn.querySelector(".font-medium")?.textContent === "Quote",
-		);
+		const quoteBtn = items.find((btn) => itemTitle(btn) === "Quote");
 		expect(quoteBtn).toBeTruthy();
 		quoteBtn!.click();
 
@@ -771,9 +778,7 @@ describe("Slash Command Menu", () => {
 
 		const menu = await waitForSlashMenu();
 		const items = getSlashMenuItems(menu);
-		const codeBlockBtn = items.find(
-			(btn) => btn.querySelector(".font-medium")?.textContent === "Code Block",
-		);
+		const codeBlockBtn = items.find((btn) => itemTitle(btn) === "Code");
 		expect(codeBlockBtn).toBeTruthy();
 		codeBlockBtn!.click();
 
@@ -791,9 +796,7 @@ describe("Slash Command Menu", () => {
 
 		const menu = await waitForSlashMenu();
 		const items = getSlashMenuItems(menu);
-		const dividerBtn = items.find(
-			(btn) => btn.querySelector(".font-medium")?.textContent === "Divider",
-		);
+		const dividerBtn = items.find((btn) => itemTitle(btn) === "Divider");
 		expect(dividerBtn).toBeTruthy();
 		dividerBtn!.click();
 
@@ -810,9 +813,7 @@ describe("Slash Command Menu", () => {
 		editor.commands.insertContent("/");
 
 		const menu = await waitForSlashMenu();
-		const htmlBtn = getSlashMenuItems(menu).find(
-			(btn) => btn.querySelector(".font-medium")?.textContent === "HTML",
-		);
+		const htmlBtn = findItem(menu, "HTML");
 		expect(htmlBtn).toBeTruthy();
 		htmlBtn!.click();
 
@@ -832,9 +833,7 @@ describe("Slash Command Menu", () => {
 
 		const menu = await waitForSlashMenu();
 		const items = getSlashMenuItems(menu);
-		const bulletBtn = items.find(
-			(btn) => btn.querySelector(".font-medium")?.textContent === "Bullet List",
-		);
+		const bulletBtn = items.find((btn) => itemTitle(btn) === "Bulleted list");
 		expect(bulletBtn).toBeTruthy();
 		bulletBtn!.click();
 
@@ -852,9 +851,7 @@ describe("Slash Command Menu", () => {
 
 		const menu = await waitForSlashMenu();
 		const items = getSlashMenuItems(menu);
-		const numberedBtn = items.find(
-			(btn) => btn.querySelector(".font-medium")?.textContent === "Numbered List",
-		);
+		const numberedBtn = items.find((btn) => itemTitle(btn) === "Numbered list");
 		expect(numberedBtn).toBeTruthy();
 		numberedBtn!.click();
 
@@ -902,9 +899,8 @@ describe("Slash Command Menu", () => {
 			() => {
 				const menu = getSlashMenu();
 				expect(menu).toBeTruthy();
-				const items = getSlashMenuItems(menu!);
-				expect(items.length).toBeGreaterThanOrEqual(1);
-				const titles = items.map((btn) => btn.querySelector(".font-medium")?.textContent ?? "");
+				const titles = getItemTitles(menu!);
+				expect(titles.length).toBeGreaterThanOrEqual(1);
 				expect(titles).toContain("Heading 1");
 			},
 			{ timeout: 3000 },
@@ -917,8 +913,7 @@ describe("Slash Command Menu", () => {
 		editor.commands.insertContent("/");
 
 		const menu = await waitForSlashMenu();
-		const items = getSlashMenuItems(menu);
-		const titles = items.map((btn) => btn.querySelector(".font-medium")?.textContent ?? "");
+		const titles = getItemTitles(menu);
 
 		expect(titles).toContain("Image");
 		expect(titles).toContain("Section");
@@ -937,8 +932,7 @@ describe("Slash Command Menu", () => {
 			() => {
 				const menu = getSlashMenu();
 				expect(menu).toBeTruthy();
-				const items = getSlashMenuItems(menu!);
-				const titles = items.map((btn) => btn.querySelector(".font-medium")?.textContent ?? "");
+				const titles = getItemTitles(menu!);
 				expect(titles.length).toBeGreaterThan(1);
 				expect(titles[0]).toBe("Section");
 			},
@@ -960,17 +954,14 @@ describe("Slash Command Menu", () => {
 		editor.commands.insertContent("/");
 
 		const menu = await waitForSlashMenu();
-		const items = getSlashMenuItems(menu);
-		const titles = items.map((btn) => btn.querySelector(".font-medium")?.textContent ?? "");
+		const titles = getItemTitles(menu);
 
 		expect(titles).toContain("YouTube Video");
 	});
 
 	it("renders plugin block commands with a custom category override", async () => {
 		// A plugin block that opts into the "Sections" category instead of the
-		// default "Embeds". The category itself isn't currently surfaced in the
-		// rendered DOM (the slash menu doesn't group by category), but providing
-		// it must not break rendering and the block must still be selectable.
+		// default "Embeds" is listed under that category's heading.
 		const { editor, pm } = await renderEditor({
 			pluginBlocks: [
 				{
@@ -985,10 +976,12 @@ describe("Slash Command Menu", () => {
 		editor.commands.insertContent("/");
 
 		const menu = await waitForSlashMenu();
-		const items = getSlashMenuItems(menu);
-		const titles = items.map((btn) => btn.querySelector(".font-medium")?.textContent ?? "");
+		const titles = getItemTitles(menu);
 
 		expect(titles).toContain("Hero");
+		expect(menu.querySelector('[role="group"][aria-label="Sections"]')?.textContent).toContain(
+			"Hero",
+		);
 	});
 
 	it("renders plugin block commands without a category (default Embeds)", async () => {
@@ -1009,9 +1002,11 @@ describe("Slash Command Menu", () => {
 		editor.commands.insertContent("/");
 
 		const menu = await waitForSlashMenu();
-		const items = getSlashMenuItems(menu);
-		const titles = items.map((btn) => btn.querySelector(".font-medium")?.textContent ?? "");
+		const titles = getItemTitles(menu);
 
 		expect(titles).toContain("Vimeo");
+		expect(menu.querySelector('[role="group"][aria-label="Embeds"]')?.textContent).toContain(
+			"Vimeo",
+		);
 	});
 });

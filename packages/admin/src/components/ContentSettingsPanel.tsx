@@ -286,22 +286,41 @@ function TimestampRow({
  * Discard-draft confirmation shared by the settings action bar and the
  * distraction-free overlay, so the copy and behavior can't drift.
  */
+/**
+ * Below the `sm` breakpoint the editor bar's secondary buttons keep only
+ * their icon, so the bar stays on one row on phones.
+ */
+export const compactBarButtonClassName = "max-sm:w-6.5 max-sm:justify-center max-sm:px-0";
+export const compactBarLabelClassName = "max-sm:sr-only";
+
 export function DiscardDraftDialog({
 	onDiscard,
 	triggerVariant = "ghost",
 	triggerSize,
+	compact,
 }: {
 	onDiscard?: () => void;
 	triggerVariant?: "ghost" | "outline";
 	triggerSize?: "sm";
+	/** Shows only the icon on small screens, for the editor bar. */
+	compact?: boolean;
 }) {
 	const { t } = useLingui();
 	return (
 		<Dialog.Root>
 			<Dialog.Trigger
 				render={(p) => (
-					<Button {...p} type="button" variant={triggerVariant} size={triggerSize} icon={<X />}>
-						{t`Discard changes`}
+					<Button
+						{...p}
+						type="button"
+						variant={triggerVariant}
+						size={triggerSize}
+						className={compact ? compactBarButtonClassName : undefined}
+						icon={<X />}
+					>
+						<span className={compact ? compactBarLabelClassName : undefined}>
+							{t`Discard changes`}
+						</span>
 					</Button>
 				)}
 			/>
@@ -331,7 +350,7 @@ export function DiscardDraftDialog({
 	);
 }
 
-export interface SettingsActionBarProps {
+export interface EditorActionsProps {
 	collectionLabel?: string;
 	isNew?: boolean;
 	isDirty: boolean;
@@ -352,15 +371,8 @@ export interface SettingsActionBarProps {
 	onPublish?: () => void;
 	onUnpublish?: () => void;
 	onMenuOpenChange?: (open: boolean) => void;
-	announceSaveStatus?: boolean;
-}
-
-function SettingsActionSlot({ children }: React.PropsWithChildren) {
-	return (
-		<div className="flex min-w-max flex-[1_1_auto] [&>*]:w-full [&>*]:justify-center">
-			{children}
-		</div>
-	);
+	/** Shown before Publish, e.g. scheduling while the settings panel is hidden. */
+	beforePublish?: React.ReactNode;
 }
 
 export interface PreviewButtonProps {
@@ -368,6 +380,9 @@ export interface PreviewButtonProps {
 	isLoadingPreview?: boolean;
 	onPreview?: () => void;
 	size?: "sm";
+	variant?: "outline" | "ghost";
+	/** Shows only the icon on small screens, for the editor bar. */
+	compact?: boolean;
 }
 
 export function PreviewButton({
@@ -375,18 +390,23 @@ export function PreviewButton({
 	isLoadingPreview,
 	onPreview,
 	size,
+	variant = "outline",
+	compact,
 }: PreviewButtonProps) {
 	const { t } = useLingui();
 	return (
 		<Button
 			type="button"
-			variant="outline"
+			variant={variant}
 			size={size}
+			className={compact ? compactBarButtonClassName : undefined}
 			onClick={onPreview}
 			disabled={isLoadingPreview}
 			icon={isLoadingPreview ? <Loader size="sm" /> : <Eye />}
 		>
-			{hasPendingChanges ? t`Preview draft` : t`Preview`}
+			<span className={compact ? compactBarLabelClassName : undefined}>
+				{hasPendingChanges ? t`Preview draft` : t`Preview`}
+			</span>
 		</Button>
 	);
 }
@@ -404,7 +424,6 @@ export interface PublishActionsProps {
 	onUnpublish?: () => void;
 	onMenuOpenChange?: (open: boolean) => void;
 	size?: "sm";
-	fullWidth?: boolean;
 }
 
 export function PublishActions({
@@ -419,7 +438,6 @@ export function PublishActions({
 	onUnpublish,
 	onMenuOpenChange,
 	size,
-	fullWidth,
 }: PublishActionsProps) {
 	const { t } = useLingui();
 	const [publishOpen, setPublishOpen] = React.useState(false);
@@ -477,7 +495,6 @@ export function PublishActions({
 						type="button"
 						variant="primary"
 						size={size}
-						className={cn(fullWidth && "w-full")}
 						icon={<Upload aria-hidden="true" />}
 						loading={isPending}
 						disabled={disabled}
@@ -558,7 +575,7 @@ export function ScheduleActions({
 					size="sm"
 					className={cn(
 						"min-w-0 justify-center overflow-hidden whitespace-nowrap",
-						!inline && "w-full",
+						inline ? compactBarButtonClassName : "w-full",
 					)}
 					icon={
 						hasSchedule ? <CalendarDots aria-hidden="true" /> : <CalendarPlus aria-hidden="true" />
@@ -567,7 +584,9 @@ export function ScheduleActions({
 					disabled={disabled || isUnscheduling}
 					onClick={onOpenSchedule}
 				>
-					{hasSchedule ? t`Change schedule` : t`Schedule`}
+					<span className={inline ? compactBarLabelClassName : undefined}>
+						{hasSchedule ? t`Change schedule` : t`Schedule`}
+					</span>
 				</Button>
 			) : null}
 			{showRemove ? (
@@ -577,14 +596,16 @@ export function ScheduleActions({
 					size="sm"
 					className={cn(
 						"min-w-0 justify-center overflow-hidden whitespace-nowrap",
-						!inline && "w-full",
+						inline ? compactBarButtonClassName : "w-full",
 					)}
 					icon={<CalendarX aria-hidden="true" />}
 					loading={isUnscheduling}
 					disabled={disabled || isScheduling}
 					onClick={() => void Promise.resolve(onUnschedule?.()).catch(() => undefined)}
 				>
-					{t`Remove schedule`}
+					<span
+						className={inline ? compactBarLabelClassName : undefined}
+					>{t`Remove schedule`}</span>
 				</Button>
 			) : null}
 		</div>
@@ -592,15 +613,14 @@ export function ScheduleActions({
 }
 
 /**
- * Single action row pinned above the settings panel body. Publish-state
- * context lives in the Publish section below so the sidebar has one action
- * surface and one status surface.
+ * The entry's save, view, and publish actions for the editor's top bar.
+ * Publish-state context lives in the settings panel's Publish section.
  *
  * Deliberately NOT memoized — it exists so high-frequency props
- * (isDirty, isSaving, isAutosaving) stop here instead of busting the
- * memoized panel body below it.
+ * (isDirty, isSaving, isAutosaving) stop here instead of re-rendering the
+ * rest of the editor.
  */
-export function SettingsActionBar({
+export function EditorActions({
 	collectionLabel,
 	isNew,
 	isDirty,
@@ -619,62 +639,62 @@ export function SettingsActionBar({
 	onPublish,
 	onUnpublish,
 	onMenuOpenChange,
-	announceSaveStatus,
-}: SettingsActionBarProps) {
+	beforePublish,
+}: EditorActionsProps) {
 	const { t } = useLingui();
+	const busy = isSaving || Boolean(isAutosaving);
+	// Saved reads as a quiet status; unsaved work becomes a button again.
+	const saveVariant = !isDirty && !busy ? "ghost" : isNew ? "primary" : "secondary";
 
 	return (
-		<div className="flex shrink-0 flex-wrap items-stretch gap-2 border-b px-4 py-3">
-			<SettingsActionSlot>
-				<SaveButton
-					type="submit"
-					size="sm"
-					isDirty={isDirty}
-					isSaving={isSaving || Boolean(isAutosaving)}
-					announce={announceSaveStatus}
-					disabled={saveDisabled}
-				/>
-			</SettingsActionSlot>
+		<div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+			<SaveButton
+				type="submit"
+				size="sm"
+				variant={saveVariant}
+				className={cn("min-w-0", compactBarButtonClassName)}
+				labelClassName="max-sm:hidden"
+				isDirty={isDirty}
+				isSaving={busy}
+				disabled={saveDisabled}
+			/>
 			{liveViewUrl && (
-				<SettingsActionSlot>
-					<LinkButton
-						href={liveViewUrl}
-						external
-						variant="outline"
-						size="sm"
-						icon={<ArrowSquareOut />}
-					>
-						{t`Live View`}
-					</LinkButton>
-				</SettingsActionSlot>
+				<LinkButton
+					href={liveViewUrl}
+					external
+					variant="ghost"
+					size="sm"
+					className={compactBarButtonClassName}
+					icon={<ArrowSquareOut />}
+				>
+					<span className={compactBarLabelClassName}>{t`Live View`}</span>
+				</LinkButton>
 			)}
 			{!isNew && supportsPreview && (
-				<SettingsActionSlot>
-					<PreviewButton
-						size="sm"
-						hasPendingChanges={hasPendingChanges}
-						isLoadingPreview={isLoadingPreview}
-						onPreview={onPreview}
-					/>
-				</SettingsActionSlot>
+				<PreviewButton
+					size="sm"
+					variant="ghost"
+					compact
+					hasPendingChanges={hasPendingChanges}
+					isLoadingPreview={isLoadingPreview}
+					onPreview={onPreview}
+				/>
 			)}
+			{beforePublish}
 			{!isNew && (
-				<SettingsActionSlot>
-					<PublishActions
-						collectionLabel={collectionLabel}
-						isNew={isNew}
-						isLive={isLive}
-						hasPendingChanges={hasPendingChanges}
-						publishingState={publishingState}
-						isPending={publishingPending}
-						disabled={publishDisabled}
-						onPublish={onPublish}
-						onUnpublish={onUnpublish}
-						onMenuOpenChange={onMenuOpenChange}
-						size="sm"
-						fullWidth
-					/>
-				</SettingsActionSlot>
+				<PublishActions
+					collectionLabel={collectionLabel}
+					isNew={isNew}
+					isLive={isLive}
+					hasPendingChanges={hasPendingChanges}
+					publishingState={publishingState}
+					isPending={publishingPending}
+					disabled={publishDisabled}
+					onPublish={onPublish}
+					onUnpublish={onUnpublish}
+					onMenuOpenChange={onMenuOpenChange}
+					size="sm"
+				/>
 			)}
 		</div>
 	);
