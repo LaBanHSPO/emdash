@@ -12,6 +12,7 @@
  */
 
 import { Editor } from "@tiptap/core";
+import TextAlign from "@tiptap/extension-text-align";
 import StarterKit from "@tiptap/starter-kit";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
@@ -226,6 +227,98 @@ describe("Block Transforms", () => {
 				).toBe("function");
 			}
 		});
+	});
+});
+
+describe("Turn into", () => {
+	let editor: Editor;
+
+	const NESTED_LIST =
+		"<ul><li><p>one</p></li><li><p>two</p><ul><li><p>nested</p></li></ul></li><li><p>three</p></li></ul><p>end</p>";
+
+	function create(content: string) {
+		editor = new Editor({
+			extensions: [StarterKit, TextAlign.configure({ types: ["heading", "paragraph"] })],
+			content,
+		});
+	}
+
+	function turnInto(id: string) {
+		textBlockTypes.find((type) => type.id === id)!.transform(editor);
+	}
+
+	afterEach(() => {
+		editor.destroy();
+	});
+
+	it("turns every item of a list selected whole into its own block", () => {
+		create(NESTED_LIST);
+		editor.commands.setNodeSelection(0);
+
+		turnInto("paragraph");
+
+		expect(editor.getHTML()).toBe("<p>one</p><p>two</p><p>nested</p><p>three</p><p>end</p>");
+	});
+
+	it("undoes a Turn into in one step", () => {
+		create(NESTED_LIST);
+		const before = editor.getJSON();
+		editor.commands.setNodeSelection(0);
+
+		turnInto("heading2");
+		editor.commands.undo();
+
+		expect(editor.getJSON()).toEqual(before);
+	});
+
+	it("switches a list's type without flattening its nesting", () => {
+		create(NESTED_LIST);
+		editor.commands.setNodeSelection(0);
+
+		turnInto("orderedList");
+
+		expect(editor.getHTML()).toBe(
+			"<ol><li><p>one</p></li><li><p>two</p><ul><li><p>nested</p></li></ul></li><li><p>three</p></li></ol><p>end</p>",
+		);
+	});
+
+	it("gives every paragraph of a quote its own list item", () => {
+		create("<blockquote><p>first</p><p>second</p></blockquote><p>end</p>");
+		editor.commands.setNodeSelection(0);
+
+		turnInto("bulletList");
+
+		expect(editor.getHTML()).toBe("<ul><li><p>first</p></li><li><p>second</p></li></ul><p>end</p>");
+	});
+
+	it("leaves a list alone when it is turned into its own type", () => {
+		create("<ul><li><p>one</p></li><li><p>two</p></li><li><p>three</p></li></ul><p>end</p>");
+		const before = editor.getJSON();
+		editor.commands.setNodeSelection(0);
+
+		turnInto("bulletList");
+
+		expect(editor.getJSON()).toEqual(before);
+	});
+
+	it("takes only the selected items out of a list, splitting it around them", () => {
+		create("<ul><li><p>one</p></li><li><p>two</p></li><li><p>three</p></li></ul><p>end</p>");
+		editor.commands.setTextSelection({ from: 11, to: 12 });
+
+		turnInto("paragraph");
+
+		expect(editor.getHTML()).toBe(
+			"<ul><li><p>one</p></li></ul><p>two</p><ul><li><p>three</p></li></ul><p>end</p>",
+		);
+	});
+
+	it("keeps a block's alignment", () => {
+		create('<p style="text-align: center">centered</p><p>end</p>');
+		editor.commands.setNodeSelection(0);
+
+		turnInto("heading2");
+
+		expect(editor.getHTML()).toBe('<h2 style="text-align: center;">centered</h2><p>end</p>');
 	});
 });
 

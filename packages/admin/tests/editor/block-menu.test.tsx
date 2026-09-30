@@ -356,15 +356,36 @@ describe("BlockMenu", () => {
 	});
 
 	it("keeps a block's type when it is turned into the type it already has", async () => {
-		const { editor, pm } = await getEditor();
-		editor.chain().setNodeSelection(0).toggleBulletList().run();
+		const { editor } = await getEditor();
+		editor.commands.setContent(
+			"<ul><li><p>one</p></li><li><p>two</p></li><li><p>three</p></li></ul><p>after</p>",
+		);
+		const before = editor.getJSON();
+		editor.commands.setNodeSelection(0);
+		const onClose = vi.fn();
+
+		await render(<BlockMenuTestWrapper editor={editor} isOpen={true} onClose={onClose} />);
+		await vi.waitFor(() => expect(getBlockMenu()).toBeTruthy());
+		findButtonByText(await openTurnInto(), "Bulleted list")!.click();
+
+		await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
+		expect(editor.getJSON()).toEqual(before);
+	});
+
+	it("turns every item of a selected list into another type", async () => {
+		const { editor } = await getEditor();
+		editor.commands.setContent(
+			"<ul><li><p>one</p></li><li><p>two</p></li><li><p>three</p></li></ul><p>after</p>",
+		);
 		editor.commands.setNodeSelection(0);
 
 		await render(<BlockMenuTestWrapper editor={editor} isOpen={true} onClose={vi.fn()} />);
 		await vi.waitFor(() => expect(getBlockMenu()).toBeTruthy());
-		findButtonByText(await openTurnInto(), "Bulleted list")!.click();
+		findButtonByText(await openTurnInto(), "Numbered list")!.click();
 
-		await vi.waitFor(() => expect(pm.querySelector("ul")?.textContent).toBe("First paragraph"));
+		await vi.waitFor(() => expect(editor.getHTML()).toContain("<ol"));
+		expect(editor.state.doc.firstChild?.type.name).toBe("orderedList");
+		expect(editor.state.doc.firstChild?.childCount).toBe(3);
 	});
 
 	it("transforms block to heading when Heading 1 is selected", async () => {
