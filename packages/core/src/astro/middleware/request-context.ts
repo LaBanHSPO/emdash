@@ -74,15 +74,23 @@ const DOCUMENT_START_RE = /^\s*<(?:!doctype|html)\b/i;
  * Inject HTML before the page's closing `</body>` if the response is a whole
  * HTML document with one. Does not touch cache headers — callers decide
  * whether the result is still shareable. `injected` tells the caller whether
- * anything changed.
+ * the result carries the injected HTML.
+ *
+ * `Astro.rewrite()` runs this middleware again for the rewritten route inside
+ * the original request, so the response can already contain the HTML; `marker`
+ * identifies it so it is injected only once.
  */
 async function injectBeforeBodyEnd(
 	response: Response,
 	htmlToInject: string,
+	marker: string,
 ): Promise<{ response: Response; injected: boolean }> {
 	if (!isHtmlResponse(response)) return { response, injected: false };
 
 	const html = await response.text();
+	if (html.includes(marker)) {
+		return { response: new Response(html, response), injected: true };
+	}
 	// The page's own closing tag is its last `</body>`. Astro leaves `<` and `>`
 	// unescaped in attribute values, so an earlier one, or one in a fragment
 	// such as a server island, can be author text inside an attribute.
@@ -114,7 +122,11 @@ async function injectToolbar(
 	routeCache: RouteCache,
 ): Promise<Response> {
 	if (!isHtmlResponse(response)) return response;
-	const result = await injectBeforeBodyEnd(response, await renderToolbarHtml());
+	const result = await injectBeforeBodyEnd(
+		response,
+		await renderToolbarHtml(),
+		'id="emdash-toolbar"',
+	);
 	if (result.injected) {
 		// Toolbar-injected HTML is session-specific (its presence reveals an
 		// active editor session); it must never be stored in a shared CDN cache
@@ -134,7 +146,11 @@ async function injectToolbar(
  * stays fully shareable.
  */
 async function injectBootstrap(response: Response): Promise<Response> {
-	const result = await injectBeforeBodyEnd(response, renderToolbarBootstrap());
+	const result = await injectBeforeBodyEnd(
+		response,
+		renderToolbarBootstrap(),
+		"<!-- EmDash Toolbar Bootstrap -->",
+	);
 	return result.response;
 }
 
