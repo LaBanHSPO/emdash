@@ -5,6 +5,7 @@
  */
 
 import { Extension, type Editor } from "@tiptap/core";
+import { GapCursor } from "@tiptap/pm/gapcursor";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import {
 	AllSelection,
@@ -92,6 +93,10 @@ export function duplicateBlocks(editor: Editor, range = selectedBlockRange(edito
  */
 const blockSelectionKey = new PluginKey<boolean>("emdashBlockSelection");
 
+/** The key code browsers report for key presses an IME is handling. */
+const IME_KEY_CODE = 229;
+const TEXT_INPUT_TYPES = new Set(["insertText", "insertReplacementText"]);
+
 function topLevelNodeSelection(state: EditorState): NodeSelection | null {
 	const { selection } = state;
 	return selection instanceof NodeSelection && selection.$from.depth === 0 ? selection : null;
@@ -104,6 +109,19 @@ function isBlockSelectionActive(state: EditorState): boolean {
 /** Treats an existing whole-block selection, like the block handle's, as keyboard block selection. */
 export function enterBlockSelection(editor: Editor): boolean {
 	return editor.commands.setMeta(blockSelectionKey, true);
+}
+
+/**
+ * Puts the caret at the start of the document. When the document opens with
+ * an image or divider, the caret goes above it rather than selecting it, so
+ * the next key can't replace it.
+ */
+export function focusDocumentStart(editor: Editor): void {
+	const { state, view } = editor;
+	const first = Selection.atStart(state.doc);
+	const selection = first instanceof NodeSelection ? new GapCursor(state.doc.resolve(0)) : first;
+	view.dispatch(state.tr.setSelection(selection).scrollIntoView());
+	view.focus();
 }
 
 /** Selects the top-level block at `pos` as a whole. */
@@ -158,16 +176,16 @@ function editSelectedBlock(editor: Editor): boolean {
 }
 
 /**
- * Select All first selects the text of the block holding the caret, like
- * Notion, so a code block can be copied or cleared on its own. Pressing it
- * again selects the whole document.
+ * Select All in a code block first selects just its code, like Notion, so it
+ * can be copied or cleared on its own. Pressing it again selects the whole
+ * document.
  */
-function selectBlockText(editor: Editor): boolean {
+function selectCodeBlockText(editor: Editor): boolean {
 	const { state } = editor;
 	const { selection } = state;
 	if (selection instanceof AllSelection || selection instanceof NodeSelection) return false;
 	const { $from, $to } = selection;
-	if (!$from.sameParent($to) || !$from.parent.isTextblock) return false;
+	if (!$from.sameParent($to) || !$from.parent.type.spec.code) return false;
 	const start = $from.start();
 	const end = $from.end();
 	if (start === end || (selection.from === start && selection.to === end)) return false;
@@ -175,8 +193,15 @@ function selectBlockText(editor: Editor): boolean {
 	return true;
 }
 
+/** A menu or popover opened from the editor's controls takes Escape first. */
+function hasOpenPopup(view: EditorView): boolean {
+	const root = view.dom.closest("[data-emdash-editor-floating-root]");
+	return root?.querySelector('[aria-expanded="true"]') != null;
+}
+
 function isAtDocumentStart(view: EditorView): boolean {
 	const { selection, doc } = view.state;
+	if (selection instanceof GapCursor) return selection.from === 0;
 	if (!(selection instanceof TextSelection) || !selection.empty) return false;
 	const first = Selection.atStart(doc);
 	return first.$from.parent === selection.$from.parent && view.endOfTextblock("up");
@@ -222,14 +247,19 @@ export const BlockSelection = Extension.create<BlockSelectionOptions>({
 				},
 				props: {
 					handleKeyDown: (view, event) => {
-						if (event.defaultPrevented || event.isComposing || !editor.isEditable) return false;
+						if (event.defaultPrevented || !editor.isEditable) return false;
+						const blockMode = isBlockSelectionActive(view.state);
+						if (event.isComposing || event.keyCode === IME_KEY_CODE) {
+							// An IME can't be stopped, so it writes at the end of the block instead of replacing it.
+							if (blockMode) editSelectedBlock(editor);
+							return false;
+						}
 						if (SuggestionPluginKey.getState(view.state)?.active) return false;
 						const plain = !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey;
 						if (!plain) return false;
-						const blockMode = isBlockSelectionActive(view.state);
 						switch (event.key) {
 							case "Escape":
-								return selectCurrentBlock(editor);
+								return !hasOpenPopup(view) && selectCurrentBlock(editor);
 							case "ArrowUp":
 								if (blockMode) return selectNeighbourBlock(editor, -1);
 								return isAtDocumentStart(view) && (options.onArrowUpAtStart?.() ?? false);
@@ -242,6 +272,16 @@ export const BlockSelection = Extension.create<BlockSelectionOptions>({
 						}
 					},
 					handleTextInput: (view) => isBlockSelectionActive(view.state),
+					handleDOMEvents: {
+						// Dictation, emoji pickers, and autocorrect insert text without a key press.
+						beforeinput: (view, event) => {
+							if (!isBlockSelectionActive(view.state) || !TEXT_INPUT_TYPES.has(event.inputType)) {
+								return false;
+							}
+							event.preventDefault();
+							return true;
+						},
+					},
 					decorations: (state) =>
 						state.selection instanceof AllSelection ? selectedBlockDecorations(state.doc) : null,
 					attributes: (state): Record<string, string> =>
@@ -253,8 +293,8 @@ export const BlockSelection = Extension.create<BlockSelectionOptions>({
 });
 
 /**
- * Select All scoped to the block holding the caret. Runs ahead of TipTap's
- * own Select All, which takes over on the second press.
+ * Select All scoped to the code block holding the caret. Runs ahead of
+ * TipTap's own Select All, which takes over on the second press.
  */
 export const BlockSelectAll = Extension.create({
 	name: "emdashBlockSelectAll",
@@ -262,7 +302,7 @@ export const BlockSelectAll = Extension.create({
 
 	addKeyboardShortcuts() {
 		return {
-			"Mod-a": () => selectBlockText(this.editor),
+			"Mod-a": () => selectCodeBlockText(this.editor),
 		};
 	},
 });

@@ -8,6 +8,7 @@ import {
 	type FieldDescriptor,
 	type ContentEditorProps,
 } from "../../src/components/ContentEditor";
+import { focusDocumentStart } from "../../src/components/editor/BlockCommands";
 import { fetchBylines, fetchReferenceChildren } from "../../src/lib/api";
 import type { BylineSummary, ContentItem } from "../../src/lib/api";
 import { PluginAdminProvider, type PluginAdmins } from "../../src/lib/plugin-context";
@@ -79,6 +80,11 @@ vi.mock("../../src/components/PortableTextEditor", () => ({
 			</div>
 		);
 	},
+}));
+
+vi.mock("../../src/components/editor/BlockCommands", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../../src/components/editor/BlockCommands")>()),
+	focusDocumentStart: vi.fn(),
 }));
 
 vi.mock("../../src/components/RevisionHistory", () => ({
@@ -2361,6 +2367,65 @@ describe("ContentEditor", () => {
 			await expect
 				.element(screen.getByRole("heading", { name: "A fresh start" }))
 				.toBeInTheDocument();
+		});
+	});
+
+	describe("page title", () => {
+		const pageFields: Record<string, FieldDescriptor> = {
+			title: { kind: "string", label: "Title", required: true },
+			content: { kind: "portableText", label: "Content" },
+		};
+
+		beforeEach(() => {
+			vi.mocked(focusDocumentStart).mockClear();
+		});
+
+		it("moves on to the body on Enter", async () => {
+			const screen = await renderEditor({ fields: pageFields });
+			await screen.getByLabelText("Title").fill("A fresh start");
+
+			await userEvent.keyboard("{Enter}");
+
+			expect(focusDocumentStart).toHaveBeenCalledOnce();
+		});
+
+		it("moves on to the body on ArrowDown only from the end of the title", async () => {
+			const screen = await renderEditor({ fields: pageFields });
+			const title = screen.getByLabelText("Title");
+			await title.fill("Hello");
+			const input = title.element() as HTMLInputElement;
+
+			input.setSelectionRange(2, 2);
+			await userEvent.keyboard("{ArrowDown}");
+			expect(focusDocumentStart).not.toHaveBeenCalled();
+
+			input.setSelectionRange(5, 5);
+			await userEvent.keyboard("{ArrowDown}");
+			expect(focusDocumentStart).toHaveBeenCalledOnce();
+		});
+
+		it("stays in the title while an input method is composing", async () => {
+			const screen = await renderEditor({ fields: pageFields });
+			const title = screen.getByLabelText("Title").element();
+
+			for (const init of [{ isComposing: true }, { keyCode: 229 }]) {
+				title.dispatchEvent(
+					new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true, ...init }),
+				);
+			}
+
+			expect(focusDocumentStart).not.toHaveBeenCalled();
+		});
+
+		it("saves on Enter when there is no body to move to", async () => {
+			const onSave = vi.fn();
+			const screen = await renderEditor({ onSave });
+			await screen.getByLabelText("Title").fill("A fresh start");
+
+			await userEvent.keyboard("{Enter}");
+
+			await vi.waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+			expect(focusDocumentStart).not.toHaveBeenCalled();
 		});
 	});
 

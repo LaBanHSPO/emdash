@@ -73,6 +73,7 @@ import {
 	EditorActions,
 	ScheduleActions,
 } from "./ContentSettingsPanel.js";
+import { focusDocumentStart } from "./editor/BlockCommands.js";
 import { EditorDraftPatchPreview } from "./EditorDraftPatchPreview.js";
 import { ImageFieldRenderer, type ImageFieldValue } from "./ImageFieldRenderer.js";
 import { NonListFieldValue, isNonListValue } from "./NonListFieldValue.js";
@@ -1278,8 +1279,10 @@ export function ContentEditor({
 	const barTitle = liveTitle || entryTitle || (isNew ? t`New ${itemLabel}` : t`Edit ${itemLabel}`);
 	const collectionListLabel = manifest?.collections[collection]?.label ?? collectionLabel;
 	const documentTitleRef = React.useRef<HTMLInputElement>(null);
+	const hasDocumentTitle =
+		documentTitleField !== undefined && fields[documentTitleField]?.kind === "string";
 	const focusDocumentBody = React.useCallback(() => {
-		portableTextEditor?.commands.focus("start");
+		if (portableTextEditor) focusDocumentStart(portableTextEditor);
 	}, [portableTextEditor]);
 	const focusDocumentTitle = React.useCallback(() => {
 		const input = documentTitleRef.current;
@@ -1635,10 +1638,10 @@ export function ContentEditor({
 												onEditorReady={isDocumentBody ? setPortableTextEditor : undefined}
 												isDocumentTitle={name === documentTitleField}
 												titleInputRef={name === documentTitleField ? documentTitleRef : undefined}
-												onDocumentTitleExit={focusDocumentBody}
+												onDocumentTitleExit={portableTextEditor ? focusDocumentBody : undefined}
 												isDocumentBody={isDocumentBody}
 												onArrowUpAtStart={
-													isDocumentBody && documentTitleField ? focusDocumentTitle : undefined
+													isDocumentBody && hasDocumentTitle ? focusDocumentTitle : undefined
 												}
 												pluginBlocks={pluginBlocks}
 												onBlockSidebarOpen={
@@ -2160,7 +2163,9 @@ function FieldRenderer({
 						value={text}
 						onChange={(e) => handleChange(e.target.value)}
 						onKeyDown={(e) => {
-							if (e.nativeEvent.isComposing || e.shiftKey || e.altKey) return;
+							if (!onDocumentTitleExit || e.shiftKey || e.altKey || e.metaKey || e.ctrlKey) return;
+							// Safari commits an IME composition with a 229 key press that isn't marked as composing.
+							if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
 							const input = e.currentTarget;
 							const atEnd =
 								input.selectionStart === input.value.length &&

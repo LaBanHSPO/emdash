@@ -806,6 +806,11 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 	opacity: 0.5;
 }
 
+/* TipTap draws the gap cursor in black, which vanishes on the dark theme. */
+.ProseMirror .ProseMirror-gapcursor::after {
+	border-top-color: var(--text-color-kumo-default);
+}
+
 /* Drop cursor styling - auto-fade to handle cleanup issues */
 .ProseMirror-dropcursor {
 	border-color: color-mix(in oklab, var(--color-kumo-brand) 60%, transparent) !important;
