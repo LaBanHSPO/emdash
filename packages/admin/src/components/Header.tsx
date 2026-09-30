@@ -6,7 +6,7 @@ import { apiFetch } from "../lib/api/client";
 import { useCurrentUser, type CurrentUser } from "../lib/api/current-user";
 import { cn } from "../lib/utils";
 import { Sidebar } from "./Sidebar";
-import { ThemeMenu } from "./ThemeMenu";
+import { ThemeToggle } from "./ThemeToggle";
 
 export type { CurrentUser } from "../lib/api/current-user";
 
@@ -74,7 +74,7 @@ export function Header() {
 					<span className="max-sm:sr-only">{t`View Site`}</span>
 				</LinkButton>
 
-				<ThemeMenu
+				<ThemeToggle
 					className={headerButtonClass}
 					iconClassName={headerIconClass}
 					labelClassName="max-sm:sr-only"

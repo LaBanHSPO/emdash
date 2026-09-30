@@ -53,7 +53,7 @@ const { Header } = await import("../../src/components/Header");
 // Constants
 // ---------------------------------------------------------------------------
 
-const THEME_BUTTON_REGEX = /^Theme: /;
+const THEME_BUTTON_REGEX = /Switch to (light|dark)/;
 const ACCOUNT_GROUP_NAME_REGEX = /Matt Kane.*matt@test\.com/;
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
@@ -81,6 +81,8 @@ describe("Header", () => {
 				<Header />
 			</TestWrapper>,
 		);
+		// ThemeToggle exposes its next action in the aria-label.
+		// (Kumo 2.x wraps `<Button title>` as a Tooltip popup, not a DOM title.)
 		const themeButton = screen.getByLabelText(THEME_BUTTON_REGEX);
 		await expect.element(themeButton).toBeInTheDocument();
 	});
