@@ -25,8 +25,8 @@ export function ThemeToggle({
 	};
 
 	const isLight = resolvedTheme === "light";
-	const label = isLight ? t`Switch to dark` : t`Switch to light`;
-	const Icon = isLight ? Moon : Sun;
+	const label = isLight ? t`Light theme. Switch to dark` : t`Dark theme. Switch to light`;
+	const Icon = isLight ? Sun : Moon;
 
 	return (
 		<Button
@@ -37,7 +37,7 @@ export function ThemeToggle({
 			onClick={toggleTheme}
 		>
 			<Icon className={iconClassName} aria-hidden="true" />
-			<span className={labelClassName}>{isLight ? t`Dark` : t`Light`}</span>
+			<span className={labelClassName}>{isLight ? t`Light` : t`Dark`}</span>
 		</Button>
 	);
 }
