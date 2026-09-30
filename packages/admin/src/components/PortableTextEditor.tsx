@@ -85,6 +85,7 @@ import {
 	type Icon,
 } from "@phosphor-icons/react";
 import { X } from "@phosphor-icons/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Extension, Mark, type Range } from "@tiptap/core";
 import CharacterCount from "@tiptap/extension-character-count";
 import Focus from "@tiptap/extension-focus";
@@ -94,7 +95,7 @@ import Superscript from "@tiptap/extension-superscript";
 import TextAlign from "@tiptap/extension-text-align";
 import Typography from "@tiptap/extension-typography";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-import { AllSelection, NodeSelection, TextSelection } from "@tiptap/pm/state";
+import { AllSelection, NodeSelection, Plugin, TextSelection } from "@tiptap/pm/state";
 import { CellSelection } from "@tiptap/pm/tables";
 import { useEditor, EditorContent, useEditorState, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
@@ -104,6 +105,7 @@ import * as React from "react";
 
 import type { MediaItem } from "../lib/api";
 import type { Section } from "../lib/api";
+import { uploadMedia } from "../lib/api/media.js";
 import { canonicalMediaProviderId, localMediaFileUrl } from "../lib/media-utils.js";
 import {
 	UnsupportedPortableTextMarksError,
@@ -129,6 +131,7 @@ import { GalleryExtension, type GalleryImage } from "./editor/GalleryNode";
 import { HeadingDropdownMenu } from "./editor/HeadingDropdownMenu";
 import { HtmlBlockExtension } from "./editor/HtmlBlockNode";
 import { ImageExtension } from "./editor/ImageNode";
+import { ImageUploadExtension } from "./editor/ImageUploadExtension.js";
 import { LinkDestinationInput } from "./editor/LinkDestinationInput";
 import { MarkdownLinkExtension } from "./editor/MarkdownLinkExtension";
 import { EmDashOrderedList } from "./editor/ordered-list";
@@ -358,6 +361,48 @@ function setSelectedImageLink(editor: Editor, href: string | null) {
 	const link = trimmed ? { href: trimmed, ...(existing?.blank ? { blank: true } : {}) } : null;
 	editor.chain().focus().updateAttributes("image", { link }).run();
 }
+
+function setSelectedTextLink(editor: Editor, href: string) {
+	const chain = editor.chain().focus().extendMarkRange("link").setLink({ href });
+	if (editor.state.selection.empty) {
+		chain.run();
+		return;
+	}
+	chain
+		.command(({ tr, state }) => {
+			const linkType = state.schema.marks.link;
+			if (!linkType) return false;
+			tr.setSelection(TextSelection.near(tr.doc.resolve(tr.selection.to), -1));
+			tr.removeStoredMark(linkType);
+			return true;
+		})
+		.run();
+}
+
+const LinkBoundaryExit = Extension.create({
+	name: "linkBoundaryExit",
+	addProseMirrorPlugins() {
+		return [
+			new Plugin({
+				appendTransaction(transactions, _oldState, newState) {
+					if (
+						!transactions.some((transaction) => transaction.selectionSet && !transaction.docChanged)
+					) {
+						return null;
+					}
+					const { selection } = newState;
+					if (!(selection instanceof TextSelection) || !selection.empty) return null;
+					const linkType = newState.schema.marks.link;
+					if (!linkType) return null;
+					const linkBefore = linkType.isInSet(selection.$from.nodeBefore?.marks ?? []);
+					const linkAfter = linkType.isInSet(selection.$from.nodeAfter?.marks ?? []);
+					if (!linkBefore || (linkAfter && linkBefore.eq(linkAfter))) return null;
+					return newState.tr.removeStoredMark(linkType);
+				},
+			}),
+		];
+	},
+});
 
 function portableTextKeyFromAttrs(attrs: Record<string, unknown> | undefined): string | undefined {
 	return attrStr(attrs?.[PORTABLE_TEXT_KEY_ATTR]);
@@ -2849,6 +2894,21 @@ export interface PortableTextEditorProps {
 	onBlockSidebarClose?: () => void;
 }
 
+// For external providers, src is only used for admin preview; the frontend Image
+// component uses provider + mediaId to generate proper URLs.
+function mediaItemToImageAttrs(item: MediaItem) {
+	return {
+		src: item.url,
+		alt: item.alt || item.filename,
+		mediaId: item.id,
+		provider: canonicalMediaProviderId(item.provider),
+		width: item.width,
+		height: item.height,
+		blurhash: item.blurhash,
+		dominantColor: item.dominantColor,
+	};
+}
+
 /**
  * Portable Text Editor Component
  */
@@ -2934,6 +2994,12 @@ export function PortableTextEditor({
 		announceTable(
 			rows === undefined ? t`Column width resized` : t`${rows} × ${columns} table pasted`,
 		);
+	const queryClient = useQueryClient();
+	const uploadImageRef = React.useRef(async (file: File, signal: AbortSignal) => {
+		const item = await uploadMedia(file, { signal });
+		void queryClient.invalidateQueries({ queryKey: ["media"] });
+		return mediaItemToImageAttrs({ ...item, url: item.url || localMediaFileUrl(item.storageKey) });
+	});
 
 	// Plugin block insertion/editing state
 	const [pluginBlockModal, setPluginBlockModal] = React.useState<PluginBlockDef | null>(null);
@@ -3123,6 +3189,7 @@ export function PortableTextEditor({
 		() => [
 			PortableTextIdentityExtension,
 			PortableTextSpanIdentity,
+			LinkBoundaryExit,
 			StarterKit.configure({
 				heading: {
 					levels: [1, 2, 3, 4, 5, 6],
@@ -3153,6 +3220,9 @@ export function PortableTextEditor({
 			HtmlBlockExtension,
 			GalleryExtension,
 			ImageExtension,
+			ImageUploadExtension.configure({
+				upload: (file, signal) => uploadImageRef.current(file, signal),
+			}),
 			MarkdownLinkExtension,
 			PluginBlockExtension,
 			Subscript,
@@ -3521,18 +3591,7 @@ export function PortableTextEditor({
 	const handleImageSelect = React.useCallback(
 		(item: MediaItem) => {
 			if (editor) {
-				// For external providers, src is only used for admin preview
-				// The frontend Image component uses provider + mediaId to generate proper URLs
-				const attrs = {
-					src: item.url,
-					alt: item.alt || item.filename,
-					mediaId: item.id,
-					provider: canonicalMediaProviderId(item.provider),
-					width: item.width,
-					height: item.height,
-					blurhash: item.blurhash,
-					dominantColor: item.dominantColor,
-				};
+				const attrs = mediaItemToImageAttrs(item);
 				const insertPos = pendingBlockInsertPosRef.current;
 				const chain = editor.chain().focus();
 				if (insertPos === null) {
@@ -4000,7 +4059,7 @@ function EditorBubbleMenu({
 		} else if (linkUrl.trim() === "") {
 			editor.chain().focus().extendMarkRange("link").unsetLink().run();
 		} else {
-			editor.chain().focus().extendMarkRange("link").setLink({ href: linkUrl.trim() }).run();
+			setSelectedTextLink(editor, linkUrl.trim());
 		}
 		closeLinkInput();
 	};
@@ -4009,7 +4068,7 @@ function EditorBubbleMenu({
 		if (editor.isActive("image")) {
 			setSelectedImageLink(editor, href);
 		} else {
-			editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
+			setSelectedTextLink(editor, href);
 		}
 		closeLinkInput();
 	};
@@ -4517,7 +4576,7 @@ function EditorToolbar({
 		if (editor.isActive("image")) {
 			setSelectedImageLink(editor, href);
 		} else {
-			editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
+			setSelectedTextLink(editor, href);
 		}
 		setShowLinkPopover(false);
 		setLinkUrl("");
@@ -4529,7 +4588,7 @@ function EditorToolbar({
 		} else if (linkUrl.trim() === "") {
 			editor.chain().focus().extendMarkRange("link").unsetLink().run();
 		} else {
-			editor.chain().focus().extendMarkRange("link").setLink({ href: linkUrl.trim() }).run();
+			setSelectedTextLink(editor, linkUrl.trim());
 		}
 		setShowLinkPopover(false);
 		setLinkUrl("");
