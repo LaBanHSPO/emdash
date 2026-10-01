@@ -289,14 +289,18 @@ function convertTextBlocks(tr: Transaction, id: TextBlockTypeId): boolean {
 
 function turnInto(editor: Editor, id: TextBlockTypeId): void {
 	if (!editor.isEditable || activeTextBlockType(editor)?.id === id) return;
-	const wholeBlock =
-		editor.state.selection instanceof NodeSelection && editor.state.selection.$from.depth === 0;
+	const { selection } = editor.state;
+	const wholeBlock = selection instanceof NodeSelection && selection.$from.depth === 0;
 	const converted = editor
 		.chain()
 		.focus()
 		.command(({ tr }) => convertTextBlocks(tr, id))
 		.run();
-	if (converted && wholeBlock && editor.state.selection instanceof NodeSelection) {
+	if (!converted || !wholeBlock) return;
+	// Ordered-list repairs can remap the selected block to a caret inside it.
+	const after = editor.state.selection;
+	if (after instanceof NodeSelection || after.$head.before(1) === selection.from) {
+		editor.commands.setNodeSelection(selection.from);
 		enterBlockSelection(editor);
 	}
 }

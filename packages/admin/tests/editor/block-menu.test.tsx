@@ -11,6 +11,7 @@
  * block before opening it, so the tests do the same.
  */
 
+import { NodeSelection } from "@tiptap/pm/state";
 import type { Editor } from "@tiptap/react";
 import * as React from "react";
 import { describe, it, expect, vi } from "vitest";
@@ -372,10 +373,10 @@ describe("BlockMenu", () => {
 		expect(editor.getJSON()).toEqual(before);
 	});
 
-	it("turns every item of a selected list into another type", async () => {
+	it("turns every item of a selected list into another type and keeps it selected", async () => {
 		const { editor } = await getEditor();
 		editor.commands.setContent(
-			"<ul><li><p>one</p></li><li><p>two</p></li><li><p>three</p></li></ul><p>after</p>",
+			"<ul><li><p>one</p></li><li><p>two</p><ul><li><p>nested</p></li></ul></li><li><p>three</p></li></ul><p>after</p>",
 		);
 		editor.commands.setNodeSelection(0);
 
@@ -384,8 +385,13 @@ describe("BlockMenu", () => {
 		findButtonByText(await openTurnInto(), "Numbered list")!.click();
 
 		await vi.waitFor(() => expect(editor.getHTML()).toContain("<ol"));
-		expect(editor.state.doc.firstChild?.type.name).toBe("orderedList");
-		expect(editor.state.doc.firstChild?.childCount).toBe(3);
+		const list = editor.state.doc.firstChild;
+		expect(list?.type.name).toBe("orderedList");
+		expect(list?.childCount).toBe(3);
+		expect(list?.child(1).lastChild?.type.name).toBe("bulletList");
+		const { selection } = editor.state;
+		expect(selection).toBeInstanceOf(NodeSelection);
+		expect(selection.from).toBe(0);
 	});
 
 	it("transforms block to heading when Heading 1 is selected", async () => {
