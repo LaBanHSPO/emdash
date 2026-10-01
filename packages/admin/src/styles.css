@@ -767,6 +767,13 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 	padding-inline: var(--emdash-editor-gutter, 0rem);
 }
 
+/* Without the gutter, block handles have no room beside the text. */
+@media (width < 40rem) {
+	[data-emdash-editor-variant="document"] .drag-handle {
+		display: none;
+	}
+}
+
 /*
  * The editor bar mixes bordered and ghost buttons. Drawing the border inside
  * keeps each button as tall as a ghost button's hover background.

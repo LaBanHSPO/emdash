@@ -190,7 +190,7 @@ export function DragHandleWrapper({ editor, onInsertBlock }: DragHandleWrapperPr
 				editor={editor}
 				onNodeChange={handleNodeChange}
 				computePositionConfig={computePositionConfig}
-				className="drag-handle max-sm:hidden"
+				className="drag-handle"
 			>
 				<TooltipProvider>
 					<div
