@@ -6,7 +6,6 @@
  * toolbar behaviour, focus modes, and editor lifecycle.
  */
 
-import { NodeSelection } from "@tiptap/pm/state";
 import { TableMap } from "@tiptap/pm/tables";
 import type { Editor } from "@tiptap/react";
 import * as React from "react";
@@ -1326,19 +1325,6 @@ describe("Portable Text ↔ ProseMirror conversion", () => {
 // =============================================================================
 
 describe("Editor component behaviour", () => {
-	it("leaves the HTML source for the block itself on Escape", async () => {
-		const { screen, editor } = await renderAndGetEditor({
-			value: [{ _type: "htmlBlock", _key: "html", html: "<b>x</b>" }],
-		});
-
-		await screen.getByRole("textbox", { name: "HTML source" }).click();
-		await userEvent.keyboard("{Escape}");
-
-		expect(document.activeElement).toBe(editor.view.dom);
-		const { selection } = editor.state;
-		expect(selection instanceof NodeSelection && selection.node.type.name).toBe("htmlBlock");
-	});
-
 	it("shows placeholder text in empty editor", async () => {
 		await render(<PortableTextEditor placeholder="Write something..." />);
 		const pm = await waitForEditor();

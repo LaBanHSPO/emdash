@@ -672,7 +672,7 @@ describe("Slash Command Menu", () => {
 		const groupLabels = Array.from(menu.querySelectorAll('[role="group"]'), (group) =>
 			group.getAttribute("aria-label"),
 		);
-		expect(groupLabels).toEqual(["Basic blocks", "Media", "Advanced"]);
+		expect(groupLabels).toEqual(["Basic blocks", "Media", "Advanced", "Embeds"]);
 
 		await userEvent.keyboard("image");
 
@@ -977,7 +977,7 @@ describe("Slash Command Menu", () => {
 		await vi.waitFor(() => {
 			const htmlBlock = editor.getJSON().content?.find((node) => node.type === "htmlBlock");
 			expect(htmlBlock).toBeDefined();
-			expect((htmlBlock as { attrs?: { html?: string } }).attrs?.html).toBe("");
+			expect(htmlBlock?.attrs).toMatchObject({ html: "", css: "", js: "", isolated: true });
 		});
 	});
 

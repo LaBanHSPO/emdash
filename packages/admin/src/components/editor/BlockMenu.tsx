@@ -44,6 +44,7 @@ const NODE_LABELS: Record<string, MessageDescriptor> = {
 	table: msg`Table`,
 	horizontalRule: msg`Divider`,
 	htmlBlock: msg`HTML`,
+	iframeBlock: msg`Iframe`,
 	pluginBlock: msg`Embed`,
 };
 
