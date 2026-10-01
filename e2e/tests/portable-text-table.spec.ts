@@ -423,9 +423,13 @@ test.describe("Portable Text tables", () => {
 				new URL(response.url()).pathname === "/_emdash/api/content/posts",
 		);
 		await admin.clickSave();
-		expect((await savedResponse).ok()).toBe(true);
-		await admin.waitForSaveComplete();
-		const id = new URL(page.url()).pathname.split("/").pop()!;
+		const created = await savedResponse;
+		expect(created.ok()).toBe(true);
+		const createdPayload = (await created.json()) as {
+			data: { item?: { id: string }; id?: string };
+		};
+		const id = createdPayload.data.item?.id ?? createdPayload.data.id!;
+		await page.waitForURL((url) => url.pathname.endsWith(`/${id}`));
 		const response = await page.request.get(`/_emdash/api/content/posts/${id}`, {
 			headers: { Authorization: `Bearer ${serverInfo.token}` },
 		});
