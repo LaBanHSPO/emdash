@@ -677,12 +677,8 @@ describe("Toolbar Presence and Structure", () => {
 
 	it("announces a newly inserted paragraph before the table", async () => {
 		const { screen, editor } = await renderEditor();
-		editor
-			.chain()
-			.focus()
-			.selectAll()
-			.insertTable({ rows: 1, cols: 1, withHeaderRow: false })
-			.run();
+		editor.view.focus();
+		editor.chain().selectAll().insertTable({ rows: 1, cols: 1, withHeaderRow: false }).run();
 		getToolbarButton(screen, "Table").element().click();
 		const action = screen.getByRole("menuitem", { name: "Insert paragraph before" });
 		await expect.element(action).toBeVisible();
