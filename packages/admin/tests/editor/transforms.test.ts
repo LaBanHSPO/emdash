@@ -16,7 +16,12 @@ import TextAlign from "@tiptap/extension-text-align";
 import StarterKit from "@tiptap/starter-kit";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
-import { canTurnInto, textBlockTypes } from "../../src/components/editor/blockTypes";
+import {
+	activeTextBlockType,
+	canTurnInto,
+	textBlockTypes,
+	toggleTextBlockType,
+} from "../../src/components/editor/blockTypes";
 
 describe("Block Transforms", () => {
 	let editor: Editor;
@@ -351,6 +356,40 @@ describe("Turn into", () => {
 		expect(editor.getHTML()).toBe(
 			"<ol><li><p>one</p></li><li><p>two</p></li><li><p>three</p></li></ol><p>end</p>",
 		);
+	});
+
+	it("keeps a following numbered list's own start number", () => {
+		create('<p>one</p><ol start="5"><li><p>five</p></li></ol><p>end</p>');
+		editor.commands.setTextSelection(2);
+
+		turnInto("orderedList");
+
+		expect(editor.getHTML()).toBe(
+			'<ol><li><p>one</p></li></ol><ol start="5"><li><p>five</p></li></ol><p>end</p>',
+		);
+	});
+
+	it("switches a nested list that differs from its parent list on its own", () => {
+		const nested =
+			"<ol><li><p>a</p><ul><li><p>n1</p></li><li><p>n2</p></li></ul></li></ol><p>end</p>";
+		create(nested);
+		editor.commands.setTextSelection(9);
+
+		expect(activeTextBlockType(editor)?.id).toBe("bulletList");
+		turnInto("orderedList");
+
+		expect(editor.getHTML()).toBe(
+			"<ol><li><p>a</p><ol><li><p>n1</p></li><li><p>n2</p></li></ol></li></ol><p>end</p>",
+		);
+	});
+
+	it("moves a nested list item up one level when its list type is toggled off", () => {
+		create("<ul><li><p>a</p><ul><li><p>n1</p></li></ul></li></ul><p>end</p>");
+		editor.commands.setTextSelection(9);
+
+		toggleTextBlockType(editor, "bulletList");
+
+		expect(editor.getHTML()).toBe("<ul><li><p>a</p></li><li><p>n1</p></li></ul><p>end</p>");
 	});
 
 	it("offers to convert a selection that mixes block types", () => {

@@ -1081,6 +1081,34 @@ describe("Portable Text ↔ ProseMirror conversion", () => {
 		expect(first.marks.some((mark) => mark.type.name === "link")).toBe(false);
 	});
 
+	it("adds a divider typed in a list after the list, leaving no empty item", async () => {
+		const { editor } = await renderAndGetEditor({
+			value: [textBlock("one", { listItem: "bullet" })],
+		});
+		editor.chain().focus().setTextSelection(6).splitListItem("listItem").run();
+
+		simulateTyping(editor, "---");
+
+		const topLevel: string[] = [];
+		editor.state.doc.forEach((node) => topLevel.push(node.type.name));
+		expect(topLevel.slice(0, 2)).toEqual(["bulletList", "horizontalRule"]);
+		expect(editor.state.doc.firstChild?.childCount).toBe(1);
+	});
+
+	it("turns a list item into a quote with Mod+Shift+B, like the toolbar's Quote", async () => {
+		const { editor } = await renderAndGetEditor({
+			value: [textBlock("one", { listItem: "bullet" })],
+		});
+		editor.chain().focus().setTextSelection(4).run();
+		await vi.waitFor(() => expect(editor.view.hasFocus()).toBe(true));
+		const mod = navigator.platform.includes("Mac") ? "Meta" : "Control";
+
+		await userEvent.keyboard(`{${mod}>}{Shift>}B{/Shift}{/${mod}}`);
+
+		expect(editor.state.doc.firstChild?.type.name).toBe("blockquote");
+		expect(editor.isActive("bold")).toBe(false);
+	});
+
 	it("keeps subscript and superscript apart", async () => {
 		const { editor } = await renderAndGetEditor({ value: [textBlock("H2O")] });
 

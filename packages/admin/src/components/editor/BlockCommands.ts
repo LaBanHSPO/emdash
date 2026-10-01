@@ -15,7 +15,6 @@ import {
 	Selection,
 	TextSelection,
 	type EditorState,
-	type Transaction,
 } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import { SuggestionPluginKey } from "@tiptap/suggestion";
@@ -80,29 +79,20 @@ export function moveBlocks(
 
 /**
  * Where a new block goes instead of the selection: after a block selected
- * whole, which it would otherwise replace, or after the list or quote holding
- * the caret, which can only hold text. `null` means at the selection.
+ * whole, which it would otherwise replace, after a block holding text, which
+ * it would otherwise split, or after the list or quote holding the caret,
+ * which can only hold text. `null` means it replaces the empty line at the
+ * caret.
  */
 export function blockInsertPosition(selection: Selection): number | null {
 	if (selection instanceof NodeSelection && selection.$from.depth === 0) return selection.to;
 	const { $from } = selection;
+	if ($from.depth === 0) return null;
 	for (let depth = $from.depth; depth > 0; depth--) {
 		const { name } = $from.node(depth).type;
 		if (name === "listItem" || name === "blockquote") return $from.after(1);
 	}
-	return null;
-}
-
-/**
- * Moves the caret to an empty paragraph at `blockInsertPosition`, if there is
- * one, so the block inserted next replaces that paragraph.
- */
-export function prepareBlockInsert(tr: Transaction): boolean {
-	const position = blockInsertPosition(tr.selection);
-	if (position === null) return true;
-	tr.insert(position, tr.doc.type.schema.nodes.paragraph!.create());
-	tr.setSelection(TextSelection.create(tr.doc, position + 1));
-	return true;
+	return $from.parent.content.size > 0 ? $from.after(1) : null;
 }
 
 export function duplicateBlocks(editor: Editor, range = selectedBlockRange(editor.state)): boolean {
@@ -203,7 +193,10 @@ function selectNeighbourBlock(editor: Editor, direction: -1 | 1): boolean {
 /** Puts the caret in a new empty paragraph after the selected block. */
 function moveAfterSelectedBlock(view: EditorView): void {
 	const { tr } = view.state;
-	prepareBlockInsert(tr);
+	const position = blockInsertPosition(tr.selection);
+	if (position === null) return;
+	tr.insert(position, tr.doc.type.schema.nodes.paragraph!.create());
+	tr.setSelection(TextSelection.create(tr.doc, position + 1));
 	view.dispatch(tr.scrollIntoView());
 }
 

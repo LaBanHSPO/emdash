@@ -867,6 +867,34 @@ describe("Block insertion", () => {
 		expect(editor.state.doc.firstChild?.childCount).toBe(2);
 	});
 
+	it("turns an empty list item into the inserted block instead of leaving it behind", async () => {
+		const { screen, editor } = await renderEditor({ value: listValue("one", "two") });
+		editor.chain().focus().setTextSelection(13).splitListItem("listItem").run();
+		expect(editor.state.doc.firstChild?.childCount).toBe(3);
+
+		getToolbarButton(screen, "Insert HTML").element().click();
+
+		await vi.waitFor(() =>
+			expect(topLevelTypes(editor).slice(0, 2)).toEqual(["bulletList", "htmlBlock"]),
+		);
+		expect(editor.state.doc.firstChild?.textContent).toBe("onetwo");
+		expect(editor.state.doc.firstChild?.childCount).toBe(2);
+	});
+
+	it("inserts a block after a heading instead of splitting it", async () => {
+		const { screen, editor } = await renderEditor({
+			value: [{ ...defaultValue[0]!, style: "h2" as const }],
+		});
+		editor.chain().focus().setTextSelection(4).run();
+
+		getToolbarButton(screen, "Insert HTML").element().click();
+
+		await vi.waitFor(() =>
+			expect(topLevelTypes(editor).slice(0, 2)).toEqual(["heading", "htmlBlock"]),
+		);
+		expect(editor.state.doc.firstChild?.textContent).toBe("Hello world");
+	});
+
 	it("inserts a block after a selected block instead of replacing it", async () => {
 		const { screen, editor } = await renderEditor();
 		editor.chain().focus().setTextSelection(3).run();
@@ -884,6 +912,23 @@ describe("Block insertion", () => {
 });
 
 describe("Block buttons", () => {
+	it("shows a nested list's own type, not its parent list's", async () => {
+		const { screen, editor } = await renderEditor({
+			value: [
+				{ ...listValue("parent")[0]!, listItem: "number" as const },
+				{ ...listValue("child")[0]!, _key: "child", level: 2 },
+			],
+		});
+		editor.chain().focus().setTextSelection(getTextPosition(editor, "child")).run();
+
+		await expect
+			.element(getToolbarButton(screen, "Bulleted list"))
+			.toHaveAttribute("aria-pressed", "true");
+		await expect
+			.element(getToolbarButton(screen, "Numbered list"))
+			.toHaveAttribute("aria-pressed", "false");
+	});
+
 	it("turns a heading into a quote that keeps its text", async () => {
 		const { screen, editor } = await renderEditor({
 			value: [{ ...defaultValue[0]!, style: "h2" as const }],
@@ -1203,6 +1248,9 @@ describe("Text Alignment", () => {
 		editor.chain().focus().setTextSelection(4).run();
 
 		await expect.element(getToolbarButton(screen, "Align center")).toBeDisabled();
+		await expect
+			.element(getToolbarButton(screen, "Align left"))
+			.toHaveAttribute("aria-pressed", "false");
 	});
 
 	it("tracks default and explicit alignment whenever the cursor changes paragraphs", async () => {
@@ -1242,7 +1290,7 @@ describe("Text Alignment", () => {
 		}
 	});
 
-	it("treats unannotated headings, list paragraphs, and newly split empty blocks as left aligned", async () => {
+	it("treats unannotated headings and newly split empty blocks as left aligned, and lists as unaligned", async () => {
 		const { screen, editor } = await renderEditor({
 			value: [
 				{
@@ -1262,13 +1310,14 @@ describe("Text Alignment", () => {
 			],
 		});
 
-		for (const text of ["A heading", "A list item"]) {
-			editor.chain().focus().setTextSelection(getTextPosition(editor, text)).run();
-			await vi.waitFor(() => expectAlignmentState(screen, "left"));
-		}
+		editor.chain().focus().setTextSelection(getTextPosition(editor, "A heading")).run();
+		await vi.waitFor(() => expectAlignmentState(screen, "left"));
 
-		const listPosition = getTextPosition(editor, "A list item") + "A list item".length;
-		editor.chain().focus().setTextSelection(listPosition).splitBlock().run();
+		editor.chain().focus().setTextSelection(getTextPosition(editor, "A list item")).run();
+		await vi.waitFor(() => expectAlignmentState(screen, null));
+
+		const headingEnd = getTextPosition(editor, "A heading") + "A heading".length;
+		editor.chain().focus().setTextSelection(headingEnd).splitBlock().run();
 		await vi.waitFor(() => expectAlignmentState(screen, "left"));
 	});
 

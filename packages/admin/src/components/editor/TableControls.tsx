@@ -11,7 +11,7 @@ import { useEditorState } from "@tiptap/react";
 import * as React from "react";
 
 import { cn } from "../../lib/utils.js";
-import { prepareBlockInsert } from "./BlockCommands.js";
+import { prepareBlockInsert } from "./blockTypes.js";
 import { getTableControlState, runTableAction, type TableActionId } from "./TableActions.js";
 import { selectionIsContainedInTableCells } from "./TableExtensions.js";
 

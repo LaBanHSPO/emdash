@@ -99,7 +99,7 @@ import {
 } from "@phosphor-icons/react";
 import { X } from "@phosphor-icons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Extension, Mark, type EditorEvents, type Range } from "@tiptap/core";
+import { Extension, InputRule, Mark, type EditorEvents, type Range } from "@tiptap/core";
 import CharacterCount from "@tiptap/extension-character-count";
 import Focus from "@tiptap/extension-focus";
 import { isAllowedUri } from "@tiptap/extension-link";
@@ -143,10 +143,11 @@ import {
 } from "../portable-text-table.js";
 import { CaretNext } from "./ArrowIcons.js";
 import { BlockKitMediaPickerField } from "./BlockKitMediaPickerField";
-import { BlockSelectAll, BlockSelection, prepareBlockInsert } from "./editor/BlockCommands.js";
+import { BlockSelectAll, BlockSelection, blockInsertPosition } from "./editor/BlockCommands.js";
 import {
 	activeTextBlockType,
 	canTurnInto,
+	prepareBlockInsert,
 	textBlockTypes,
 	toggleTextBlockType,
 	turnInto,
@@ -429,14 +430,38 @@ function setSelectedTextLink(editor: Editor, value: string): boolean {
 /**
  * Quotes and list items hold only what Portable Text stores for them: quoted
  * paragraphs, and list item text with nested lists. Anything else typed,
- * pasted, or dropped into one lands beside it instead of being lost on save.
+ * pasted, or dropped into one lands beside it instead of being lost on save,
+ * and `---` typed in one adds the divider the way the slash menu does.
  */
 const PortableTextStarterKit = StarterKit.extend({
 	addExtensions() {
 		return (this.parent?.() ?? []).map((extension) => {
 			if (extension.name === "blockquote") return extension.extend({ content: "paragraph+" });
-			if (extension.name !== "listItem") return extension;
-			return extension.extend({ content: "paragraph (paragraph | bulletList | orderedList)*" });
+			if (extension.name === "listItem") {
+				return extension.extend({ content: "paragraph (paragraph | bulletList | orderedList)*" });
+			}
+			if (extension.name !== "horizontalRule") return extension;
+			return extension.extend({
+				addInputRules() {
+					return (this.parent?.() ?? []).map(
+						(rule) =>
+							new InputRule({
+								find: rule.find,
+								handler: (props) => {
+									if (blockInsertPosition(props.state.selection) === null) {
+										return rule.handler(props);
+									}
+									props
+										.chain()
+										.deleteRange(props.range)
+										.command(({ tr }) => prepareBlockInsert(tr))
+										.setHorizontalRule()
+										.run();
+								},
+							}),
+					);
+				},
+			});
 		});
 	},
 });
@@ -1760,6 +1785,7 @@ function insertHtmlBlock(editor: Editor, range?: Range) {
 	chain
 		.command(({ tr }) => prepareBlockInsert(tr))
 		.insertContent({ type: "htmlBlock", attrs: { html: "" } })
+		.scrollIntoView()
 		.run();
 }
 
@@ -3468,7 +3494,7 @@ export function PortableTextEditor({
 			EmDashTableHeader,
 			EmDashTableCell,
 			TableIdentity,
-			TableSafetyShortcuts,
+			BlockFormatShortcuts,
 			BlockSelection.configure({
 				onArrowUpAtStart: () => {
 					const handler = onArrowUpAtStartRef.current;
@@ -3842,6 +3868,7 @@ export function PortableTextEditor({
 					chain
 						.command(({ tr }) => prepareBlockInsert(tr))
 						.setImage(attrs)
+						.scrollIntoView()
 						.run();
 				} else {
 					chain.insertContentAt(insertPos, { type: "image", attrs }).run();
@@ -3864,6 +3891,7 @@ export function PortableTextEditor({
 					chain
 						.command(({ tr }) => prepareBlockInsert(tr))
 						.setGallery(attrs)
+						.scrollIntoView()
 						.run();
 				} else {
 					chain.insertContentAt(insertPos, { type: "gallery", attrs }).run();
@@ -3919,6 +3947,7 @@ export function PortableTextEditor({
 					chain
 						.command(({ tr }) => prepareBlockInsert(tr))
 						.insertContent(content)
+						.scrollIntoView()
 						.run();
 				} else {
 					chain.insertContentAt(insertPos, content).run();
@@ -4028,6 +4057,7 @@ export function PortableTextEditor({
 				chain
 					.command(({ tr }) => prepareBlockInsert(tr))
 					.insertContent(prosemirrorContent)
+					.scrollIntoView()
 					.run();
 			} else {
 				chain.insertContentAt(insertPos, prosemirrorContent).run();
@@ -4693,7 +4723,7 @@ function MoreFormattingMenu({
 		selector: ({ editor: activeEditor }) => {
 			const { alignments, isAlignmentUnavailable } = getSelectionTextAlignments(activeEditor);
 			return {
-				value: alignments.size === 1 ? [...alignments][0] : undefined,
+				value: !isAlignmentUnavailable && alignments.size === 1 ? [...alignments][0] : undefined,
 				unavailable: isAlignmentUnavailable,
 			};
 		},
@@ -5468,27 +5498,34 @@ function setSelectionTextAlignment(editor: Editor, alignment: TextAlignment): bo
 	return true;
 }
 
-const TableSafetyShortcuts = Extension.create({
-	name: "tableSafetyShortcuts",
+/**
+ * Takes over TipTap's own block and alignment shortcuts, so they convert and
+ * align the way the toolbar does, and do nothing where the toolbar's buttons
+ * are disabled, such as in a table.
+ */
+const BlockFormatShortcuts = Extension.create({
+	name: "emdashBlockFormatShortcuts",
 	priority: 1_200,
 	addKeyboardShortcuts() {
-		const blockUnsafeStructure = () => selectionTouchesTable(this.editor.state);
-		// Ahead of TipTap's own alignment shortcuts, which would align text that can't keep it.
+		const convert = (id: TextBlockTypeId) => () => {
+			if (canTurnInto(this.editor)) toggleTextBlockType(this.editor, id);
+			return true;
+		};
 		const setAlignment = (alignment: TextAlignment) => {
 			setSelectionTextAlignment(this.editor, alignment);
 			return true;
 		};
 		return {
-			"Mod-Alt-1": blockUnsafeStructure,
-			"Mod-Alt-2": blockUnsafeStructure,
-			"Mod-Alt-3": blockUnsafeStructure,
-			"Mod-Alt-4": blockUnsafeStructure,
-			"Mod-Alt-5": blockUnsafeStructure,
-			"Mod-Alt-6": blockUnsafeStructure,
-			"Mod-Shift-7": blockUnsafeStructure,
-			"Mod-Shift-8": blockUnsafeStructure,
-			"Mod-Shift-b": blockUnsafeStructure,
-			"Mod-Alt-c": blockUnsafeStructure,
+			"Mod-Alt-1": convert("heading1"),
+			"Mod-Alt-2": convert("heading2"),
+			"Mod-Alt-3": convert("heading3"),
+			"Mod-Alt-4": convert("heading4"),
+			"Mod-Alt-5": convert("heading5"),
+			"Mod-Alt-6": convert("heading6"),
+			"Mod-Shift-7": convert("orderedList"),
+			"Mod-Shift-8": convert("bulletList"),
+			"Mod-Shift-b": convert("blockquote"),
+			"Mod-Alt-c": convert("codeBlock"),
 			"Mod-Shift-l": () => setAlignment("left"),
 			"Mod-Shift-e": () => setAlignment("center"),
 			"Mod-Shift-r": () => setAlignment("right"),
@@ -5535,7 +5572,8 @@ function EditorToolbar({
 			const { alignments, isCellSelection, isAlignmentUnavailable } = getSelectionTextAlignments(
 				ctx.editor,
 			);
-			const isOrderedList = ctx.editor.isActive("orderedList");
+			const activeType = activeTextBlockType(ctx.editor)?.id;
+			const isOrderedList = activeType === "orderedList";
 			const touchesTable = selectionTouchesTable(ctx.editor.state);
 			const can = ctx.editor.can();
 			return {
@@ -5553,15 +5591,18 @@ function EditorToolbar({
 					code: can.toggleCode(),
 				},
 				canTurnInto: canTurnInto(ctx.editor),
-				isBulletList: ctx.editor.isActive("bulletList"),
+				isBulletList: activeType === "bulletList",
 				isOrderedList,
 				canContinueOrderedList: isOrderedList && can.continueOrderedList(),
 				canRestartOrderedList: isOrderedList && can.restartOrderedList(),
-				isBlockquote: ctx.editor.isActive("blockquote"),
-				isCodeBlock: ctx.editor.isActive("codeBlock"),
-				alignLeftState: alignmentButtonState(alignments, isCellSelection, "left"),
-				alignCenterState: alignmentButtonState(alignments, isCellSelection, "center"),
-				alignRightState: alignmentButtonState(alignments, isCellSelection, "right"),
+				isBlockquote: activeType === "blockquote",
+				isCodeBlock: activeType === "codeBlock",
+				alignLeftState:
+					!isAlignmentUnavailable && alignmentButtonState(alignments, isCellSelection, "left"),
+				alignCenterState:
+					!isAlignmentUnavailable && alignmentButtonState(alignments, isCellSelection, "center"),
+				alignRightState:
+					!isAlignmentUnavailable && alignmentButtonState(alignments, isCellSelection, "right"),
 				isAlignmentUnavailable,
 				isLink: ctx.editor.isActive("link"),
 				isImage: ctx.editor.isActive("image"),

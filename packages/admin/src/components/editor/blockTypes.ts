@@ -34,7 +34,7 @@ import {
 } from "@tiptap/pm/state";
 import { canJoin } from "@tiptap/pm/transform";
 
-import { enterBlockSelection } from "./BlockCommands.js";
+import { blockInsertPosition, enterBlockSelection } from "./BlockCommands.js";
 import { selectionTouchesTable } from "./TableExtensions.js";
 
 export type TextBlockTypeId =
@@ -144,11 +144,29 @@ const ACTIVE_ORDER: TextBlockTypeId[] = [
 	"paragraph",
 ];
 
+/** The innermost list holding the whole selection, so a nested list reports its own type. */
+function selectedListType(editor: Editor): TextBlockTypeId | undefined {
+	const { selection } = editor.state;
+	if (selection instanceof NodeSelection) {
+		const { name } = selection.node.type;
+		if (name === "bulletList" || name === "orderedList") return name;
+	}
+	const { $from, $to } = selection;
+	for (let depth = $from.sharedDepth($to.pos); depth > 0; depth--) {
+		const { name } = $from.node(depth).type;
+		if (name === "bulletList" || name === "orderedList") return name;
+	}
+	return undefined;
+}
+
 /** The innermost-meaningful type of the block at the selection, e.g. a list rather than its paragraph. */
 export function activeTextBlockType(editor: Editor): TextBlockType | undefined {
+	const listType = selectedListType(editor);
 	for (const id of ACTIVE_ORDER) {
 		const type = textBlockTypes.find((candidate) => candidate.id === id);
-		if (type?.isActive(editor)) return type;
+		const active =
+			id === "bulletList" || id === "orderedList" ? listType === id : type?.isActive(editor);
+		if (active) return type;
 	}
 	return undefined;
 }
@@ -221,13 +239,18 @@ function setTextBlockType(
 	);
 }
 
-/** Joins the list holding `pos` with lists of the same type right before and after it. */
+/**
+ * Joins the list holding `pos` with lists of the same type right before and
+ * after it. A numbered list after it that starts at its own number keeps it.
+ */
 function joinAdjacentLists(tr: Transaction, pos: number, type: NodeType) {
 	const $pos = tr.doc.resolve(pos);
 	for (let depth = $pos.depth; depth > 0; depth--) {
 		if ($pos.node(depth).type !== type) continue;
 		const after = $pos.after(depth);
-		if (tr.doc.resolve(after).nodeAfter?.type === type && canJoin(tr.doc, after)) tr.join(after);
+		const next = tr.doc.resolve(after).nodeAfter;
+		const ownStart = typeof next?.attrs.start === "number" && next.attrs.start !== 1;
+		if (next?.type === type && !ownStart && canJoin(tr.doc, after)) tr.join(after);
 		const before = $pos.before(depth);
 		if (tr.doc.resolve(before).nodeBefore?.type === type && canJoin(tr.doc, before)) {
 			tr.join(before);
@@ -344,8 +367,36 @@ export function turnInto(editor: Editor, id: TextBlockTypeId, range?: Range): vo
 	}
 }
 
-/** A toolbar block button: turns the selection into `id`, or back into text when it already is one. */
+/**
+ * A toolbar block button: turns the selection into `id`, or back when it
+ * already is one. A list item goes up one level, as TipTap's own toggles do;
+ * other blocks go back to text.
+ */
 export function toggleTextBlockType(editor: Editor, id: TextBlockTypeId): void {
-	const type = textBlockTypes.find((candidate) => candidate.id === id);
-	turnInto(editor, type?.isActive(editor) ? "paragraph" : id);
+	if (activeTextBlockType(editor)?.id !== id) {
+		turnInto(editor, id);
+	} else if (id === "bulletList" || id === "orderedList") {
+		editor.chain().focus().liftListItem("listItem").run();
+	} else {
+		turnInto(editor, "paragraph");
+	}
+}
+
+/**
+ * Moves the caret to where an inserted block can be saved, so the block
+ * replaces the empty paragraph there: after a block selected whole or one
+ * holding text, or after the list or quote holding the caret. An empty line
+ * in a list or quote leaves it to become that paragraph itself, so nothing
+ * empty is left behind.
+ */
+export function prepareBlockInsert(tr: Transaction): boolean {
+	const position = blockInsertPosition(tr.selection);
+	if (position === null) return true;
+	const { selection } = tr;
+	if (selection instanceof TextSelection && selection.$from.parent.content.size === 0) {
+		return convertTextBlocks(tr, "paragraph");
+	}
+	tr.insert(position, tr.doc.type.schema.nodes.paragraph!.create());
+	tr.setSelection(TextSelection.create(tr.doc, position + 1));
+	return true;
 }
