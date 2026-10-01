@@ -258,7 +258,7 @@ export function LinkDestinationInput({
 					value={value}
 					onChange={(e) => onValueChange(e.target.value)}
 					onKeyDown={handleKeyDown}
-					className="h-8 w-full text-sm"
+					className="h-8 w-full text-sm pointer-coarse:h-11"
 					disabled={isResolving}
 				/>
 				{(isFetching || isResolving) && (

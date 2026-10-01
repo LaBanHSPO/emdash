@@ -5,6 +5,7 @@ import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DragHandleWrapper } from "../../src/components/editor/DragHandleWrapper";
+import "../../dist/styles.css";
 import { render } from "../utils/render";
 
 type NodeChangeHandler = (data: { node: PMNode | null; editor: Editor; pos: number }) => void;
@@ -162,13 +163,21 @@ describe("DragHandleWrapper interactions", () => {
 			expect(insertButton.closest("[data-offset]")?.getAttribute("data-offset")).toBe("4");
 
 			i18n.activate("ar");
+			document.documentElement.dir = "rtl";
 			await vi.waitFor(() => {
 				expect(insertButton.closest("[data-placement]")?.getAttribute("data-placement")).toBe(
 					"right-start",
 				);
 			});
-			expect(insertButton.parentElement?.className).toContain("rtl:flex-row-reverse");
+			// Mirrored, so + stays outermost and the grip stays beside the text.
+			const grip = screen
+				.getByRole("button", { name: "Block actions - drag to reorder, click for menu" })
+				.element();
+			expect(insertButton.getBoundingClientRect().left).toBeGreaterThan(
+				grip.getBoundingClientRect().left,
+			);
 		} finally {
+			document.documentElement.dir = "";
 			i18n.activate(previousLocale);
 		}
 	});

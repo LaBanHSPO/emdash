@@ -3,7 +3,7 @@
  *
  * Renders a first-class `htmlBlock` in the Portable Text editor with:
  * - A textarea for editing raw HTML source
- * - Selection ring, drag handle, and delete action
+ * - A delete action (the editor's block handle drags it)
  *
  * Modeled on `PluginBlockNode.tsx` (atom node with React node view) and
  * the existing `{ _type: "htmlBlock", _key, html }` Portable Text shape
@@ -12,13 +12,14 @@
 
 import { Button } from "@cloudflare/kumo";
 import { useLingui } from "@lingui/react/macro";
-import { BracketsAngle, DotsSixVertical, Trash } from "@phosphor-icons/react";
+import { BracketsAngle, Trash } from "@phosphor-icons/react";
 import { Node, mergeAttributes } from "@tiptap/core";
 import type { NodeViewProps } from "@tiptap/react";
 import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import { enterBlockSelection } from "./BlockCommands.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -41,7 +42,14 @@ function isEditingFormField(): boolean {
 // Node View
 // ---------------------------------------------------------------------------
 
-function HtmlBlockNodeView({ node, updateAttributes, selected, deleteNode }: NodeViewProps) {
+function HtmlBlockNodeView({
+	editor,
+	getPos,
+	node,
+	updateAttributes,
+	selected,
+	deleteNode,
+}: NodeViewProps) {
 	const { t } = useLingui();
 	const html = typeof node.attrs.html === "string" ? node.attrs.html : "";
 	const [draft, setDraft] = React.useState(html);
@@ -76,20 +84,19 @@ function HtmlBlockNodeView({ node, updateAttributes, selected, deleteNode }: Nod
 		[commitHtml],
 	);
 
+	// Escape leaves the source for the block itself, as it does in the editor.
+	const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		if (event.key !== "Escape" || event.nativeEvent.isComposing) return;
+		const pos = getPos();
+		if (typeof pos !== "number") return;
+		event.preventDefault();
+		editor.chain().setNodeSelection(pos).focus().run();
+		enterBlockSelection(editor);
+	};
+
 	return (
 		<NodeViewWrapper className="html-block relative my-4" contentEditable={false} data-drag-handle>
 			<div className="relative group">
-				{/* Drag handle */}
-				<div
-					className={cn(
-						"absolute -start-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing",
-						selected && "opacity-100",
-					)}
-					data-drag-handle
-				>
-					<DotsSixVertical className="h-5 w-5 text-kumo-subtle/50" />
-				</div>
-
 				{/* Main block */}
 				<div
 					className={cn(
@@ -134,6 +141,7 @@ function HtmlBlockNodeView({ node, updateAttributes, selected, deleteNode }: Nod
 							ref={textareaRef}
 							value={draft}
 							onChange={handleChange}
+							onKeyDown={handleKeyDown}
 							placeholder={t`Enter HTML...`}
 							className="w-full min-h-[100px] resize-y rounded-md border bg-kumo-overlay p-3 font-mono text-sm text-kumo-strong placeholder:text-kumo-subtle focus:outline-none focus:ring-2 focus:ring-kumo-brand"
 							spellCheck={false}

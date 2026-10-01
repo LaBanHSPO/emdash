@@ -7,6 +7,7 @@
 
 import { Menu } from "@cloudflare/kumo/primitives/menu";
 import { Check, type Icon } from "@phosphor-icons/react";
+import type { Editor } from "@tiptap/core";
 import * as React from "react";
 
 import { cn } from "../../lib/utils.js";
@@ -21,6 +22,19 @@ export const editorMenuPopupClassName = cn(
 	"data-ending-style:opacity-0 data-ending-style:duration-75",
 	"motion-reduce:transition-none",
 );
+
+/**
+ * Tab closes an editor menu back into the editor. The menu is portalled to
+ * the end of the page, so the browser would otherwise move focus past it.
+ */
+export function tabToEditor(editor: Editor, close: () => void) {
+	return (event: React.KeyboardEvent) => {
+		if (event.key !== "Tab" || editor.isDestroyed) return;
+		event.preventDefault();
+		close();
+		editor.view.focus();
+	};
+}
 
 export const editorMenuItemClassName = cn(
 	"flex h-8 w-full cursor-default items-center gap-2 rounded-md px-2 text-start outline-none select-none",

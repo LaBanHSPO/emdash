@@ -41,15 +41,16 @@ export function _getDragHandlePlacement(direction: "ltr" | "rtl") {
 
 /**
  * How far to push the handle down so it centers on the block's first line
- * of text. Blocks without text (images, code, tables) keep it near the top.
+ * of text, a code block's first line, or a table's first row. Media and
+ * embeds keep it near the top.
  */
 function firstLineOffset(block: HTMLElement): number {
 	if (block.matches("hr")) return (block.offsetHeight - HANDLE_SIZE_PX) / 2;
 	const line = block.matches(TEXT_BLOCK_SELECTOR)
 		? block
-		: block.matches("ul, ol, blockquote")
+		: block.matches("ul, ol, blockquote, .tableWrapper")
 			? block.querySelector<HTMLElement>(TEXT_BLOCK_SELECTOR)
-			: null;
+			: block.querySelector<HTMLElement>(".emdash-code-block");
 	if (!line) return 4;
 	const style = getComputedStyle(line);
 	const lineHeight = Number.parseFloat(style.lineHeight);
@@ -180,8 +181,8 @@ export function DragHandleWrapper({ editor, onInsertBlock }: DragHandleWrapperPr
 	);
 
 	const handleButtonClass = cn(
-		"flex-none rounded-md text-kumo-inactive select-none",
-		"hover:bg-kumo-tint hover:text-kumo-subtle",
+		"flex-none rounded-md text-kumo-subtle select-none",
+		"hover:bg-kumo-tint hover:text-kumo-default",
 	);
 
 	return (
@@ -194,7 +195,7 @@ export function DragHandleWrapper({ editor, onInsertBlock }: DragHandleWrapperPr
 			>
 				<TooltipProvider>
 					<div
-						className="flex items-center gap-0.5 rtl:flex-row-reverse"
+						className="flex items-center gap-0.5"
 						style={{ transform: `translateY(${lineOffset}px)` }}
 					>
 						<Tooltip
@@ -230,6 +231,7 @@ export function DragHandleWrapper({ editor, onInsertBlock }: DragHandleWrapperPr
 									}}
 									draggable={false}
 									onClick={handleInsertClick}
+									data-block-insert
 									aria-label={t`Insert block below`}
 								>
 									<Plus className="h-4 w-4" weight="bold" aria-hidden="true" />
@@ -258,7 +260,7 @@ export function DragHandleWrapper({ editor, onInsertBlock }: DragHandleWrapperPr
 									className={cn(
 										handleButtonClass,
 										"h-6 w-[1.125rem] cursor-grab active:cursor-grabbing",
-										menuOpen && "bg-kumo-tint text-kumo-subtle",
+										menuOpen && "bg-kumo-tint text-kumo-default",
 									)}
 									onClick={handleClick}
 									data-block-handle

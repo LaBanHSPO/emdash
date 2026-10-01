@@ -15,7 +15,6 @@ import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import {
-	DotsSixVertical,
 	Trash,
 	Pencil,
 	X,
@@ -263,17 +262,6 @@ function PluginBlockNodeView({
 			data-drag-handle
 		>
 			<div className="relative group">
-				{/* Drag handle - appears in left gutter */}
-				<div
-					className={cn(
-						"absolute -start-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing",
-						selected && "opacity-100",
-					)}
-					data-drag-handle
-				>
-					<DotsSixVertical className="h-5 w-5 text-kumo-subtle/50" />
-				</div>
-
 				{/* Main block content */}
 				<div
 					className={cn(

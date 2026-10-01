@@ -577,6 +577,20 @@ describe("BlockMenu", () => {
 		expect(onClose).toHaveBeenCalled();
 	});
 
+	it("closes back into the editor on Tab", async () => {
+		const { editor } = await getEditor();
+		editor.commands.setNodeSelection(0);
+
+		await render(<ClosingBlockMenuTestWrapper editor={editor} onCloseComplete={vi.fn()} />);
+		await vi.waitFor(() => expect(getBlockMenu()).toBeTruthy());
+		getBlockMenu()!.focus();
+
+		await userEvent.keyboard("{Tab}");
+
+		await vi.waitFor(() => expect(getBlockMenu()).toBeNull());
+		expect(document.activeElement).toBe(editor.view.dom);
+	});
+
 	it("stays open when the pointer leaves a highlighted menu item", async () => {
 		const { editor, pm } = await getEditor();
 		const onClose = vi.fn();

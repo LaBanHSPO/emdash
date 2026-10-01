@@ -35,6 +35,7 @@ import {
 	EditorMenuSeparator,
 	EditorSubmenu,
 	editorMenuPopupClassName,
+	tabToEditor,
 } from "./EditorMenu.js";
 
 const NODE_LABELS: Record<string, MessageDescriptor> = {
@@ -134,6 +135,7 @@ export function BlockMenu({
 					<Menu.Popup
 						aria-label={t`Block actions`}
 						finalFocus={() => (editor.isDestroyed ? false : editor.view.dom)}
+						onKeyDown={tabToEditor(editor, onClose)}
 						className={cn(editorMenuPopupClassName, "w-60")}
 					>
 						<Menu.Group>

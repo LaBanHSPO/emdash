@@ -876,6 +876,24 @@ describe("Bubble Menu", () => {
 		expect(editor.getText()).toBe("Click here");
 	});
 
+	it("shows a linked table cell's link preview instead of the table controls", async () => {
+		const { editor, pm } = await renderEditor({ value: tableValue });
+		await focusTableCell(editor, pm);
+		await waitForTableToolbar();
+		const start = getTextPosition(editor, "Header");
+		editor
+			.chain()
+			.setTextSelection({ from: start, to: start + 6 })
+			.setLink({ href: "https://example.com" })
+			.setTextSelection(start + 2)
+			.run();
+
+		await vi.waitFor(() => {
+			expect(document.querySelector("[data-emdash-link-bubble-menu]")).toBeVisible();
+			expect(document.querySelector('[aria-label="Table controls"]')).toBeNull();
+		});
+	});
+
 	it("removes link when Remove link button is clicked", async () => {
 		const linkValue = [
 			{

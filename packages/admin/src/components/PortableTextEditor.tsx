@@ -163,6 +163,7 @@ import {
 	EditorMenuRadioItem,
 	EditorMenuSeparator,
 	editorMenuPopupClassName,
+	tabToEditor,
 } from "./editor/EditorMenu.js";
 import { mediaItemToGalleryImage } from "./editor/GalleryDetailPanel";
 import { GalleryExtension, type GalleryImage } from "./editor/GalleryNode";
@@ -4330,6 +4331,7 @@ function EditorBubbleMenu({
 }) {
 	const [showLinkInput, setShowLinkInput] = React.useState(false);
 	const [linkUrl, setLinkUrl] = React.useState("");
+	const [openMenu, setOpenMenu] = React.useState<"turnInto" | "more" | null>(null);
 	const menuRef = React.useRef<HTMLDivElement>(null);
 	const { t } = useLingui();
 	const state = useEditorState({
@@ -4343,7 +4345,8 @@ function EditorBubbleMenu({
 			superscript: activeEditor.isActive("superscript"),
 			code: activeEditor.isActive("code"),
 			link: activeEditor.isActive("link"),
-			blockType: canTurnInto(activeEditor) ? activeTextBlockType(activeEditor)?.id : undefined,
+			canTurnInto: canTurnInto(activeEditor),
+			blockType: activeTextBlockType(activeEditor)?.id,
 		}),
 	});
 	// When bubble menu opens with link input, populate the URL
@@ -4456,9 +4459,9 @@ function EditorBubbleMenu({
 			>
 				<TooltipProvider delay={400}>
 					{showLinkInput ? (
-						<div className="flex items-start gap-1">
+						<div className="flex min-w-0 items-start gap-1">
 							<LinkDestinationInput
-								className="w-72"
+								className="w-72 min-w-0 shrink"
 								value={linkUrl}
 								onValueChange={setLinkUrl}
 								onSubmit={handleSetLink}
@@ -4480,9 +4483,14 @@ function EditorBubbleMenu({
 					) : (
 						// Scrolls with the fixed toolbar's edge fade when a narrow screen cuts it off.
 						<div className="emdash-editor-toolbar -m-1 flex min-w-0 scroll-px-1 items-center gap-0.5 overflow-x-auto rounded-[inherit] p-1">
-							{state.blockType && (
+							{state.canTurnInto && (
 								<>
-									<TurnIntoMenu editor={editor} activeId={state.blockType} />
+									<TurnIntoMenu
+										editor={editor}
+										activeId={state.blockType}
+										open={openMenu === "turnInto"}
+										onOpenChange={(open) => setOpenMenu(open ? "turnInto" : null)}
+									/>
 									<BubbleSeparator />
 								</>
 							)}
@@ -4509,6 +4517,8 @@ function EditorBubbleMenu({
 								editor={editor}
 								subscript={state.subscript}
 								superscript={state.superscript}
+								open={openMenu === "more"}
+								onOpenChange={(open) => setOpenMenu(open ? "more" : null)}
 							/>
 						</div>
 					)}
@@ -4611,17 +4621,28 @@ const bubbleTriggerClassName = cn(
 	"pointer-coarse:h-11",
 );
 
-function TurnIntoMenu({ editor, activeId }: { editor: Editor; activeId: TextBlockTypeId }) {
+interface BubbleMenuControl {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+}
+
+/** `activeId` is unset when the selection mixes block types, so nothing is checked. */
+function TurnIntoMenu({
+	editor,
+	activeId,
+	open,
+	onOpenChange,
+}: { editor: Editor; activeId?: TextBlockTypeId } & BubbleMenuControl) {
 	const { t } = useLingui();
 	const active = textBlockTypes.find((type) => type.id === activeId);
 	return (
-		<Menu.Root modal={false}>
+		<Menu.Root modal={false} open={open} onOpenChange={onOpenChange}>
 			<Menu.Trigger
 				className={bubbleTriggerClassName}
 				onMouseDown={(event) => event.preventDefault()}
 				aria-label={t`Turn into`}
 			>
-				<span className="max-w-32 truncate">{active ? t(active.label) : t`Text`}</span>
+				<span className="max-w-32 truncate">{active ? t(active.label) : t`Turn into`}</span>
 				<CaretDown className="size-3 flex-none text-kumo-subtle" aria-hidden="true" />
 			</Menu.Trigger>
 			<Menu.Portal>
@@ -4629,10 +4650,11 @@ function TurnIntoMenu({ editor, activeId }: { editor: Editor; activeId: TextBloc
 					<Menu.Popup
 						{...{ [BUBBLE_POPUP_ATTR]: "" }}
 						finalFocus={() => (editor.isDestroyed ? false : editor.view.dom)}
+						onKeyDown={tabToEditor(editor, () => onOpenChange(false))}
 						className={editorMenuPopupClassName}
 					>
 						<Menu.RadioGroup
-							value={activeId}
+							value={activeId ?? null}
 							onValueChange={(id) =>
 								textBlockTypes.find((type) => type.id === id)?.transform(editor)
 							}
@@ -4658,11 +4680,13 @@ function MoreFormattingMenu({
 	editor,
 	subscript,
 	superscript,
+	open,
+	onOpenChange,
 }: {
 	editor: Editor;
 	subscript: boolean;
 	superscript: boolean;
-}) {
+} & BubbleMenuControl) {
 	const { t } = useLingui();
 	const alignment = useEditorState({
 		editor,
@@ -4675,7 +4699,7 @@ function MoreFormattingMenu({
 		},
 	});
 	return (
-		<Menu.Root modal={false}>
+		<Menu.Root modal={false} open={open} onOpenChange={onOpenChange}>
 			<Menu.Trigger
 				className={cn(bubbleTriggerClassName, "w-8 justify-center px-0 pointer-coarse:w-11")}
 				onMouseDown={(event) => event.preventDefault()}
@@ -4688,6 +4712,7 @@ function MoreFormattingMenu({
 					<Menu.Popup
 						{...{ [BUBBLE_POPUP_ATTR]: "" }}
 						finalFocus={() => (editor.isDestroyed ? false : editor.view.dom)}
+						onKeyDown={tabToEditor(editor, () => onOpenChange(false))}
 						className={editorMenuPopupClassName}
 					>
 						<EditorMenuCheckboxItem
@@ -4787,11 +4812,13 @@ function TableBubbleMenu({
 					activeElement?.closest('[role="menu"]')?.getAttribute("aria-labelledby") === triggerId,
 				);
 				const hasEditorFocus = view.hasFocus() || element.contains(activeElement) || hasMenuFocus;
+				// In a link, the link preview shows instead, which would otherwise cover this.
 				return (
 					activeEditor.isEditable &&
 					hasEditorFocus &&
 					activeEditor.isActive("table") &&
-					(state.selection.empty || state.selection instanceof CellSelection)
+					((state.selection.empty && !activeEditor.isActive("link")) ||
+						state.selection instanceof CellSelection)
 				);
 			}}
 			data-emdash-table-bubble-menu
@@ -5066,7 +5093,7 @@ function ImageBubbleMenu({
 	);
 	// Below the sm breakpoint these buttons show only their icons.
 	const textButtonClass =
-		"h-8 gap-1.5 px-2 text-sm pointer-coarse:h-11 max-sm:w-8 max-sm:justify-center max-sm:px-0 max-sm:pointer-coarse:w-11";
+		"h-8 gap-1.5 rounded-md px-2 text-sm pointer-coarse:h-11 max-sm:w-8 max-sm:justify-center max-sm:px-0 max-sm:pointer-coarse:w-11";
 
 	return (
 		<>
@@ -5199,7 +5226,7 @@ function ImageBubbleMenu({
 							</Button>
 							<Button
 								variant="ghost"
-								className={cn(textButtonClass, described && "bg-kumo-tint text-kumo-default")}
+								className={cn(textButtonClass, described && "bg-kumo-tint text-kumo-link")}
 								icon={<TextAa className="h-4 w-4" aria-hidden="true" />}
 								title={described ? image.alt : t`No description yet`}
 								aria-pressed={described}
