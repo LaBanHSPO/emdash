@@ -784,11 +784,13 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 
 /* On touch screens a bar button's target spans the bar's height and half of each gap. */
 @media (pointer: coarse) {
-	[data-emdash-editor-bar] :is(button, a) {
+	/* Kumo's primary button clips overflow, which would clip the target too. */
+	[data-emdash-editor-bar] :is(button, a):not([aria-hidden="true"]) {
 		position: relative;
+		overflow: visible;
 	}
 
-	[data-emdash-editor-bar] :is(button, a)::after {
+	[data-emdash-editor-bar] :is(button, a):not([aria-hidden="true"])::after {
 		position: absolute;
 		inset: -0.6875rem -0.1875rem;
 		content: "";

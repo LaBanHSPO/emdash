@@ -4438,7 +4438,8 @@ function EditorBubbleMenu({
 							)}
 						</div>
 					) : (
-						<>
+						// Scrolls with the fixed toolbar's edge fade when a narrow screen cuts it off.
+						<div className="emdash-editor-toolbar -m-1 flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-[inherit] p-1">
 							{state.blockType && (
 								<>
 									<TurnIntoMenu editor={editor} activeId={state.blockType} />
@@ -4469,7 +4470,7 @@ function EditorBubbleMenu({
 								subscript={state.subscript}
 								superscript={state.superscript}
 							/>
-						</>
+						</div>
 					)}
 				</TooltipProvider>
 			</BubbleMenu>

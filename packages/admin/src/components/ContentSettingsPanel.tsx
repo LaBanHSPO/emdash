@@ -288,11 +288,11 @@ function TimestampRow({
  * their labels first, at a wider bar.
  */
 export const compactBarButtonClassName =
-	"@max-3xl/editor-bar:w-6.5 @max-3xl/editor-bar:justify-center @max-3xl/editor-bar:px-0";
-export const compactBarLabelClassName = "@max-3xl/editor-bar:sr-only";
+	"@max-2xl/editor-bar:w-6.5 @max-2xl/editor-bar:justify-center @max-2xl/editor-bar:px-0";
+export const compactBarLabelClassName = "@max-2xl/editor-bar:sr-only";
 const compactBarExtraButtonClassName =
-	"@max-5xl/editor-bar:w-6.5 @max-5xl/editor-bar:justify-center @max-5xl/editor-bar:px-0";
-const compactBarExtraLabelClassName = "@max-5xl/editor-bar:sr-only";
+	"@max-[60rem]/editor-bar:w-6.5 @max-[60rem]/editor-bar:justify-center @max-[60rem]/editor-bar:px-0";
+const compactBarExtraLabelClassName = "@max-[60rem]/editor-bar:sr-only";
 
 /**
  * Discard-draft confirmation shared by the settings panel and the
@@ -658,7 +658,7 @@ export function EditorActions({
 				size="sm"
 				variant={saveVariant}
 				className={cn("min-w-0", compactBarButtonClassName)}
-				labelClassName="@max-3xl/editor-bar:hidden"
+				labelClassName="@max-2xl/editor-bar:hidden"
 				isDirty={isDirty}
 				isSaving={busy}
 				disabled={saveDisabled}

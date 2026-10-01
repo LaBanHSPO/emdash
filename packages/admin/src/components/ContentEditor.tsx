@@ -1435,11 +1435,14 @@ export function ContentEditor({
 							search={{ locale: undefined }}
 							tabIndex={-1}
 							aria-hidden="true"
-							className="hidden max-w-48 shrink-0 truncate text-base text-kumo-subtle no-underline hover:text-kumo-default @3xl/editor-bar:block"
+							className="hidden max-w-48 shrink-0 truncate text-base text-kumo-subtle no-underline hover:text-kumo-default @[44rem]/editor-bar:block"
 						>
 							{collectionListLabel}
 						</Link>
-						<span aria-hidden="true" className="hidden text-kumo-inactive @3xl/editor-bar:block">
+						<span
+							aria-hidden="true"
+							className="hidden text-kumo-inactive @[44rem]/editor-bar:block"
+						>
 							/
 						</span>
 					</>
