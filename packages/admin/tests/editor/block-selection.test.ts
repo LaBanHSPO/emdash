@@ -103,6 +103,33 @@ describe("Block selection", () => {
 		expect(selectedBlockText()).toBe("two");
 	});
 
+	it("pastes after a selected block instead of replacing it", () => {
+		create("<p>one</p><p>two</p>");
+		caretIn("one");
+		press("Escape");
+
+		const paste = new Event("paste", { bubbles: true, cancelable: true });
+		Object.defineProperty(paste, "clipboardData", {
+			value: {
+				types: ["text/plain"],
+				getData: (type: string) => (type === "text/plain" ? "pasted" : ""),
+			},
+		});
+		editor.view.dom.dispatchEvent(paste);
+
+		expect(editor.getHTML()).toBe("<p>one</p><p>pasted</p><p>two</p>");
+	});
+
+	it("doesn't let typing replace a clicked divider", async () => {
+		create("<p>one</p><hr><p>two</p>");
+		editor.commands.setNodeSelection(5);
+		editor.view.focus();
+
+		await userEvent.keyboard("x");
+
+		expect(editor.getHTML()).toBe("<p>one</p><hr><p>two</p>");
+	});
+
 	it("goes back to writing at the end of the block on Enter", () => {
 		create("<p>one</p><p>two</p>");
 		caretIn("two");

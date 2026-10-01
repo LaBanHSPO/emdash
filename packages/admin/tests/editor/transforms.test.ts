@@ -16,7 +16,7 @@ import TextAlign from "@tiptap/extension-text-align";
 import StarterKit from "@tiptap/starter-kit";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
-import { textBlockTypes } from "../../src/components/editor/blockTypes";
+import { canTurnInto, textBlockTypes } from "../../src/components/editor/blockTypes";
 
 describe("Block Transforms", () => {
 	let editor: Editor;
@@ -124,7 +124,7 @@ describe("Block Transforms", () => {
 		});
 	});
 
-	describe("Transform to Code Block", () => {
+	describe("Transform to Code block", () => {
 		it("transforms paragraph to code block", () => {
 			const transform = textBlockTypes.find((t) => t.id === "codeBlock");
 			transform?.transform(editor);
@@ -150,7 +150,7 @@ describe("Block Transforms", () => {
 		});
 	});
 
-	describe("Transform to Bullet List", () => {
+	describe("Transform to Bulleted list", () => {
 		it("transforms paragraph to bullet list", () => {
 			const transform = textBlockTypes.find((t) => t.id === "bulletList");
 			transform?.transform(editor);
@@ -319,6 +319,55 @@ describe("Turn into", () => {
 		turnInto("heading2");
 
 		expect(editor.getHTML()).toBe('<h2 style="text-align: center;">centered</h2><p>end</p>');
+	});
+
+	it.each([
+		["a heading", "<h2>words</h2><p>end</p>"],
+		["a code block", "<pre><code>words</code></pre><p>end</p>"],
+	])("turns %s into quoted text", (_, content) => {
+		create(content);
+		editor.commands.setTextSelection(2);
+
+		turnInto("blockquote");
+
+		expect(editor.getHTML()).toBe("<blockquote><p>words</p></blockquote><p>end</p>");
+	});
+
+	it("drops an alignment that a quote or list item can't keep", () => {
+		create('<p style="text-align: center">centered</p><p>end</p>');
+		editor.commands.setTextSelection(2);
+
+		turnInto("bulletList");
+
+		expect(editor.getHTML()).toBe("<ul><li><p>centered</p></li></ul><p>end</p>");
+	});
+
+	it("joins a new list with lists of the same type around it", () => {
+		create("<ol><li><p>one</p></li></ol><p>two</p><ol><li><p>three</p></li></ol><p>end</p>");
+		editor.commands.setTextSelection(12);
+
+		turnInto("orderedList");
+
+		expect(editor.getHTML()).toBe(
+			"<ol><li><p>one</p></li><li><p>two</p></li><li><p>three</p></li></ol><p>end</p>",
+		);
+	});
+
+	it("offers to convert a selection that mixes block types", () => {
+		create("<p>one</p><h2>two</h2><p>end</p>");
+		editor.commands.setTextSelection({ from: 2, to: 8 });
+
+		expect(canTurnInto(editor)).toBe(true);
+		turnInto("bulletList");
+
+		expect(editor.getHTML()).toBe("<ul><li><p>one</p></li><li><p>two</p></li></ul><p>end</p>");
+	});
+
+	it("doesn't offer to convert a selection holding a divider", () => {
+		create("<p>one</p><hr><p>two</p>");
+		editor.commands.setTextSelection({ from: 2, to: 8 });
+
+		expect(canTurnInto(editor)).toBe(false);
 	});
 });
 

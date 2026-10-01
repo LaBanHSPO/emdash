@@ -757,22 +757,33 @@ describe("Portable Text ↔ ProseMirror conversion", () => {
 		expect(editor.getJSON()).toEqual(before);
 	});
 
-	it("explains that tables cannot be pasted inside lists or quotes", async () => {
-		const { screen, editor } = await renderAndGetEditor();
-		const before = editor.getJSON();
+	function pasteHtml(editor: Editor, html: string) {
 		const clipboardData = {
 			files: [],
 			items: [],
 			types: ["text/html", "text/plain"],
-			getData: (type: string) =>
-				type === "text/html"
-					? "<blockquote><table><tbody><tr><td>Cell</td></tr></tbody></table></blockquote>"
-					: "",
+			getData: (type: string) => (type === "text/html" ? html : ""),
 		};
 		const paste = new Event("paste", { bubbles: true, cancelable: true });
 		Object.defineProperty(paste, "clipboardData", { value: clipboardData });
-
 		editor.view.dom.dispatchEvent(paste);
+	}
+
+	it("explains that tables cannot be pasted inside lists or quotes", async () => {
+		const { screen, editor } = await renderAndGetEditor({
+			value: [
+				{
+					_type: "block",
+					_key: "quote",
+					style: "blockquote",
+					children: [{ _type: "span", _key: "s1", text: "Quoted" }],
+				},
+			],
+		});
+		editor.commands.setTextSelection(3);
+		const before = editor.getJSON();
+
+		pasteHtml(editor, "<table><tbody><tr><td>Cell</td></tr></tbody></table>");
 
 		await expect
 			.element(screen.getByRole("alert"))
@@ -780,6 +791,24 @@ describe("Portable Text ↔ ProseMirror conversion", () => {
 				"Tables cannot be pasted inside lists or quotes. Paste the table into its own paragraph and try again.",
 			);
 		expect(editor.getJSON()).toEqual(before);
+	});
+
+	it("pastes content copied from inside a quote or list beside it instead of losing it", async () => {
+		const { editor } = await renderAndGetEditor({ value: [textBlock("Intro")] });
+		editor.commands.setTextSelection(6);
+
+		pasteHtml(
+			editor,
+			"<blockquote><h2>Heading</h2><table><tbody><tr><td>Cell</td></tr></tbody></table></blockquote><ul><li><p>Item</p><hr></li></ul>",
+		);
+
+		await vi.waitFor(() => expect(editor.getText()).toContain("Cell"));
+		const topLevel: string[] = [];
+		editor.state.doc.forEach((node) => topLevel.push(node.type.name));
+		expect(topLevel).toEqual(expect.arrayContaining(["heading", "table", "horizontalRule"]));
+		const values = _prosemirrorToPortableText(editor.getJSON() as never);
+		expect(values.map((block) => block._type)).toEqual(expect.arrayContaining(["table", "break"]));
+		expect(JSON.stringify(values)).toContain("Heading");
 	});
 
 	it("does not open block slash commands inside a table cell", async () => {
@@ -1025,6 +1054,39 @@ describe("Portable Text ↔ ProseMirror conversion", () => {
 			.join("");
 
 		expect(linkedText).toBe("https://example.com/docs");
+	});
+
+	it("types before a link that opens a block instead of extending it", async () => {
+		const { editor } = await renderAndGetEditor({
+			value: [
+				{
+					_type: "block",
+					_key: "b1",
+					style: "normal",
+					children: [
+						{ _type: "span", _key: "s1", text: "Docs", marks: ["l1"] },
+						{ _type: "span", _key: "s2", text: " page", marks: [] },
+					],
+					markDefs: [{ _type: "link", _key: "l1", href: "https://example.com" }],
+				},
+			],
+		});
+		editor.commands.setTextSelection(1);
+
+		simulateTyping(editor, "See ");
+
+		const first = editor.state.doc.firstChild!.firstChild!;
+		expect(first.text).toBe("See ");
+		expect(first.marks.some((mark) => mark.type.name === "link")).toBe(false);
+	});
+
+	it("keeps subscript and superscript apart", async () => {
+		const { editor } = await renderAndGetEditor({ value: [textBlock("H2O")] });
+
+		editor.chain().setTextSelection({ from: 2, to: 3 }).toggleSubscript().toggleSuperscript().run();
+
+		expect(editor.isActive("superscript")).toBe(true);
+		expect(editor.isActive("subscript")).toBe(false);
 	});
 
 	it("renders a bullet list", async () => {
@@ -1384,7 +1446,7 @@ describe("Toolbar", () => {
 		await expect
 			.element(toolbar.getByRole("button", { name: "Strikethrough" }))
 			.toBeInTheDocument();
-		await expect.element(toolbar.getByRole("button", { name: "Inline Code" })).toBeInTheDocument();
+		await expect.element(toolbar.getByRole("button", { name: "Inline code" })).toBeInTheDocument();
 		expect(toolbar.element().querySelector('[aria-label="Subscript"]')).toBeNull();
 		expect(toolbar.element().querySelector('[aria-label="Superscript"]')).toBeNull();
 	});
@@ -1435,27 +1497,27 @@ describe("Toolbar", () => {
 
 	it("has list buttons", async () => {
 		const screen = await renderWithToolbar();
-		await expect.element(screen.getByRole("button", { name: "Bullet List" })).toBeInTheDocument();
-		await expect.element(screen.getByRole("button", { name: "Numbered List" })).toBeInTheDocument();
+		await expect.element(screen.getByRole("button", { name: "Bulleted list" })).toBeInTheDocument();
+		await expect.element(screen.getByRole("button", { name: "Numbered list" })).toBeInTheDocument();
 	});
 
 	it("has block buttons", async () => {
 		const screen = await renderWithToolbar();
 		await expect.element(screen.getByRole("button", { name: "Quote" })).toBeInTheDocument();
-		await expect.element(screen.getByRole("button", { name: "Code Block" })).toBeInTheDocument();
+		await expect.element(screen.getByRole("button", { name: "Code block" })).toBeInTheDocument();
 	});
 
 	it("has alignment buttons", async () => {
 		const screen = await renderWithToolbar();
-		await expect.element(screen.getByRole("button", { name: "Align Left" })).toBeInTheDocument();
-		await expect.element(screen.getByRole("button", { name: "Align Center" })).toBeInTheDocument();
-		await expect.element(screen.getByRole("button", { name: "Align Right" })).toBeInTheDocument();
+		await expect.element(screen.getByRole("button", { name: "Align left" })).toBeInTheDocument();
+		await expect.element(screen.getByRole("button", { name: "Align center" })).toBeInTheDocument();
+		await expect.element(screen.getByRole("button", { name: "Align right" })).toBeInTheDocument();
 	});
 
 	it("keeps extended insertion actions out of the formatting toolbar", async () => {
 		const screen = await renderWithToolbar();
 		const toolbar = screen.getByRole("toolbar").element();
-		await expect.element(screen.getByRole("button", { name: "Insert Link" })).toBeInTheDocument();
+		await expect.element(screen.getByRole("button", { name: "Add link" })).toBeInTheDocument();
 		expect(toolbar.querySelector('[aria-label="Insert Table"]')).toBeNull();
 		expect(toolbar.querySelector('[aria-label="Insert Horizontal Rule"]')).toBeNull();
 	});

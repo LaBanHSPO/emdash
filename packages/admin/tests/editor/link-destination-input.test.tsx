@@ -557,7 +557,7 @@ describe("link destination input in the editor", () => {
 		const { screen, editor, pm } = await renderEditor();
 		await focusAndSelectAll(editor, pm);
 
-		screen.getByRole("button", { name: "Insert Link" }).element().click();
+		screen.getByRole("button", { name: "Add link" }).element().click();
 
 		await typeQuery(screen, "hello");
 		const option = screen.getByRole("option", { name: /Hello World/ });
@@ -641,7 +641,7 @@ describe("link destination input in the editor", () => {
 		const { screen, editor, pm } = await renderEditor();
 		await focusAndSelectAll(editor, pm);
 
-		screen.getByRole("button", { name: "Insert Link" }).element().click();
+		screen.getByRole("button", { name: "Add link" }).element().click();
 		await typeQuery(screen, "https://example.com");
 		screen.getByRole("button", { name: "Apply" }).element().click();
 

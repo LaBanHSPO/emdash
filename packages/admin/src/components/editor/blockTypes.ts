@@ -20,7 +20,7 @@ import {
 	TextT,
 	type Icon,
 } from "@phosphor-icons/react";
-import type { Editor } from "@tiptap/core";
+import type { Editor, Range } from "@tiptap/core";
 import { lift, wrapIn } from "@tiptap/pm/commands";
 import type { Attrs, Node as ProseMirrorNode, NodeType, ResolvedPos } from "@tiptap/pm/model";
 import { liftListItem, wrapInList } from "@tiptap/pm/schema-list";
@@ -32,8 +32,10 @@ import {
 	type Selection,
 	type Transaction,
 } from "@tiptap/pm/state";
+import { canJoin } from "@tiptap/pm/transform";
 
 import { enterBlockSelection } from "./BlockCommands.js";
+import { selectionTouchesTable } from "./TableExtensions.js";
 
 export type TextBlockTypeId =
 	| "paragraph"
@@ -112,7 +114,7 @@ export const textBlockTypes: TextBlockType[] = [
 	},
 	{
 		id: "codeBlock",
-		label: msg`Code`,
+		label: msg`Code block`,
 		icon: CodeBlock,
 		markdown: "```",
 		isActive: (editor) => editor.isActive("codeBlock"),
@@ -151,10 +153,18 @@ export function activeTextBlockType(editor: Editor): TextBlockType | undefined {
 	return undefined;
 }
 
+/** Whether the selection holds text blocks outside tables, and no media or embeds, to convert. */
 export function canTurnInto(editor: Editor): boolean {
-	return (
-		editor.isEditable && !editor.isActive("table") && activeTextBlockType(editor) !== undefined
-	);
+	const { state } = editor;
+	if (!editor.isEditable || selectionTouchesTable(state)) return false;
+	let hasText = false;
+	let hasAtom = false;
+	state.doc.nodesBetween(state.selection.from, state.selection.to, (node) => {
+		if (node.isTextblock) hasText = true;
+		else if (node.isAtom) hasAtom = true;
+		return !node.isTextblock;
+	});
+	return hasText && !hasAtom;
 }
 
 const HEADING_LEVELS: Partial<Record<TextBlockTypeId, number>> = {
@@ -211,11 +221,27 @@ function setTextBlockType(
 	);
 }
 
+/** Joins the list holding `pos` with lists of the same type right before and after it. */
+function joinAdjacentLists(tr: Transaction, pos: number, type: NodeType) {
+	const $pos = tr.doc.resolve(pos);
+	for (let depth = $pos.depth; depth > 0; depth--) {
+		if ($pos.node(depth).type !== type) continue;
+		const after = $pos.after(depth);
+		if (tr.doc.resolve(after).nodeAfter?.type === type && canJoin(tr.doc, after)) tr.join(after);
+		const before = $pos.before(depth);
+		if (tr.doc.resolve(before).nodeBefore?.type === type && canJoin(tr.doc, before)) {
+			tr.join(before);
+		}
+		return;
+	}
+}
+
 /**
  * Converts every text block the selection touches. A block selected whole,
  * as from its handle, converts entirely: each item of a list and each
  * paragraph of a quote. Converted blocks leave the lists and quotes around
- * them, which split around them instead of flattening.
+ * them, which split around them instead of flattening. A new list joins a
+ * list of the same type right next to it.
  */
 function convertTextBlocks(tr: Transaction, id: TextBlockTypeId): boolean {
 	const { selection } = tr;
@@ -258,13 +284,19 @@ function convertTextBlocks(tr: Transaction, id: TextBlockTypeId): boolean {
 			setTextBlockType(tr, from, to, schema.nodes.heading!, { level });
 		} else if (id === "codeBlock") {
 			tr.setBlockType(from, to, schema.nodes.codeBlock!);
-		} else if (id === "blockquote") {
-			runCommand(tr, blockRange(), wrapIn(schema.nodes.blockquote!));
-		} else {
+		} else if (id === "paragraph") {
 			setTextBlockType(tr, from, to, schema.nodes.paragraph!);
-			if (listType) runCommand(tr, blockRange(), wrapInList(listType));
+		} else {
+			// Quotes and list items hold plain paragraphs, which can't keep an alignment.
+			tr.setBlockType(from, to, schema.nodes.paragraph!);
+			runCommand(
+				tr,
+				blockRange(),
+				listType ? wrapInList(listType) : wrapIn(schema.nodes.blockquote!),
+			);
 		}
 	}
+	if (listType) joinAdjacentLists(tr, map(firstBlock), listType);
 
 	if (selection instanceof NodeSelection) {
 		// Keep a single converted block selected; several leave the caret after them.
@@ -287,15 +319,22 @@ function convertTextBlocks(tr: Transaction, id: TextBlockTypeId): boolean {
 	return true;
 }
 
-function turnInto(editor: Editor, id: TextBlockTypeId): void {
-	if (!editor.isEditable || activeTextBlockType(editor)?.id === id) return;
+/**
+ * Turns the selected block(s) into `id` in one undoable step, after deleting
+ * `range`, the text a slash command was typed with.
+ */
+export function turnInto(editor: Editor, id: TextBlockTypeId, range?: Range): void {
+	if (!editor.isEditable) return;
 	const { selection } = editor.state;
 	const wholeBlock = selection instanceof NodeSelection && selection.$from.depth === 0;
-	const converted = editor
-		.chain()
-		.focus()
-		.command(({ tr }) => convertTextBlocks(tr, id))
-		.run();
+	const unchanged = activeTextBlockType(editor)?.id === id;
+	const chain = editor.chain().focus();
+	if (range) chain.deleteRange(range);
+	if (unchanged) {
+		chain.run();
+		return;
+	}
+	const converted = chain.command(({ tr }) => convertTextBlocks(tr, id)).run();
 	if (!converted || !wholeBlock) return;
 	// Ordered-list repairs can remap the selected block to a caret inside it.
 	const after = editor.state.selection;
@@ -303,4 +342,10 @@ function turnInto(editor: Editor, id: TextBlockTypeId): void {
 		editor.commands.setNodeSelection(selection.from);
 		enterBlockSelection(editor);
 	}
+}
+
+/** A toolbar block button: turns the selection into `id`, or back into text when it already is one. */
+export function toggleTextBlockType(editor: Editor, id: TextBlockTypeId): void {
+	const type = textBlockTypes.find((candidate) => candidate.id === id);
+	turnInto(editor, type?.isActive(editor) ? "paragraph" : id);
 }

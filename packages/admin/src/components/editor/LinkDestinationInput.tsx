@@ -52,6 +52,19 @@ export function looksLikeUrl(value: string): boolean {
 	return SCHEME_OR_PATH.test(trimmed) || DOMAIN_LIKE.test(trimmed);
 }
 
+const EMAIL_LIKE = /^[^\s@/:]+@[^\s@/]+\.[^\s@/]{2,}$/;
+
+/**
+ * Gives a bare domain `https://` and a bare email address `mailto:`, so
+ * `example.com` doesn't become a link relative to the page it's on.
+ */
+export function normalizeLinkHref(value: string): string {
+	const trimmed = value.trim();
+	if (SCHEME_OR_PATH.test(trimmed)) return trimmed;
+	if (EMAIL_LIKE.test(trimmed)) return `mailto:${trimmed}`;
+	return DOMAIN_LIKE.test(trimmed) ? `https://${trimmed}` : trimmed;
+}
+
 async function searchByStatus(query: string, status?: string): Promise<LinkSearchResult[]> {
 	// Title-scoped: body-text matches surprise authors picking a link target.
 	const params = new URLSearchParams({ q: query, limit: String(RESULT_LIMIT), scope: "title" });

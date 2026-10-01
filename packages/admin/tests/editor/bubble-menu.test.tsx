@@ -598,7 +598,7 @@ describe("Bubble Menu", () => {
 		expect(getBubbleButton(menu, "Italic")).toBeTruthy();
 		expect(getBubbleButton(menu, "Underline")).toBeTruthy();
 		expect(getBubbleButton(menu, "Strikethrough")).toBeTruthy();
-		expect(getBubbleButton(menu, "Code")).toBeTruthy();
+		expect(getBubbleButton(menu, "Inline code")).toBeTruthy();
 	});
 
 	it("keeps subscript and superscript in the More formatting menu", async () => {
@@ -699,7 +699,7 @@ describe("Bubble Menu", () => {
 		await focusAndSelectAll(editor, pm);
 
 		const menu = await waitForBubbleMenu();
-		const codeBtn = getBubbleButton(menu, "Code")!;
+		const codeBtn = getBubbleButton(menu, "Inline code")!;
 
 		codeBtn.click();
 

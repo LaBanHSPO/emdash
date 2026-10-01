@@ -337,7 +337,7 @@ describe("BlockMenu", () => {
 			"Bulleted list",
 			"Numbered list",
 			"Quote",
-			"Code",
+			"Code block",
 		]);
 		expect(findButtonByText(submenu, "Text")).toHaveAttribute("aria-checked", "true");
 		expect(findButtonByText(submenu, "Heading 1")).toHaveAttribute("aria-checked", "false");
@@ -449,7 +449,7 @@ describe("BlockMenu", () => {
 			expect(getBlockMenu()).toBeTruthy();
 		});
 
-		findButtonByText(await openTurnInto(), "Code")!.click();
+		findButtonByText(await openTurnInto(), "Code block")!.click();
 
 		expect(onClose).toHaveBeenCalled();
 

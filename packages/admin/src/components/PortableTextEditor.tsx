@@ -102,6 +102,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Extension, Mark, type EditorEvents, type Range } from "@tiptap/core";
 import CharacterCount from "@tiptap/extension-character-count";
 import Focus from "@tiptap/extension-focus";
+import { isAllowedUri } from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
@@ -142,11 +143,13 @@ import {
 } from "../portable-text-table.js";
 import { CaretNext } from "./ArrowIcons.js";
 import { BlockKitMediaPickerField } from "./BlockKitMediaPickerField";
-import { BlockSelectAll, BlockSelection } from "./editor/BlockCommands.js";
+import { BlockSelectAll, BlockSelection, prepareBlockInsert } from "./editor/BlockCommands.js";
 import {
 	activeTextBlockType,
 	canTurnInto,
 	textBlockTypes,
+	toggleTextBlockType,
+	turnInto,
 	turnIntoMenuTypes,
 	type TextBlockTypeId,
 } from "./editor/blockTypes.js";
@@ -167,7 +170,7 @@ import { HeadingDropdownMenu } from "./editor/HeadingDropdownMenu";
 import { HtmlBlockExtension } from "./editor/HtmlBlockNode";
 import { ImageExtension, type ImageSettingsHandle } from "./editor/ImageNode";
 import { ImageUploadExtension } from "./editor/ImageUploadExtension.js";
-import { LinkDestinationInput } from "./editor/LinkDestinationInput";
+import { LinkDestinationInput, normalizeLinkHref } from "./editor/LinkDestinationInput";
 import { MarkdownLinkExtension } from "./editor/MarkdownLinkExtension";
 import { EmDashOrderedList } from "./editor/ordered-list";
 import {
@@ -392,29 +395,50 @@ function normalizeImageLink(raw: unknown): { href: string; blank?: boolean } | n
  * Keeps an existing "open in new tab" choice when only the destination changes.
  * Shared by the toolbar and the bubble menu, which both edit image links.
  */
-function setSelectedImageLink(editor: Editor, href: string | null) {
-	const trimmed = href?.trim() ?? "";
+function setSelectedImageLink(editor: Editor, href: string | null): boolean {
+	const trimmed = href ? normalizeLinkHref(href) : "";
+	if (trimmed && !isAllowedUri(trimmed)) return false;
 	const existing = editor.getAttributes("image").link as { blank?: boolean } | null;
 	const link = trimmed ? { href: trimmed, ...(existing?.blank ? { blank: true } : {}) } : null;
-	editor.chain().focus().updateAttributes("image", { link }).run();
+	return editor.chain().focus().updateAttributes("image", { link }).run();
 }
 
-function setSelectedTextLink(editor: Editor, href: string) {
+/**
+ * Links the selected text, or the whole link around the caret, to `value`.
+ * At a caret outside a link, the text typed next gets the link. Returns
+ * `false`, changing nothing, for a URL the editor won't link.
+ */
+function setSelectedTextLink(editor: Editor, value: string): boolean {
+	const href = normalizeLinkHref(value);
+	if (!editor.can().setLink({ href })) return false;
 	const chain = editor.chain().focus().extendMarkRange("link").setLink({ href });
-	if (editor.state.selection.empty) {
-		chain.run();
-		return;
-	}
-	chain
+	if (editor.state.selection.empty && !editor.isActive("link")) return chain.run();
+	return chain
 		.command(({ tr, state }) => {
 			const linkType = state.schema.marks.link;
 			if (!linkType) return false;
+			// The caret ends after the link, so the next words typed aren't part of it.
 			tr.setSelection(TextSelection.near(tr.doc.resolve(tr.selection.to), -1));
 			tr.removeStoredMark(linkType);
 			return true;
 		})
 		.run();
 }
+
+/**
+ * Quotes and list items hold only what Portable Text stores for them: quoted
+ * paragraphs, and list item text with nested lists. Anything else typed,
+ * pasted, or dropped into one lands beside it instead of being lost on save.
+ */
+const PortableTextStarterKit = StarterKit.extend({
+	addExtensions() {
+		return (this.parent?.() ?? []).map((extension) => {
+			if (extension.name === "blockquote") return extension.extend({ content: "paragraph+" });
+			if (extension.name !== "listItem") return extension;
+			return extension.extend({ content: "paragraph (paragraph | bulletList | orderedList)*" });
+		});
+	},
+});
 
 const LinkBoundaryExit = Extension.create({
 	name: "linkBoundaryExit",
@@ -431,9 +455,13 @@ const LinkBoundaryExit = Extension.create({
 					if (!(selection instanceof TextSelection) || !selection.empty) return null;
 					const linkType = newState.schema.marks.link;
 					if (!linkType) return null;
-					const linkBefore = linkType.isInSet(selection.$from.nodeBefore?.marks ?? []);
-					const linkAfter = linkType.isInSet(selection.$from.nodeAfter?.marks ?? []);
-					if (!linkBefore || (linkAfter && linkBefore.eq(linkAfter))) return null;
+					const { nodeBefore, nodeAfter } = selection.$from;
+					const linkBefore = linkType.isInSet(nodeBefore?.marks ?? []);
+					const linkAfter = linkType.isInSet(nodeAfter?.marks ?? []);
+					const leavingLink = linkBefore && !(linkAfter && linkBefore.eq(linkAfter));
+					// At the start of a block that opens with a link, typing goes before it.
+					const beforeFirstLink = !nodeBefore && linkAfter;
+					if (!leavingLink && !beforeFirstLink) return null;
 					return newState.tr.removeStoredMark(linkType);
 				},
 			}),
@@ -1728,7 +1756,10 @@ interface SlashCommandItem {
 function insertHtmlBlock(editor: Editor, range?: Range) {
 	const chain = editor.chain().focus();
 	if (range) chain.deleteRange(range);
-	chain.insertContent({ type: "htmlBlock", attrs: { html: "" } }).run();
+	chain
+		.command(({ tr }) => prepareBlockInsert(tr))
+		.insertContent({ type: "htmlBlock", attrs: { html: "" } })
+		.run();
 }
 
 const BASIC_BLOCKS_CATEGORY = msg`Basic blocks`;
@@ -1752,9 +1783,7 @@ function headingCommand(
 		markdown: "#".repeat(level),
 		searchOnly: level > 3,
 		category: BASIC_BLOCKS_CATEGORY,
-		command: ({ editor, range }) => {
-			editor.chain().focus().deleteRange(range).setNode("heading", { level }).run();
-		},
+		command: ({ editor, range }) => turnInto(editor, `heading${level}`, range),
 	};
 }
 
@@ -1769,9 +1798,7 @@ const defaultSlashCommands: SlashCommandItem[] = [
 		icon: TextT,
 		aliases: ["paragraph", "plain", "p"],
 		category: BASIC_BLOCKS_CATEGORY,
-		command: ({ editor, range }) => {
-			editor.chain().focus().deleteRange(range).setParagraph().run();
-		},
+		command: ({ editor, range }) => turnInto(editor, "paragraph", range),
 	},
 	headingCommand(1, msg`Heading 1`, msg`Large section heading`, TextHOne, ["h1", "title"]),
 	headingCommand(2, msg`Heading 2`, msg`Medium section heading`, TextHTwo, ["h2", "subtitle"]),
@@ -1784,9 +1811,7 @@ const defaultSlashCommands: SlashCommandItem[] = [
 		aliases: ["ul", "unordered", "bullet"],
 		markdown: "-",
 		category: BASIC_BLOCKS_CATEGORY,
-		command: ({ editor, range }) => {
-			editor.chain().focus().deleteRange(range).toggleBulletList().run();
-		},
+		command: ({ editor, range }) => turnInto(editor, "bulletList", range),
 	},
 	{
 		id: "numberedList",
@@ -1796,9 +1821,7 @@ const defaultSlashCommands: SlashCommandItem[] = [
 		aliases: ["ol", "ordered"],
 		markdown: "1.",
 		category: BASIC_BLOCKS_CATEGORY,
-		command: ({ editor, range }) => {
-			editor.chain().focus().deleteRange(range).toggleOrderedList().run();
-		},
+		command: ({ editor, range }) => turnInto(editor, "orderedList", range),
 	},
 	{
 		id: "quote",
@@ -1808,21 +1831,17 @@ const defaultSlashCommands: SlashCommandItem[] = [
 		aliases: ["blockquote", "cite"],
 		markdown: ">",
 		category: BASIC_BLOCKS_CATEGORY,
-		command: ({ editor, range }) => {
-			editor.chain().focus().deleteRange(range).toggleBlockquote().run();
-		},
+		command: ({ editor, range }) => turnInto(editor, "blockquote", range),
 	},
 	{
 		id: "codeBlock",
-		title: msg`Code`,
+		title: msg`Code block`,
 		description: msg`Insert a code block`,
 		icon: CodeBlock,
 		aliases: ["pre", "snippet", "```"],
 		markdown: "```",
 		category: BASIC_BLOCKS_CATEGORY,
-		command: ({ editor, range }) => {
-			editor.chain().focus().deleteRange(range).toggleCodeBlock().run();
-		},
+		command: ({ editor, range }) => turnInto(editor, "codeBlock", range),
 	},
 	{
 		id: "divider",
@@ -1833,7 +1852,13 @@ const defaultSlashCommands: SlashCommandItem[] = [
 		markdown: "---",
 		category: BASIC_BLOCKS_CATEGORY,
 		command: ({ editor, range }) => {
-			editor.chain().focus().deleteRange(range).setHorizontalRule().run();
+			editor
+				.chain()
+				.focus()
+				.deleteRange(range)
+				.command(({ tr }) => prepareBlockInsert(tr))
+				.setHorizontalRule()
+				.run();
 		},
 	},
 	{
@@ -3392,7 +3417,7 @@ export function PortableTextEditor({
 			PortableTextIdentityExtension,
 			PortableTextSpanIdentity,
 			LinkBoundaryExit,
-			StarterKit.configure({
+			PortableTextStarterKit.configure({
 				heading: {
 					levels: [1, 2, 3, 4, 5, 6],
 				},
@@ -3427,8 +3452,8 @@ export function PortableTextEditor({
 			}),
 			MarkdownLinkExtension,
 			PluginBlockExtension,
-			Subscript,
-			Superscript,
+			Subscript.extend({ excludes: "superscript" }),
+			Superscript.extend({ excludes: "subscript" }),
 			EmDashTable.configure({
 				allowTableNodeSelection: true,
 				cellMinWidth: TABLE_CELL_MIN_WIDTH,
@@ -3810,7 +3835,10 @@ export function PortableTextEditor({
 				const insertPos = pendingBlockInsertPosRef.current;
 				const chain = editor.chain().focus();
 				if (insertPos === null) {
-					chain.setImage(attrs).run();
+					chain
+						.command(({ tr }) => prepareBlockInsert(tr))
+						.setImage(attrs)
+						.run();
 				} else {
 					chain.insertContentAt(insertPos, { type: "image", attrs }).run();
 				}
@@ -3829,7 +3857,10 @@ export function PortableTextEditor({
 				const insertPos = pendingBlockInsertPosRef.current;
 				const chain = editor.chain().focus();
 				if (insertPos === null) {
-					chain.setGallery(attrs).run();
+					chain
+						.command(({ tr }) => prepareBlockInsert(tr))
+						.setGallery(attrs)
+						.run();
 				} else {
 					chain.insertContentAt(insertPos, { type: "gallery", attrs }).run();
 				}
@@ -3881,7 +3912,10 @@ export function PortableTextEditor({
 				const insertPos = pendingBlockInsertPosRef.current;
 				const chain = editor.chain().focus();
 				if (insertPos === null) {
-					chain.insertContent(content).run();
+					chain
+						.command(({ tr }) => prepareBlockInsert(tr))
+						.insertContent(content)
+						.run();
 				} else {
 					chain.insertContentAt(insertPos, content).run();
 				}
@@ -3987,7 +4021,10 @@ export function PortableTextEditor({
 			const insertPos = pendingBlockInsertPosRef.current;
 			const chain = editor.chain().focus();
 			if (insertPos === null) {
-				chain.insertContent(prosemirrorContent).run();
+				chain
+					.command(({ tr }) => prepareBlockInsert(tr))
+					.insertContent(prosemirrorContent)
+					.run();
 			} else {
 				chain.insertContentAt(insertPos, prosemirrorContent).run();
 			}
@@ -4247,7 +4284,7 @@ const INLINE_MARKS = [
 	{ mark: "italic", label: msg`Italic`, icon: TextItalic },
 	{ mark: "underline", label: msg`Underline`, icon: TextUnderline },
 	{ mark: "strike", label: msg`Strikethrough`, icon: TextStrikethrough },
-	{ mark: "code", label: msg`Code`, icon: Code },
+	{ mark: "code", label: msg`Inline code`, icon: Code },
 ] as const;
 
 const FORMATTING_MARKS = [
@@ -4322,18 +4359,18 @@ function EditorBubbleMenu({
 	const closeLinkInputRef = React.useRef(closeLinkInput);
 	closeLinkInputRef.current = closeLinkInput;
 
+	// A URL the editor won't link keeps the field open.
 	const handleSetLink = () => {
 		if (linkUrl.trim() === "") {
 			editor.chain().focus().extendMarkRange("link").unsetLink().run();
-		} else {
-			setSelectedTextLink(editor, linkUrl.trim());
+		} else if (!setSelectedTextLink(editor, linkUrl)) {
+			return;
 		}
 		closeLinkInput();
 	};
 
 	const applyLinkHref = (href: string) => {
-		setSelectedTextLink(editor, href);
-		closeLinkInput();
+		if (setSelectedTextLink(editor, href)) closeLinkInput();
 	};
 
 	const handleRemoveLink = () => {
@@ -4627,10 +4664,10 @@ function MoreFormattingMenu({
 	const alignment = useEditorState({
 		editor,
 		selector: ({ editor: activeEditor }) => {
-			const { alignments, isTableAlignmentUnavailable } = getSelectionTextAlignments(activeEditor);
+			const { alignments, isAlignmentUnavailable } = getSelectionTextAlignments(activeEditor);
 			return {
 				value: alignments.size === 1 ? [...alignments][0] : undefined,
-				unavailable: isTableAlignmentUnavailable,
+				unavailable: isAlignmentUnavailable,
 			};
 		},
 	});
@@ -4671,9 +4708,9 @@ function MoreFormattingMenu({
 							<EditorMenuLabel>{t`Align`}</EditorMenuLabel>
 							{(
 								[
-									["left", msg`Align left`, TextAlignLeft],
-									["center", msg`Align center`, TextAlignCenter],
-									["right", msg`Align right`, TextAlignRight],
+									["left", msg`Left`, TextAlignLeft],
+									["center", msg`Center`, TextAlignCenter],
+									["right", msg`Right`, TextAlignRight],
 								] as const
 							).map(([value, label, AlignIcon]) => (
 								<EditorMenuRadioItem key={value} value={value} icon={AlignIcon} label={t(label)} />
@@ -5007,8 +5044,7 @@ function ImageBubbleMenu({
 	// A link search pick can resolve after its row closed, or once another edit began.
 	const applyLink = (href: string | null, session = editSessionRef.current) => {
 		if (editingPosRef.current === null || session !== editSessionRef.current) return;
-		editor.view.focus();
-		setSelectedImageLink(editor, href);
+		if (!setSelectedImageLink(editor, href)) return;
 		showControls();
 	};
 	const toggleSettings = () => {
@@ -5295,14 +5331,14 @@ function getSelectedTableCells(editor: Editor): ProseMirrorNode[] {
 function getSelectionTextAlignments(editor: Editor): {
 	alignments: Set<TextAlignment>;
 	isCellSelection: boolean;
-	isTableAlignmentUnavailable: boolean;
+	isAlignmentUnavailable: boolean;
 } {
 	const tableCells = getSelectedTableCells(editor);
 	if (selectionTouchesTable(editor.state) && !selectionIsContainedInTableCells(editor.state)) {
 		return {
 			alignments: new Set(),
 			isCellSelection: false,
-			isTableAlignmentUnavailable: true,
+			isAlignmentUnavailable: true,
 		};
 	}
 	const ownerWindow = editor.view.dom.ownerDocument.defaultView;
@@ -5324,12 +5360,14 @@ function getSelectionTextAlignments(editor: Editor): {
 		return {
 			alignments,
 			isCellSelection: editor.state.selection instanceof CellSelection,
-			isTableAlignmentUnavailable: false,
+			isAlignmentUnavailable: false,
 		};
 	}
 
-	const collectAlignment = (node: ProseMirrorNode) => {
+	let nested = false;
+	const collectAlignment = (node: ProseMirrorNode, parent: ProseMirrorNode | null) => {
 		if (node.type.name !== "paragraph" && node.type.name !== "heading") return;
+		if (parent?.type.name !== "doc") nested = true;
 		const textAlign = node.attrs.textAlign;
 		alignments.add(
 			textAlign === "left" ||
@@ -5346,20 +5384,25 @@ function getSelectionTextAlignments(editor: Editor): {
 			for (let depth = $from.depth; depth >= 0; depth -= 1) {
 				const node = $from.node(depth);
 				if (node.type.name === "paragraph" || node.type.name === "heading") {
-					collectAlignment(node);
+					collectAlignment(node, depth > 0 ? $from.node(depth - 1) : null);
 					break;
 				}
 			}
 			continue;
 		}
 
-		editor.state.doc.nodesBetween($from.pos, $to.pos, (node) => {
-			collectAlignment(node);
+		editor.state.doc.nodesBetween($from.pos, $to.pos, (node, _pos, parent) => {
+			collectAlignment(node, parent);
 			return node.type.name !== "paragraph" && node.type.name !== "heading";
 		});
 	}
 
-	return { alignments, isCellSelection: false, isTableAlignmentUnavailable: false };
+	// List items and quotes can't keep an alignment, and code and media have none.
+	return {
+		alignments,
+		isCellSelection: false,
+		isAlignmentUnavailable: nested || alignments.size === 0,
+	};
 }
 
 function alignmentButtonState(
@@ -5372,9 +5415,7 @@ function alignmentButtonState(
 }
 
 function setSelectionTextAlignment(editor: Editor, alignment: TextAlignment): boolean {
-	if (selectionTouchesTable(editor.state) && !selectionIsContainedInTableCells(editor.state)) {
-		return false;
-	}
+	if (getSelectionTextAlignments(editor).isAlignmentUnavailable) return false;
 	if (!(editor.state.selection instanceof CellSelection)) {
 		const chain = editor.chain().focus();
 		return editor.isActive("table")
@@ -5402,8 +5443,8 @@ const TableSafetyShortcuts = Extension.create({
 	priority: 1_200,
 	addKeyboardShortcuts() {
 		const blockUnsafeStructure = () => selectionTouchesTable(this.editor.state);
-		const setTableAlignment = (alignment: TextAlignment) => {
-			if (!selectionTouchesTable(this.editor.state)) return false;
+		// Ahead of TipTap's own alignment shortcuts, which would align text that can't keep it.
+		const setAlignment = (alignment: TextAlignment) => {
 			setSelectionTextAlignment(this.editor, alignment);
 			return true;
 		};
@@ -5418,17 +5459,17 @@ const TableSafetyShortcuts = Extension.create({
 			"Mod-Shift-8": blockUnsafeStructure,
 			"Mod-Shift-b": blockUnsafeStructure,
 			"Mod-Alt-c": blockUnsafeStructure,
-			"Mod-Shift-l": () => setTableAlignment("left"),
-			"Mod-Shift-e": () => setTableAlignment("center"),
-			"Mod-Shift-r": () => setTableAlignment("right"),
-			"Mod-Shift-j": () => setTableAlignment("justify"),
+			"Mod-Shift-l": () => setAlignment("left"),
+			"Mod-Shift-e": () => setAlignment("center"),
+			"Mod-Shift-r": () => setAlignment("right"),
+			"Mod-Shift-j": () => setAlignment("justify"),
 		};
 	},
 });
 
 const toolbarButtonClassName =
-	"size-8 rounded-lg text-kumo-subtle hover:bg-kumo-tint hover:text-kumo-default pointer-coarse:size-9";
-const toolbarActiveClassName = "bg-kumo-tint text-kumo-link hover:text-kumo-link";
+	"size-8 rounded-lg text-kumo-subtle hover:bg-kumo-interact/50 hover:text-kumo-default pointer-coarse:size-11";
+const toolbarActiveClassName = "bg-kumo-interact/50 text-kumo-link hover:text-kumo-link";
 
 /**
  * Editor Toolbar
@@ -5461,8 +5502,9 @@ function EditorToolbar({
 	const editorState = useEditorState({
 		editor,
 		selector: (ctx) => {
-			const { alignments, isCellSelection, isTableAlignmentUnavailable } =
-				getSelectionTextAlignments(ctx.editor);
+			const { alignments, isCellSelection, isAlignmentUnavailable } = getSelectionTextAlignments(
+				ctx.editor,
+			);
 			const isOrderedList = ctx.editor.isActive("orderedList");
 			const touchesTable = selectionTouchesTable(ctx.editor.state);
 			const can = ctx.editor.can();
@@ -5480,6 +5522,7 @@ function EditorToolbar({
 					strike: can.toggleStrike(),
 					code: can.toggleCode(),
 				},
+				canTurnInto: canTurnInto(ctx.editor),
 				isBulletList: ctx.editor.isActive("bulletList"),
 				isOrderedList,
 				canContinueOrderedList: isOrderedList && can.continueOrderedList(),
@@ -5489,9 +5532,10 @@ function EditorToolbar({
 				alignLeftState: alignmentButtonState(alignments, isCellSelection, "left"),
 				alignCenterState: alignmentButtonState(alignments, isCellSelection, "center"),
 				alignRightState: alignmentButtonState(alignments, isCellSelection, "right"),
-				isTableAlignmentUnavailable,
+				isAlignmentUnavailable,
 				isLink: ctx.editor.isActive("link"),
 				isImage: ctx.editor.isActive("image"),
+				canLink: ctx.editor.isActive("image") || can.setLink({ href: "https://example.com" }),
 				imageHasLink:
 					ctx.editor.isActive("image") && Boolean(ctx.editor.getAttributes("image").link),
 				canUndo: can.undo(),
@@ -5510,23 +5554,23 @@ function EditorToolbar({
 		}
 	}, [showLinkPopover, editor]);
 
+	// A URL the editor won't link keeps the popover open.
 	const applyLinkHref = (href: string) => {
-		if (editor.isActive("image")) {
-			setSelectedImageLink(editor, href);
-		} else {
-			setSelectedTextLink(editor, href);
-		}
+		const applied = editor.isActive("image")
+			? setSelectedImageLink(editor, href)
+			: setSelectedTextLink(editor, href);
+		if (!applied) return;
 		setShowLinkPopover(false);
 		setLinkUrl("");
 	};
 
 	const handleSetLink = () => {
 		if (editor.isActive("image")) {
-			setSelectedImageLink(editor, linkUrl);
+			if (!setSelectedImageLink(editor, linkUrl)) return;
 		} else if (linkUrl.trim() === "") {
 			editor.chain().focus().extendMarkRange("link").unsetLink().run();
-		} else {
-			setSelectedTextLink(editor, linkUrl.trim());
+		} else if (!setSelectedTextLink(editor, linkUrl)) {
+			return;
 		}
 		setShowLinkPopover(false);
 		setLinkUrl("");
@@ -5594,7 +5638,11 @@ function EditorToolbar({
 	}, []);
 
 	const isDocument = variant === "document";
-	const linkLabel = editorState.isImage ? t`Image link` : t`Insert Link`;
+	const linkLabel = editorState.isImage
+		? t`Image link`
+		: editorState.isLink
+			? t`Edit link`
+			: t`Add link`;
 
 	const controls = (
 		<div
@@ -5660,7 +5708,7 @@ function EditorToolbar({
 					onClick={() => editor.chain().focus().toggleCode().run()}
 					active={editorState.isCode}
 					disabled={!editorState.canFormat.code}
-					title={t`Inline Code`}
+					title={t`Inline code`}
 				>
 					<Code className="h-4 w-4" aria-hidden="true" />
 				</ToolbarButton>
@@ -5682,18 +5730,18 @@ function EditorToolbar({
 			{/* Lists and blocks */}
 			<ToolbarGroup>
 				<ToolbarButton
-					onClick={() => editor.chain().focus().toggleBulletList().run()}
+					onClick={() => toggleTextBlockType(editor, "bulletList")}
 					active={editorState.isBulletList}
-					disabled={editorState.isInTable}
-					title={t`Bullet List`}
+					disabled={!editorState.canTurnInto}
+					title={t`Bulleted list`}
 				>
 					<List className="h-4 w-4" aria-hidden="true" />
 				</ToolbarButton>
 				<ToolbarButton
-					onClick={() => editor.chain().focus().toggleOrderedList().run()}
+					onClick={() => toggleTextBlockType(editor, "orderedList")}
 					active={editorState.isOrderedList}
-					disabled={editorState.isInTable}
-					title={t`Numbered List`}
+					disabled={!editorState.canTurnInto}
+					title={t`Numbered list`}
 				>
 					<ListNumbers className="h-4 w-4" aria-hidden="true" />
 				</ToolbarButton>
@@ -5716,25 +5764,25 @@ function EditorToolbar({
 					</>
 				)}
 				<ToolbarButton
-					onClick={() => editor.chain().focus().toggleBlockquote().run()}
+					onClick={() => toggleTextBlockType(editor, "blockquote")}
 					active={editorState.isBlockquote}
-					disabled={editorState.isInTable}
+					disabled={!editorState.canTurnInto}
 					title={t`Quote`}
 				>
 					<Quotes className="h-4 w-4" aria-hidden="true" />
 				</ToolbarButton>
 				<ToolbarButton
-					onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+					onClick={() => toggleTextBlockType(editor, "codeBlock")}
 					active={editorState.isCodeBlock}
-					disabled={editorState.isInTable}
-					title={t`Code Block`}
+					disabled={!editorState.canTurnInto}
+					title={t`Code block`}
 				>
 					<CodeBlock className="h-4 w-4" aria-hidden="true" />
 				</ToolbarButton>
 				<ToolbarButton
 					onClick={onInsertImage}
 					disabled={editorState.isInTable}
-					title={t`Insert Image`}
+					title={t`Insert image`}
 				>
 					<ImageIcon className="h-4 w-4" aria-hidden="true" />
 				</ToolbarButton>
@@ -5759,24 +5807,24 @@ function EditorToolbar({
 				<ToolbarButton
 					onClick={() => setSelectionTextAlignment(editor, "left")}
 					active={editorState.alignLeftState}
-					disabled={editorState.isTableAlignmentUnavailable}
-					title={t`Align Left`}
+					disabled={editorState.isAlignmentUnavailable}
+					title={t`Align left`}
 				>
 					<TextAlignLeft className="h-4 w-4" aria-hidden="true" />
 				</ToolbarButton>
 				<ToolbarButton
 					onClick={() => setSelectionTextAlignment(editor, "center")}
 					active={editorState.alignCenterState}
-					disabled={editorState.isTableAlignmentUnavailable}
-					title={t`Align Center`}
+					disabled={editorState.isAlignmentUnavailable}
+					title={t`Align center`}
 				>
 					<TextAlignCenter className="h-4 w-4" aria-hidden="true" />
 				</ToolbarButton>
 				<ToolbarButton
 					onClick={() => setSelectionTextAlignment(editor, "right")}
 					active={editorState.alignRightState}
-					disabled={editorState.isTableAlignmentUnavailable}
-					title={t`Align Right`}
+					disabled={editorState.isAlignmentUnavailable}
+					title={t`Align right`}
 				>
 					<TextAlignRight className="h-4 w-4" aria-hidden="true" />
 				</ToolbarButton>
@@ -5807,6 +5855,7 @@ function EditorToolbar({
 											toolbarButtonClassName,
 											(editorState.isLink || editorState.imageHasLink) && toolbarActiveClassName,
 										)}
+										disabled={!editorState.canLink}
 										onMouseDown={(event) => event.preventDefault()}
 										aria-label={linkLabel}
 										aria-pressed={editorState.isLink || editorState.imageHasLink}

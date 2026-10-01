@@ -15,6 +15,7 @@ import {
 	Selection,
 	TextSelection,
 	type EditorState,
+	type Transaction,
 } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import { SuggestionPluginKey } from "@tiptap/suggestion";
@@ -77,6 +78,33 @@ export function moveBlocks(
 	return true;
 }
 
+/**
+ * Where a new block goes instead of the selection: after a block selected
+ * whole, which it would otherwise replace, or after the list or quote holding
+ * the caret, which can only hold text. `null` means at the selection.
+ */
+export function blockInsertPosition(selection: Selection): number | null {
+	if (selection instanceof NodeSelection && selection.$from.depth === 0) return selection.to;
+	const { $from } = selection;
+	for (let depth = $from.depth; depth > 0; depth--) {
+		const { name } = $from.node(depth).type;
+		if (name === "listItem" || name === "blockquote") return $from.after(1);
+	}
+	return null;
+}
+
+/**
+ * Moves the caret to an empty paragraph at `blockInsertPosition`, if there is
+ * one, so the block inserted next replaces that paragraph.
+ */
+export function prepareBlockInsert(tr: Transaction): boolean {
+	const position = blockInsertPosition(tr.selection);
+	if (position === null) return true;
+	tr.insert(position, tr.doc.type.schema.nodes.paragraph!.create());
+	tr.setSelection(TextSelection.create(tr.doc, position + 1));
+	return true;
+}
+
 export function duplicateBlocks(editor: Editor, range = selectedBlockRange(editor.state)): boolean {
 	if (!range || !editor.isEditable) return false;
 	const { state } = editor;
@@ -87,9 +115,9 @@ export function duplicateBlocks(editor: Editor, range = selectedBlockRange(edito
 
 /**
  * Tracks whether a whole block was selected from the block handle or the
- * keyboard. While it is, the arrow keys move between blocks and typing
- * can't replace the block by accident. A click that selects an image
- * doesn't count, so the arrow keys still leave the image as usual.
+ * keyboard. While it is, the arrow keys move between blocks. A click that
+ * selects an image doesn't count, so the arrow keys still leave the image
+ * as usual.
  */
 const blockSelectionKey = new PluginKey<boolean>("emdashBlockSelection");
 
@@ -104,6 +132,14 @@ function topLevelNodeSelection(state: EditorState): NodeSelection | null {
 
 function isBlockSelectionActive(state: EditorState): boolean {
 	return blockSelectionKey.getState(state) === true;
+}
+
+/**
+ * Typing, dictation, and paste can't replace a block selected whole, or a
+ * selected image, divider, or embed.
+ */
+function isSelectedBlockProtected(state: EditorState): boolean {
+	return isBlockSelectionActive(state) || topLevelNodeSelection(state)?.node.isAtom === true;
 }
 
 /** Treats an existing whole-block selection, like the block handle's, as keyboard block selection. */
@@ -162,6 +198,13 @@ function selectNeighbourBlock(editor: Editor, direction: -1 | 1): boolean {
 	for (let i = 0; i < index; i++) pos += doc.child(i).nodeSize;
 	selectBlock(editor, pos);
 	return true;
+}
+
+/** Puts the caret in a new empty paragraph after the selected block. */
+function moveAfterSelectedBlock(view: EditorView): void {
+	const { tr } = view.state;
+	prepareBlockInsert(tr);
+	view.dispatch(tr.scrollIntoView());
 }
 
 /** Enter on a selected block goes back to writing at the end of it. */
@@ -250,8 +293,10 @@ export const BlockSelection = Extension.create<BlockSelectionOptions>({
 						if (event.defaultPrevented || !editor.isEditable) return false;
 						const blockMode = isBlockSelectionActive(view.state);
 						if (event.isComposing || event.keyCode === IME_KEY_CODE) {
-							// An IME can't be stopped, so it writes at the end of the block instead of replacing it.
-							if (blockMode) editSelectedBlock(editor);
+							// An IME can't be stopped, so it writes at the end of the block, or after it, instead.
+							if (isSelectedBlockProtected(view.state) && !editSelectedBlock(editor)) {
+								moveAfterSelectedBlock(view);
+							}
 							return false;
 						}
 						if (SuggestionPluginKey.getState(view.state)?.active) return false;
@@ -271,11 +316,16 @@ export const BlockSelection = Extension.create<BlockSelectionOptions>({
 								return false;
 						}
 					},
-					handleTextInput: (view) => isBlockSelectionActive(view.state),
+					handleTextInput: (view) => isSelectedBlockProtected(view.state),
+					// The pasted content goes after the selected block instead.
+					handlePaste: (view) => {
+						if (isSelectedBlockProtected(view.state)) moveAfterSelectedBlock(view);
+						return false;
+					},
 					handleDOMEvents: {
 						// Dictation, emoji pickers, and autocorrect insert text without a key press.
 						beforeinput: (view, event) => {
-							if (!isBlockSelectionActive(view.state) || !TEXT_INPUT_TYPES.has(event.inputType)) {
+							if (!isSelectedBlockProtected(view.state) || !TEXT_INPUT_TYPES.has(event.inputType)) {
 								return false;
 							}
 							event.preventDefault();

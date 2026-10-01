@@ -486,7 +486,7 @@ describe("Slash Command Menu", () => {
 		expect(titles).toContain("Bulleted list");
 		expect(titles).toContain("Numbered list");
 		expect(titles).toContain("Quote");
-		expect(titles).toContain("Code");
+		expect(titles).toContain("Code block");
 		expect(titles).toContain("HTML");
 		expect(titles).toContain("Divider");
 		expect(titles).toContain("Table");
@@ -778,7 +778,7 @@ describe("Slash Command Menu", () => {
 
 		const menu = await waitForSlashMenu();
 		const items = getSlashMenuItems(menu);
-		const codeBlockBtn = items.find((btn) => itemTitle(btn) === "Code");
+		const codeBlockBtn = items.find((btn) => itemTitle(btn) === "Code block");
 		expect(codeBlockBtn).toBeTruthy();
 		codeBlockBtn!.click();
 
