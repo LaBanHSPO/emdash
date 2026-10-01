@@ -795,6 +795,11 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 		inset: -0.6875rem -0.1875rem;
 		content: "";
 	}
+
+	/* That clipping also trimmed the primary button's shading, which sits 1px low. */
+	[data-emdash-editor-bar] button > span[aria-hidden="true"]:first-child {
+		clip-path: inset(0 0 1px);
+	}
 }
 
 /**
@@ -1000,6 +1005,11 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 @container (max-width: 30rem) {
 	[data-emdash-editor-variant="boxed"] .ProseMirror {
 		padding-inline: 1rem;
+	}
+
+	/* The narrow padding leaves block handles no room beside the text. */
+	[data-emdash-editor-variant="boxed"] .drag-handle {
+		display: none;
 	}
 }
 
