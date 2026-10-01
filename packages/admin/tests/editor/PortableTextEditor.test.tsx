@@ -1109,6 +1109,16 @@ describe("Portable Text ↔ ProseMirror conversion", () => {
 		expect(editor.state.selection.$from.parent.type.name).toBe("paragraph");
 	});
 
+	it("keeps --- typed in a table cell as text", async () => {
+		const { editor } = await renderAndGetEditor();
+		editor.chain().focus().insertTable({ rows: 1, cols: 1, withHeaderRow: false }).run();
+
+		simulateTyping(editor, "---");
+
+		expect(editor.isActive("table")).toBe(true);
+		expect(editor.state.selection.$from.parent.textContent).toMatch(/^[—-]+$/);
+	});
+
 	it("turns a list item into a quote with Mod+Shift+B, like the toolbar's Quote", async () => {
 		const { editor } = await renderAndGetEditor({
 			value: [textBlock("one", { listItem: "bullet" })],

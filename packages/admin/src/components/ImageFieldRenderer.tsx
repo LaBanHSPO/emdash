@@ -329,6 +329,7 @@ export function ImageFieldRenderer({
 								type="button"
 								shape="square"
 								variant="ghost"
+								className="pointer-coarse:size-11"
 								icon={<DotsThree aria-hidden="true" />}
 								loading={assetEditor.isOpening && pickerTarget === "image"}
 								disabled={assetEditor.isActive}

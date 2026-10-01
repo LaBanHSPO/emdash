@@ -449,6 +449,8 @@ const PortableTextStarterKit = StarterKit.extend({
 							new InputRule({
 								find: rule.find,
 								handler: (props) => {
+									// Table cells can't hold a divider, so the dashes stay text there.
+									if (selectionTouchesTable(props.state)) return null;
 									if (blockInsertPosition(props.state.selection) === null) {
 										return rule.handler(props);
 									}
@@ -5995,7 +5997,7 @@ function EditorToolbar({
 						<div className="flex flex-col gap-2">
 							<label className="text-xs font-medium text-kumo-subtle">{t`Link`}</label>
 							<LinkDestinationInput
-								className="w-80 max-w-full"
+								className="w-80 max-w-full min-w-0"
 								value={linkUrl}
 								onValueChange={(value) => {
 									setLinkUrl(value);
