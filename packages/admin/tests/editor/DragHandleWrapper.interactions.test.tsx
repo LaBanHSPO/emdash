@@ -5,6 +5,7 @@ import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DragHandleWrapper } from "../../src/components/editor/DragHandleWrapper";
+
 import "../../dist/styles.css";
 import { render } from "../utils/render";
 

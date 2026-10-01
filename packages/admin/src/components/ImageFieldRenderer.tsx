@@ -273,10 +273,9 @@ export function ImageFieldRenderer({
 		<div
 			className={
 				isFeatured
-					? "-m-0.5 hidden w-full min-w-0 items-center gap-2 overflow-x-auto overscroll-x-contain p-0.5 [scrollbar-width:none] @lg/featured:flex [&::-webkit-scrollbar]:hidden"
+					? "hidden w-full min-w-0 flex-wrap items-center gap-2 @lg/featured:flex"
 					: "flex flex-wrap items-center gap-2"
 			}
-			style={isFeatured ? { scrollbarWidth: "none" } : undefined}
 		>
 			<Button
 				type="button"

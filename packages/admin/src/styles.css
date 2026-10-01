@@ -583,9 +583,10 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 	margin-bottom: 1rem;
 }
 
+/* `currentcolor` keeps links, inline code, and syntax colours while selected. */
 .emdash-document ::selection {
 	background-color: color-mix(in oklab, var(--color-kumo-brand) 28%, transparent);
-	color: inherit;
+	color: currentcolor;
 }
 
 /*

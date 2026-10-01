@@ -4516,7 +4516,7 @@ function EditorBubbleMenu({
 								<Check className="h-4 w-4" aria-hidden="true" />
 							</BubbleButton>
 							{state.link && (
-								<BubbleButton onClick={handleRemoveLink} title={t`Remove link`} danger>
+								<BubbleButton onClick={handleRemoveLink} title={t`Remove link`}>
 									<LinkBreak className="h-4 w-4" aria-hidden="true" />
 								</BubbleButton>
 							)}
@@ -4530,7 +4530,7 @@ function EditorBubbleMenu({
 										editor={editor}
 										activeId={state.blockType}
 										open={openMenu === "turnInto"}
-										onOpenChange={(open) => setOpenMenu(open ? "turnInto" : null)}
+										onOpenChange={(open) => toggleMenu("turnInto", open)}
 									/>
 									<BubbleSeparator />
 								</>
@@ -4559,7 +4559,7 @@ function EditorBubbleMenu({
 								subscript={state.subscript}
 								superscript={state.superscript}
 								open={openMenu === "more"}
-								onOpenChange={(open) => setOpenMenu(open ? "more" : null)}
+								onOpenChange={(open) => toggleMenu("more", open)}
 							/>
 						</div>
 					)}
@@ -5152,7 +5152,8 @@ function ImageBubbleMenu({
 				options={{
 					strategy: "absolute",
 					placement: "top",
-					offset: 8,
+					// Clears the selected image's edge, 6px outside it.
+					offset: 14,
 					flip: getCollisionOptions,
 					shift: getCollisionOptions,
 					size: () => ({

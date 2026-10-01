@@ -270,7 +270,7 @@ function expectMixedTableAlignmentState(
 	mixed: Array<"left" | "center" | "right">,
 ) {
 	for (const alignment of ["left", "center", "right"] as const) {
-		const label = `Align ${alignment[0]!.toUpperCase()}${alignment.slice(1)}`;
+		const label = `Align ${alignment}`;
 		expect(getToolbarButton(screen, label).element().getAttribute("aria-pressed")).toBe(
 			mixed.includes(alignment) ? "mixed" : "false",
 		);
