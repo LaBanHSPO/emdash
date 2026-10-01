@@ -413,10 +413,11 @@ describe("Slash Command Menu", () => {
 		editor.commands.setContent(
 			Array.from({ length: 30 }, (_, index) => `<p>Paragraph ${index}</p>`).join(""),
 		);
+		editor.view.focus();
 		editor
 			.chain()
-			.focus()
 			.setTextSelection(editor.state.doc.child(0).nodeSize * 10 + 1)
+			.scrollIntoView()
 			.run();
 		editor.commands.insertContent("/");
 		await waitForSlashMenu();
@@ -537,10 +538,11 @@ describe("Slash Command Menu", () => {
 		editor.commands.setContent(
 			Array.from({ length: 30 }, (_, index) => `<p>Paragraph ${index}</p>`).join(""),
 		);
+		editor.view.focus();
 		editor
 			.chain()
-			.focus()
 			.setTextSelection(editor.state.doc.child(0).nodeSize + 1)
+			.scrollIntoView()
 			.run();
 		editor.commands.insertContent("/");
 		const menu = await waitForSlashMenu();

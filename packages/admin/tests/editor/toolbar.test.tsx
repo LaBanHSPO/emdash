@@ -423,7 +423,8 @@ describe("Toolbar Presence and Structure", () => {
 
 	it("shows the complete grouped Table menu inside a table", async () => {
 		const { screen, editor } = await renderEditor();
-		editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: false }).run();
+		editor.view.focus();
+		editor.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
 		getToolbarButton(screen, "Table").element().click();
 		const menuLocator = screen.getByRole("menu");
 		await expect.element(menuLocator).toBeVisible();
@@ -471,8 +472,8 @@ describe("Toolbar Presence and Structure", () => {
 
 	it("focuses the permanent Table trigger with Alt+F10 without changing selection", async () => {
 		const { screen, editor } = await renderEditor();
-		editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: false }).run();
 		editor.view.focus();
+		editor.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
 		await vi.waitFor(() => expect(document.activeElement).toBe(editor.view.dom));
 		const before = editor.state.selection.toJSON();
 
@@ -484,7 +485,8 @@ describe("Toolbar Presence and Structure", () => {
 
 	it("returns from the closed Alt+F10 Table trigger with Escape", async () => {
 		const { screen, editor } = await renderEditor();
-		editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: false }).run();
+		editor.view.focus();
+		editor.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
 		const before = editor.state.selection.toJSON();
 		await userEvent.keyboard("{Alt>}{F10}{/Alt}");
 		await vi.waitFor(() => expect(getToolbarButton(screen, "Table").element()).toHaveFocus());
@@ -526,7 +528,8 @@ describe("Toolbar Presence and Structure", () => {
 
 	it("restores the editor selection when the Table menu closes with Escape", async () => {
 		const { screen, editor } = await renderEditor();
-		editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: false }).run();
+		editor.view.focus();
+		editor.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
 		const before = editor.state.selection.toJSON();
 		await userEvent.keyboard("{Alt>}{F10}{/Alt}");
 		await vi.waitFor(() => expect(getToolbarButton(screen, "Table").element()).toHaveFocus());
@@ -633,7 +636,8 @@ describe("Toolbar Presence and Structure", () => {
 
 	it("runs live Table actions and announces only successful changes", async () => {
 		const { screen, editor } = await renderEditor();
-		editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: false }).run();
+		editor.view.focus();
+		editor.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
 		getToolbarButton(screen, "Table").element().click();
 		const merge = screen.getByRole("menuitem", { name: "Merge selected cells" });
 		await expect.element(merge).toBeDisabled();
@@ -650,7 +654,8 @@ describe("Toolbar Presence and Structure", () => {
 
 	it("announces the first rectangular selection after a structural result", async () => {
 		const { screen, editor } = await renderEditor();
-		editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: false }).run();
+		editor.view.focus();
+		editor.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
 		getToolbarButton(screen, "Table").element().click();
 		const addRow = screen.getByRole("menuitem", { name: "Add row below" });
 		await expect.element(addRow).toBeVisible();
@@ -687,7 +692,8 @@ describe("Toolbar Presence and Structure", () => {
 
 	it("shows partial header state as visibly and accessibly mixed", async () => {
 		const { screen, editor } = await renderEditor();
-		editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: false }).run();
+		editor.view.focus();
+		editor.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
 		const first = editor.state.doc.firstChild!.firstChild!.firstChild!;
 		editor.view.dispatch(
 			editor.state.tr.setNodeMarkup(2, editor.schema.nodes.tableHeader, first.attrs),
@@ -1417,7 +1423,8 @@ describe("Text Alignment", () => {
 
 	it("resolves uniform and mixed table cell selections from their selected ranges", async () => {
 		const { screen, editor } = await renderEditor();
-		editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: false }).run();
+		editor.view.focus();
+		editor.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
 
 		const cellPositions: number[] = [];
 		editor.state.doc.descendants((node, pos) => {
@@ -1448,7 +1455,8 @@ describe("Text Alignment", () => {
 
 	it("stores table alignment on cells and disables lossy block actions", async () => {
 		const { screen, editor } = await renderEditor();
-		editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: false }).run();
+		editor.view.focus();
+		editor.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
 		const cellPositions: number[] = [];
 		editor.state.doc.descendants((node, pos) => {
 			if (node.type.name === "tableCell") cellPositions.push(pos);
@@ -1481,7 +1489,8 @@ describe("Text Alignment", () => {
 
 	it("updates every cell when the first selected cell already has the requested alignment", async () => {
 		const { screen, editor } = await renderEditor();
-		editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: false }).run();
+		editor.view.focus();
+		editor.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
 		const cellPositions: number[] = [];
 		editor.state.doc.descendants((node, pos) => {
 			if (node.type.name === "tableCell") cellPositions.push(pos);
@@ -1521,7 +1530,8 @@ describe("Text Alignment", () => {
 
 	it("disables cell alignment for a whole-table node selection", async () => {
 		const { screen, editor } = await renderEditor();
-		editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: false }).run();
+		editor.view.focus();
+		editor.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
 		let tablePosition = -1;
 		editor.state.doc.descendants((node, position) => {
 			if (node.type.name === "table" && tablePosition === -1) tablePosition = position;
@@ -1543,7 +1553,8 @@ describe("Text Alignment", () => {
 
 	it("disables lossy block and alignment actions when select-all includes a table", async () => {
 		const { screen, editor } = await renderEditor();
-		editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: false }).run();
+		editor.view.focus();
+		editor.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
 		editor.view.dispatch(editor.state.tr.setSelection(new AllSelection(editor.state.doc)));
 		const before = editor.getJSON();
 
