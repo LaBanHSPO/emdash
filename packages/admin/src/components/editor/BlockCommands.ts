@@ -110,6 +110,8 @@ export function duplicateBlocks(editor: Editor, range = selectedBlockRange(edito
  * as usual.
  */
 const blockSelectionKey = new PluginKey<boolean>("emdashBlockSelection");
+/** Which side of a selected block the caret was on, when Backspace or Delete selected it. */
+const selectedFromKey = new PluginKey<-1 | 1 | null>("emdashSelectedFrom");
 
 /** The key code browsers report for key presses an IME is handling. */
 const IME_KEY_CODE = 229;
@@ -202,18 +204,23 @@ function moveAfterSelectedBlock(view: EditorView): void {
 
 /**
  * Deleting a selected block leaves the caret in the text beside it, so the
- * next press doesn't select the following block and delete that too.
+ * next press doesn't select the following block and delete that too. The
+ * caret goes back where it was when Backspace or Delete selected the block,
+ * and otherwise to the side the key deletes towards. Between two images or
+ * dividers, it's a gap cursor where the block was.
  */
 function deleteSelectedBlock(view: EditorView, direction: -1 | 1): boolean {
 	const selection = topLevelNodeSelection(view.state);
 	if (!selection) return false;
+	const side = selectedFromKey.getState(view.state) ?? direction;
 	const tr = view.state.tr.deleteSelection();
-	const $pos = tr.doc.resolve(tr.mapping.map(selection.from));
-	tr.setSelection(
-		Selection.findFrom($pos, direction, true) ??
-			Selection.findFrom($pos, -direction, true) ??
-			Selection.near($pos, direction),
-	);
+	const $gap = tr.doc.resolve(tr.mapping.map(selection.from));
+	const textOn = (towards: -1 | 1) => {
+		const node = towards > 0 ? $gap.nodeAfter : $gap.nodeBefore;
+		return node && !node.isAtom ? Selection.findFrom($gap, towards, true) : null;
+	};
+	const opposite: -1 | 1 = side < 0 ? 1 : -1;
+	tr.setSelection(textOn(side) ?? textOn(opposite) ?? new GapCursor($gap));
 	view.dispatch(tr.scrollIntoView());
 	return true;
 }
@@ -234,7 +241,8 @@ function selectAtomBeside(view: EditorView, direction: -1 | 1): boolean {
 	const atom = direction < 0 ? $edge.nodeBefore : $edge.nodeAfter;
 	if (!atom?.isAtom || !NodeSelection.isSelectable(atom)) return false;
 	const pos = direction < 0 ? $edge.pos - atom.nodeSize : $edge.pos;
-	view.dispatch(view.state.tr.setSelection(NodeSelection.create(doc, pos)).scrollIntoView());
+	const tr = view.state.tr.setSelection(NodeSelection.create(doc, pos));
+	view.dispatch(tr.setMeta(selectedFromKey, direction < 0 ? 1 : -1).scrollIntoView());
 	return true;
 }
 
@@ -308,6 +316,17 @@ export const BlockSelection = Extension.create<BlockSelectionOptions>({
 	addProseMirrorPlugins() {
 		const { editor, options } = this;
 		return [
+			new Plugin<-1 | 1 | null>({
+				key: selectedFromKey,
+				state: {
+					init: () => null,
+					apply: (tr, side) => {
+						const meta: unknown = tr.getMeta(selectedFromKey);
+						if (meta === 1 || meta === -1) return meta;
+						return tr.selectionSet || tr.docChanged ? null : side;
+					},
+				},
+			}),
 			new Plugin<boolean>({
 				key: blockSelectionKey,
 				state: {
@@ -404,7 +423,7 @@ const wordSegmenter = new Intl.Segmenter(undefined, { granularity: "word" });
 /** Where the word ending at `pos` starts, if the double click landed on its last letter. */
 function clickedWordStart(view: EditorView, pos: number, event: MouseEvent): number | null {
 	const $pos = view.state.doc.resolve(pos);
-	if ($pos.parentOffset === 0) return null;
+	if (!$pos.nodeBefore?.isText) return null;
 	const end = view.coordsAtPos(pos, -1);
 	const start = view.coordsAtPos(pos - 1, 1);
 	const onLastLetter =
@@ -418,6 +437,9 @@ function clickedWordStart(view: EditorView, pos: number, event: MouseEvent): num
 	return word?.trim() ? pos - word.length : null;
 }
 
+/** Set from a double click's second press until DoubleClickLineEnd settles its selection. */
+const doubleClickKey = new PluginKey<boolean>("emdashDoubleClick");
+
 /**
  * Double-clicking the right half of a line's last letter, or past the end of
  * the line, selects only the line break after it. That looks like a caret,
@@ -429,18 +451,47 @@ export const DoubleClickLineEnd = Extension.create({
 
 	addProseMirrorPlugins() {
 		return [
-			new Plugin({
+			new Plugin<boolean>({
+				key: doubleClickKey,
+				state: {
+					init: () => false,
+					apply: (tr, pending) => {
+						const meta: unknown = tr.getMeta(doubleClickKey);
+						return typeof meta === "boolean" ? meta : pending;
+					},
+				},
 				props: {
 					handleDOMEvents: {
+						mousedown: (view, event) => {
+							const pending = event.detail === 2;
+							if (pending !== doubleClickKey.getState(view.state)) {
+								view.dispatch(view.state.tr.setMeta(doubleClickKey, pending));
+							}
+							return false;
+						},
 						dblclick: (view, event) => {
 							// The browser's word selection reaches the editor state after this event.
 							setTimeout(() => {
 								if (view.isDestroyed) return;
 								const { selection, doc } = view.state;
-								if (!isLineBreakSelection(selection, doc)) return;
-								const wordStart = clickedWordStart(view, selection.from, event);
-								const next = TextSelection.create(doc, wordStart ?? selection.from, selection.from);
-								view.dispatch(view.state.tr.setSelection(next));
+								const { $from } = selection;
+								const tr = view.state.tr.setMeta(doubleClickKey, false);
+								// At the end of a block, Chrome can also leave just a caret there.
+								const caretAtEnd =
+									selection.empty && $from.parentOffset === $from.parent.content.size;
+								if (isLineBreakSelection(selection, doc) || caretAtEnd) {
+									const wordStart = clickedWordStart(view, selection.from, event);
+									if (wordStart !== null) {
+										tr.setSelection(TextSelection.create(doc, wordStart, selection.from));
+									} else if (!caretAtEnd) {
+										// The caret goes on the line that was clicked, which can be the one after a line break.
+										const onLaterLine = event.clientY >= view.coordsAtPos(selection.to).top;
+										tr.setSelection(
+											TextSelection.create(doc, onLaterLine ? selection.to : selection.from),
+										);
+									}
+								}
+								view.dispatch(tr);
 							});
 							return false;
 						},
@@ -451,8 +502,6 @@ export const DoubleClickLineEnd = Extension.create({
 	},
 });
 
-const keyboardSelectionKey = new PluginKey<boolean>("emdashKeyboardSelection");
-
 function lineBreakMarker(): HTMLElement {
 	const marker = document.createElement("span");
 	marker.className = "emdash-selected-line-break";
@@ -461,28 +510,23 @@ function lineBreakMarker(): HTMLElement {
 
 /**
  * Browsers draw nothing for a selected line break, or for a divider inside a
- * selection, though the next keystroke deletes them. A selection made from
- * the keyboard that holds only line breaks marks each selected line end, and
- * a divider inside any selection is tinted like selected text.
+ * selection, though the next keystroke deletes them. A selection that holds
+ * only line breaks marks each selected line end, and a divider inside any
+ * selection is tinted like selected text.
  */
 export const SelectionHighlights = Extension.create({
 	name: "emdashSelectionHighlights",
 
 	addProseMirrorPlugins() {
 		return [
-			new Plugin<boolean>({
-				key: keyboardSelectionKey,
-				state: {
-					init: () => false,
-					// A double click past a line end selects its break until DoubleClickLineEnd collapses it.
-					apply: (tr, fromKeyboard) => (tr.selectionSet ? !tr.getMeta("pointer") : fromKeyboard),
-				},
+			new Plugin({
 				props: {
 					decorations: (state) => {
 						const { selection, doc } = state;
 						if (!(selection instanceof TextSelection) || selection.empty) return null;
+						// A double click past a line end selects its break until DoubleClickLineEnd collapses it.
 						const markLineEnds =
-							keyboardSelectionKey.getState(state) === true && isLineBreakSelection(selection, doc);
+							doubleClickKey.getState(state) !== true && isLineBreakSelection(selection, doc);
 						const decorations: Decoration[] = [];
 						doc.nodesBetween(selection.from, selection.to, (node, pos) => {
 							const end = pos + node.nodeSize - 1;

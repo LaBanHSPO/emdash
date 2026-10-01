@@ -426,8 +426,8 @@ function linkAtCaret(state: EditorState): ProseMirrorMark | undefined {
 	const { $from } = selection;
 	return (
 		linkType.isInSet($from.marks()) ??
-		linkType.isInSet($from.nodeBefore?.marks ?? []) ??
-		linkType.isInSet($from.nodeAfter?.marks ?? [])
+		linkType.isInSet($from.nodeAfter?.marks ?? []) ??
+		linkType.isInSet($from.nodeBefore?.marks ?? [])
 	);
 }
 
@@ -439,7 +439,11 @@ function linkAtCaret(state: EditorState): ProseMirrorMark | undefined {
 function setSelectedTextLink(editor: Editor, value: string): boolean {
 	const href = normalizeLinkHref(value);
 	if (!editor.can().setLink({ href })) return false;
-	const chain = editor.chain().focus().extendMarkRange("link").setLink({ href });
+	const chain = editor
+		.chain()
+		.focus()
+		.extendMarkRange("link", linkAtCaret(editor.state)?.attrs)
+		.setLink({ href });
 	if (editor.state.selection.empty && !editor.isActive("link")) return chain.run();
 	return chain
 		.command(({ tr, state }) => {
@@ -1922,7 +1926,8 @@ const defaultSlashCommands: SlashCommandItem[] = [
 		title: msg`Divider`,
 		description: msg`Insert a horizontal rule`,
 		icon: Minus,
-		aliases: ["hr", "---", "separator", "line"],
+		// Typography turns a typed "--" into an em dash, so "/---" arrives as "/—-".
+		aliases: ["hr", "---", "—-", "separator", "line"],
 		markdown: "---",
 		category: BASIC_BLOCKS_CATEGORY,
 		command: ({ editor, range }) => {
@@ -3178,8 +3183,13 @@ function DocumentEnd({
 					return;
 				}
 				const { doc, selection } = editor.state;
-				const end = Selection.atEnd(doc).from;
-				editor.chain().focus().setTextSelection({ from: selection.anchor, to: end }).run();
+				// A selected block, such as an image, stays in the selection.
+				const anchor =
+					selection instanceof NodeSelection
+						? (Selection.findFrom(selection.$from, -1, true)?.from ?? selection.from)
+						: selection.anchor;
+				const extended = TextSelection.between(doc.resolve(anchor), Selection.atEnd(doc).$to);
+				editor.chain().focus().setTextSelection({ from: extended.anchor, to: extended.head }).run();
 			}}
 		>
 			{children}
@@ -3297,10 +3307,14 @@ export function PortableTextEditor({
 		return documentPlaceholder;
 	};
 	const toolbarRef = React.useRef<HTMLDivElement>(null);
-	const getToolbarBottom = React.useCallback(
-		() => toolbarRef.current?.getBoundingClientRect().bottom ?? 0,
-		[],
-	);
+	// Where the sticky toolbar's cover ends: its card, and the fade under it while it's stuck.
+	const getToolbarBottom = React.useCallback(() => {
+		const toolbar = toolbarRef.current;
+		if (!toolbar) return 0;
+		const { bottom } = toolbar.getBoundingClientRect();
+		if (!toolbar.hasAttribute("data-stuck")) return bottom;
+		return bottom + (Number.parseFloat(getComputedStyle(toolbar, "::after").height) || 0);
+	}, []);
 	const floatingRootRef = React.useRef<HTMLDivElement>(null);
 	const appendBubbleMenu = React.useCallback(() => floatingRootRef.current!, []);
 	const getBubbleMenuCollisionOptions = React.useCallback(() => {
@@ -3309,7 +3323,7 @@ export function PortableTextEditor({
 		const viewportLeft = viewport?.offsetLeft ?? 0;
 		const viewportWidth = viewport?.width ?? window.innerWidth;
 		const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
-		const toolbarBottom = toolbarRef.current?.getBoundingClientRect().bottom ?? viewportTop;
+		const toolbarBottom = getToolbarBottom() || viewportTop;
 		const safeTop = Math.min(viewportBottom, Math.max(viewportTop, toolbarBottom));
 
 		return {
@@ -3666,8 +3680,9 @@ export function PortableTextEditor({
 	// Suggestion onExit → setSlashMenuState → re-render → infinite loop.
 	const editorProps = React.useMemo(
 		() => ({
-			// Keeps the caret clear of the document's sticky toolbar, and the fade under it,
-			// when the editor scrolls to it.
+			// Typing or moving the caret under the document's sticky toolbar, or the fade under
+			// it, scrolls the caret out from under them.
+			scrollThreshold: isDocument ? { top: 96, right: 0, bottom: 0, left: 0 } : 0,
 			scrollMargin: isDocument ? { top: 96, right: 5, bottom: 5, left: 5 } : 5,
 			attributes: {
 				class: isDocument
@@ -3872,9 +3887,9 @@ export function PortableTextEditor({
 		// The bubble menus only follow the window's scroll, so they'd stay put over the
 		// sticky toolbar when the container around the editor scrolls instead.
 		const updateOnContainerScroll = (event: Event) => {
-			if (event.target instanceof Node && event.target.contains(editor.view.dom)) {
-				updateBubbleMenuPositions();
-			}
+			if (!(event.target instanceof Node) || !event.target.contains(editor.view.dom)) return;
+			const root = editor.view.dom.closest("[data-emdash-editor-floating-root]");
+			if (root?.querySelector(BUBBLE_MENU_SELECTOR)) updateBubbleMenuPositions();
 		};
 
 		viewport.addEventListener("resize", updateBubbleMenuPositions);
@@ -4391,6 +4406,14 @@ export function PortableTextEditor({
 	);
 }
 
+/** The editor's floating toolbars, which are only in the page while they show. */
+const BUBBLE_MENU_SELECTOR = [
+	"[data-emdash-inline-bubble-menu]",
+	"[data-emdash-link-bubble-menu]",
+	"[data-emdash-table-bubble-menu]",
+	"[data-emdash-image-bubble-menu]",
+].join(", ");
+
 /** Popups opened from the selection toolbar keep it visible while they have focus. */
 const BUBBLE_POPUP_ATTR = "data-emdash-bubble-popup";
 
@@ -4489,7 +4512,12 @@ function EditorBubbleMenu({
 	// A URL the editor won't link keeps the field open, saying why.
 	const handleSetLink = () => {
 		if (linkUrl.trim() === "") {
-			editor.chain().focus().extendMarkRange("link").unsetLink().run();
+			editor
+				.chain()
+				.focus()
+				.extendMarkRange("link", linkAtCaret(editor.state)?.attrs)
+				.unsetLink()
+				.run();
 		} else if (!setSelectedTextLink(editor, linkUrl)) {
 			setLinkInvalid(true);
 			return;
@@ -4503,7 +4531,12 @@ function EditorBubbleMenu({
 	};
 
 	const handleRemoveLink = () => {
-		editor.chain().focus().extendMarkRange("link").unsetLink().run();
+		editor
+			.chain()
+			.focus()
+			.extendMarkRange("link", linkAtCaret(editor.state)?.attrs)
+			.unsetLink()
+			.run();
 		closeLinkInput();
 	};
 
@@ -4514,6 +4547,8 @@ function EditorBubbleMenu({
 			offset: 8,
 			flip: getCollisionOptions,
 			shift: getCollisionOptions,
+			// Hidden while the selection is under the sticky toolbar, but not near the screen's edges.
+			hide: () => ({ ...getCollisionOptions(), padding: 0 }),
 			size: () => ({
 				...getCollisionOptions(),
 				apply: ({
@@ -4552,7 +4587,7 @@ function EditorBubbleMenu({
 				appendTo={appendTo}
 				getCollisionOptions={getCollisionOptions}
 				onEdit={() => {
-					editor.chain().focus().extendMarkRange("link").run();
+					editor.chain().focus().extendMarkRange("link", linkAtCaret(editor.state)?.attrs).run();
 					setShowLinkInput(true);
 				}}
 			/>
@@ -4688,6 +4723,7 @@ function LinkBubbleMenu({
 			offset: 6,
 			flip: getCollisionOptions,
 			shift: getCollisionOptions,
+			hide: () => ({ ...getCollisionOptions(), padding: 0 }),
 		}),
 		[getCollisionOptions],
 	);
@@ -4699,10 +4735,12 @@ function LinkBubbleMenu({
 			appendTo={appendTo}
 			updateDelay={0}
 			options={options}
-			shouldShow={({ editor: activeEditor, element, state: editorState, view }) =>
+			shouldShow={({ editor: activeEditor, element, state: editorState, oldState, view }) =>
 				activeEditor.isEditable &&
 				editorState.selection instanceof TextSelection &&
 				linkAtCaret(editorState) !== undefined &&
+				// At a link's edge, typing goes beside the link, so the preview gets out of the way.
+				(activeEditor.isActive("link") || !oldState || oldState.doc.eq(editorState.doc)) &&
 				(view.hasFocus() || element.contains(document.activeElement))
 			}
 			data-emdash-link-bubble-menu
@@ -4730,7 +4768,14 @@ function LinkBubbleMenu({
 					<PencilSimple className="h-4 w-4" aria-hidden="true" />
 				</BubbleButton>
 				<BubbleButton
-					onClick={() => editor.chain().focus().extendMarkRange("link").unsetLink().run()}
+					onClick={() =>
+						editor
+							.chain()
+							.focus()
+							.extendMarkRange("link", linkAtCaret(editor.state)?.attrs)
+							.unsetLink()
+							.run()
+					}
 					title={t`Remove link`}
 				>
 					<LinkBreak className="h-4 w-4" aria-hidden="true" />
@@ -4924,6 +4969,7 @@ function TableBubbleMenu({
 				offset: 8,
 				flip: getCollisionOptions,
 				shift: getCollisionOptions,
+				hide: () => ({ ...getCollisionOptions(), padding: 0 }),
 				size: () => ({
 					...getCollisionOptions(),
 					apply: ({ availableWidth, elements }) => {
@@ -4946,7 +4992,7 @@ function TableBubbleMenu({
 					activeEditor.isEditable &&
 					hasEditorFocus &&
 					activeEditor.isActive("table") &&
-					((state.selection.empty && !linkAtCaret(state)) ||
+					((state.selection.empty && !activeEditor.isActive("link")) ||
 						state.selection instanceof CellSelection)
 				);
 			}}
@@ -5244,6 +5290,7 @@ function ImageBubbleMenu({
 					offset: 14,
 					flip: getCollisionOptions,
 					shift: getCollisionOptions,
+
 					size: () => ({
 						...getCollisionOptions(),
 						apply: ({ availableWidth, elements, placement }) => {
@@ -5638,6 +5685,9 @@ const BlockFormatShortcuts = Extension.create({
 		};
 		return {
 			Backspace: backspaceToText,
+			"Shift-Backspace": backspaceToText,
+			"Mod-Backspace": backspaceToText,
+			"Alt-Backspace": backspaceToText,
 			"Mod-Alt-1": convert("heading1"),
 			"Mod-Alt-2": convert("heading2"),
 			"Mod-Alt-3": convert("heading3"),
@@ -5783,7 +5833,12 @@ function EditorToolbar({
 				return;
 			}
 		} else if (linkUrl.trim() === "") {
-			editor.chain().focus().extendMarkRange("link").unsetLink().run();
+			editor
+				.chain()
+				.focus()
+				.extendMarkRange("link", linkAtCaret(editor.state)?.attrs)
+				.unsetLink()
+				.run();
 		} else if (!setSelectedTextLink(editor, linkUrl)) {
 			setLinkInvalid(true);
 			return;
@@ -5796,7 +5851,12 @@ function EditorToolbar({
 		if (editor.isActive("image")) {
 			setSelectedImageLink(editor, null);
 		} else {
-			editor.chain().focus().extendMarkRange("link").unsetLink().run();
+			editor
+				.chain()
+				.focus()
+				.extendMarkRange("link", linkAtCaret(editor.state)?.attrs)
+				.unsetLink()
+				.run();
 		}
 		setShowLinkPopover(false);
 		setLinkUrl("");
@@ -6164,7 +6224,7 @@ function EditorToolbar({
 				data-emdash-editor-toolbar={variant}
 				data-stuck={stuck || undefined}
 				className={cn(
-					"sticky z-10",
+					"sticky z-20",
 					// The band of page colour above the card hides text scrolling under the stuck toolbar.
 					// The boxed toolbar sticks 1.5rem above its scroll container's top, past the padding
 					// most hosts give it; a host without that padding sets --emdash-editor-sticky-top.

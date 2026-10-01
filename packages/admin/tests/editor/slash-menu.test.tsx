@@ -575,6 +575,16 @@ describe("Slash Command Menu", () => {
 		expect(getItemTitles(menu)[0]).toBe("Heading 1");
 	});
 
+	it("finds Divider by its Markdown once Typography turns the dashes into an em dash", async () => {
+		const { editor, pm } = await renderEditor();
+		await focusEditor(pm);
+		editor.commands.insertContent("/—-");
+
+		const menu = await waitForSlashMenu();
+
+		expect(getItemTitles(menu)).toEqual(["Divider"]);
+	});
+
 	it("goes back to the editor when Tab leaves the table picker", async () => {
 		const { screen, editor, pm } = await renderEditor();
 		await focusEditor(pm);

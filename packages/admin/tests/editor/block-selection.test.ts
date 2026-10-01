@@ -180,6 +180,18 @@ describe("Block selection", () => {
 		expect(editor.state.selection.$from.parent.textContent).toBe("one");
 	});
 
+	it("keeps the caret in the block Backspace came from when it deletes the block before", () => {
+		create("<p>xy</p><hr><p>z</p>");
+		caretIn("z");
+
+		press("Backspace");
+		press("Backspace");
+
+		expect(editor.getHTML()).toBe("<p>xy</p><p>z</p>");
+		expect(editor.state.selection.$from.parent.textContent).toBe("z");
+		expect(editor.state.selection.$from.parentOffset).toBe(0);
+	});
+
 	it("goes back to writing at the end of the block on Enter", () => {
 		create("<p>one</p><p>two</p>");
 		caretIn("two");
@@ -286,6 +298,23 @@ describe("Double-click at a line end", () => {
 		await vi.waitFor(() => expect(editor.state.selection).toMatchObject({ from: 5, to: 8 }));
 	});
 
+	it("leaves the caret on the empty line a double click lands on after a line break", async () => {
+		create("<p>one<br>two<br></p><p>next</p>");
+		const emptyLine = editor.view.coordsAtPos(9);
+		editor.view.dispatch(
+			editor.state.tr.setSelection(TextSelection.create(editor.state.doc, 8, 9)),
+		);
+		editor.view.dom.dispatchEvent(
+			new MouseEvent("dblclick", {
+				bubbles: true,
+				clientX: emptyLine.left + 5,
+				clientY: (emptyLine.top + emptyLine.bottom) / 2,
+			}),
+		);
+
+		await vi.waitFor(() => expect(editor.state.selection).toMatchObject({ from: 9, to: 9 }));
+	});
+
 	it("keeps a double-clicked word selected", async () => {
 		create("<p>one two</p>");
 		doubleClickSelecting(5, 8);
@@ -298,7 +327,7 @@ describe("Double-click at a line end", () => {
 describe("Selection highlights", () => {
 	const lineBreakMarkers = () => editor.view.dom.querySelectorAll(".emdash-selected-line-break");
 
-	it("marks a line break selected from the keyboard", () => {
+	it("marks a selected line break", () => {
 		create("<p>one</p><p>two</p>");
 
 		editor.view.dispatch(
@@ -308,19 +337,27 @@ describe("Selection highlights", () => {
 		expect(lineBreakMarkers()).toHaveLength(1);
 	});
 
-	it("doesn't mark a line break selected by the pointer, or one beside selected text", () => {
+	it("doesn't mark a line break beside selected text", () => {
 		create("<p>one</p><p>two</p>");
-
-		editor.view.dispatch(
-			editor.state.tr
-				.setSelection(TextSelection.create(editor.state.doc, 4, 6))
-				.setMeta("pointer", true),
-		);
-		expect(lineBreakMarkers()).toHaveLength(0);
 
 		editor.view.dispatch(
 			editor.state.tr.setSelection(TextSelection.create(editor.state.doc, 2, 7)),
 		);
+
+		expect(lineBreakMarkers()).toHaveLength(0);
+	});
+
+	it("doesn't mark the line break a double click selects before it's collapsed", async () => {
+		create("<p>one</p><p>two</p>");
+
+		editor.view.dom.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, detail: 2 }));
+		editor.view.dispatch(
+			editor.state.tr.setSelection(TextSelection.create(editor.state.doc, 4, 6)),
+		);
+		expect(lineBreakMarkers()).toHaveLength(0);
+
+		editor.view.dom.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+		await vi.waitFor(() => expect(editor.state.selection.empty).toBe(true));
 		expect(lineBreakMarkers()).toHaveLength(0);
 	});
 

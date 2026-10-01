@@ -486,7 +486,10 @@ describe("Bubble Menu", () => {
 		toolbar.style.top = "0px";
 		pm.closest<HTMLElement>("[data-emdash-editor-floating-root]")!.style.position = "relative";
 		pm.focus();
+		const scroller = pm.closest<HTMLElement>('[style*="overflow-y"]')!;
 		const start = getTextPosition(editor, "Line 20");
+		scroller.scrollTop +=
+			editor.view.coordsAtPos(start).top - scroller.getBoundingClientRect().top - 300;
 		editor
 			.chain()
 			.focus()
@@ -498,7 +501,6 @@ describe("Bubble Menu", () => {
 			expect(menu.getBoundingClientRect().bottom).toBeLessThanOrEqual(selectionRect().top),
 		);
 
-		const scroller = pm.closest<HTMLElement>('[style*="overflow-y"]')!;
 		scroller.scrollTop += selectionRect().top - toolbar.getBoundingClientRect().bottom - 8;
 
 		await vi.waitFor(() => {
@@ -506,6 +508,38 @@ describe("Bubble Menu", () => {
 			expect(gap).toBeGreaterThanOrEqual(0);
 			expect(gap).toBeLessThan(24);
 		});
+	});
+
+	it("hides while its selection is under the sticky toolbar", async () => {
+		const value = Array.from({ length: 30 }, (_, index) => ({
+			_type: "block" as const,
+			_key: String(index),
+			style: "normal" as const,
+			children: [{ _type: "span" as const, _key: `span-${index}`, text: `Line ${index}` }],
+		}));
+		const { editor, pm } = await renderEditor({ value }, 1);
+		// The test build has no Tailwind utilities, so the toolbar and the menus' positioning
+		// root get their positions here.
+		const toolbar = document.querySelector<HTMLElement>(
+			'[role="toolbar"][aria-label="Text formatting"]',
+		)!;
+		toolbar.style.position = "sticky";
+		toolbar.style.top = "0px";
+		pm.closest<HTMLElement>("[data-emdash-editor-floating-root]")!.style.position = "relative";
+		pm.focus();
+		const start = getTextPosition(editor, "Line 20");
+		editor
+			.chain()
+			.focus()
+			.setTextSelection({ from: start, to: start + 7 })
+			.run();
+		const menu = await waitForBubbleMenu();
+		const selectionRect = () => window.getSelection()!.getRangeAt(0).getBoundingClientRect();
+
+		const scroller = pm.closest<HTMLElement>('[style*="overflow-y"]')!;
+		scroller.scrollTop += selectionRect().bottom - toolbar.getBoundingClientRect().bottom - 2;
+
+		await vi.waitFor(() => expect(getComputedStyle(menu).visibility).toBe("hidden"));
 	});
 
 	it.each([
@@ -990,6 +1024,92 @@ describe("Bubble Menu", () => {
 			expect(document.querySelector("[data-emdash-link-bubble-menu]")).toBeVisible();
 			expect(document.querySelector('[aria-label="Table controls"]')).toBeNull();
 		});
+	});
+
+	it("keeps the table controls with the caret at the end of a cell's link", async () => {
+		const { editor, pm } = await renderEditor({ value: tableValue });
+		await focusTableCell(editor, pm);
+		await waitForTableToolbar();
+		const start = getTextPosition(editor, "Header");
+		editor
+			.chain()
+			.setTextSelection({ from: start, to: start + 6 })
+			.setLink({ href: "https://example.com" })
+			.run();
+
+		editor.commands.setTextSelection(start + 6);
+
+		await waitForTableToolbar();
+	});
+
+	it("removes only the link the caret is in when another touches it", async () => {
+		const { editor, pm } = await renderEditor({
+			value: [
+				{
+					_type: "block" as const,
+					_key: "1",
+					style: "normal" as const,
+					children: [
+						{ _type: "span" as const, _key: "a", text: "first", marks: ["link1"] },
+						{ _type: "span" as const, _key: "b", text: "second", marks: ["link2"] },
+					],
+					markDefs: [
+						{ _type: "link", _key: "link1", href: "https://a.example" },
+						{ _type: "link", _key: "link2", href: "https://b.example" },
+					],
+				},
+			],
+		});
+		pm.focus();
+		editor
+			.chain()
+			.focus()
+			.setTextSelection(getTextPosition(editor, "second") + 3)
+			.run();
+		let preview: HTMLElement | null = null;
+		await vi.waitFor(() => {
+			preview = document.querySelector<HTMLElement>("[data-emdash-link-bubble-menu]");
+			expect(preview).toBeTruthy();
+		});
+
+		getBubbleButton(preview!, "Remove link")!.click();
+
+		await vi.waitFor(() => {
+			const links: string[] = [];
+			editor.state.doc.descendants((node) => {
+				const link = node.marks.find((mark) => mark.type.name === "link");
+				if (node.isText) links.push(`${node.text}:${link?.attrs.href ?? ""}`);
+			});
+			expect(links).toEqual(["first:https://a.example", "second:"]);
+		});
+	});
+
+	it("hides the link preview while typing at the link's edge", async () => {
+		const { editor, pm } = await renderEditor({
+			value: [
+				{
+					_type: "block" as const,
+					_key: "1",
+					style: "normal" as const,
+					children: [
+						{ _type: "span" as const, _key: "a", text: "See " },
+						{ _type: "span" as const, _key: "b", text: "docs", marks: ["link1"] },
+					],
+					markDefs: [{ _type: "link", _key: "link1", href: "https://example.com" }],
+				},
+			],
+		});
+		pm.focus();
+		editor.chain().focus().setTextSelection(getTextPosition(editor, "docs")).run();
+		await vi.waitFor(() =>
+			expect(document.querySelector("[data-emdash-link-bubble-menu]")).toBeTruthy(),
+		);
+
+		await userEvent.keyboard("x");
+
+		await vi.waitFor(() =>
+			expect(document.querySelector("[data-emdash-link-bubble-menu]")).toBeNull(),
+		);
 	});
 
 	it("removes link when Remove link button is clicked", async () => {

@@ -1386,6 +1386,56 @@ describe("Editor component behaviour", () => {
 		});
 	});
 
+	it("keeps a selected image in the selection on a shift-click below the page", async () => {
+		const { screen, editor } = await renderAndGetEditor({
+			variant: "document",
+			value: [
+				textBlock("Above"),
+				{ _type: "image", _key: "img", asset: { _ref: "a", url: "/a.png" } },
+				textBlock("Below"),
+			],
+		});
+		editor.chain().focus().setNodeSelection(editor.state.doc.child(0).nodeSize).run();
+
+		await userEvent.keyboard("{Shift>}");
+		await userEvent.click(screen.getByText("2 words"));
+		await userEvent.keyboard("{/Shift}");
+
+		const { from, to } = editor.state.selection;
+		expect(from).toBe(editor.state.doc.child(0).nodeSize - 1);
+		expect(to).toBe(editor.state.doc.content.size - 1);
+	});
+
+	it("scrolls the caret out from under the stuck document toolbar", async () => {
+		let editorInstance: Editor | null = null;
+		await render(
+			<div style={{ height: 400, overflowY: "auto" }} data-testid="scroller">
+				<PortableTextEditor
+					variant="document"
+					value={Array.from({ length: 60 }, (_, index) => textBlock(`Line ${index}`))}
+					onEditorReady={(editor) => (editorInstance = editor)}
+				/>
+			</div>,
+		);
+		await vi.waitFor(() => expect(editorInstance).toBeTruthy());
+		const editor = editorInstance!;
+		const scroller = document.querySelector<HTMLElement>('[data-testid="scroller"]')!;
+		const toolbar = document.querySelector<HTMLElement>('[data-emdash-editor-toolbar="document"]')!;
+		const lineStart = editor.state.doc.child(0).nodeSize * 40 + 1;
+		editor.chain().focus().setTextSelection(lineStart).run();
+		scroller.scrollTop +=
+			editor.view.coordsAtPos(lineStart).top - toolbar.getBoundingClientRect().bottom - 30;
+		await vi.waitFor(() => expect(toolbar.hasAttribute("data-stuck")).toBe(true));
+
+		await userEvent.keyboard("{ArrowUp}");
+
+		await vi.waitFor(() =>
+			expect(editor.view.coordsAtPos(editor.state.selection.from).top).toBeGreaterThanOrEqual(
+				toolbar.getBoundingClientRect().bottom,
+			),
+		);
+	});
+
 	it.each([
 		["heading", textBlock("Title", { style: "h2" })],
 		["code block", { _type: "code" as const, _key: "c1", code: "let a = 1;", language: "js" }],

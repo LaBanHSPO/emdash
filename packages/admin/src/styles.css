@@ -769,18 +769,29 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
  * Text scrolling under the stuck document toolbar fades out below it instead
  * of being cut at its edge. The fade continues the band of page colour the
  * toolbar sits on, behind the card, so the card's border and rounded corners
- * stay on top.
+ * stay on top. Both span the gutter too, so block handles and a selected
+ * image's ring beside the card are covered.
  */
+[data-emdash-editor-toolbar="document"]::before,
 [data-emdash-editor-toolbar="document"]::after {
 	position: absolute;
 	z-index: -1;
-	inset-inline: 0;
-	top: 100%;
-	height: 1.5rem;
-	background-image: linear-gradient(var(--emdash-editor-surface), transparent);
-	opacity: 0;
+	inset-inline: calc(var(--emdash-editor-gutter, 0rem) * -1);
 	content: "";
 	pointer-events: none;
+}
+
+[data-emdash-editor-toolbar="document"]::before {
+	inset-block: 0;
+	background-color: var(--emdash-editor-surface);
+}
+
+[data-emdash-editor-toolbar="document"]::after {
+	top: 100%;
+	height: 1.5rem;
+	/* Solid at first, so the bottom of a line under the card doesn't peek out below it. */
+	background-image: linear-gradient(var(--emdash-editor-surface) 0.25rem, transparent);
+	opacity: 0;
 	transition: opacity 150ms ease-out;
 }
 
@@ -907,19 +918,28 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 	pointer-events: none;
 }
 
-/* A selected line break, which browsers don't draw, and a divider inside a selection. */
+/*
+ * A selected line break, which browsers don't draw, and a divider inside a
+ * selection. Like selected text, they only show while the editor has focus.
+ */
 .ProseMirror .emdash-selected-line-break {
 	display: inline-block;
 	width: 0.5em;
 	height: 1lh;
+	/* Drawn past the end of the line without taking room, so a full line doesn't wrap. */
+	margin-inline-end: -0.5em;
 	vertical-align: top;
 }
 
-.ProseMirror :is(.emdash-selected-line-break, hr.emdash-in-selection) {
+[data-emdash-editor-floating-root]:focus-within
+	.ProseMirror
+	:is(.emdash-selected-line-break, hr.emdash-in-selection) {
 	background-color: var(--color-kumo-interact);
 }
 
-.emdash-document :is(.emdash-selected-line-break, hr.emdash-in-selection) {
+[data-emdash-editor-floating-root]:focus-within
+	.emdash-document
+	:is(.emdash-selected-line-break, hr.emdash-in-selection) {
 	background-color: color-mix(in oklab, var(--color-kumo-brand) 28%, transparent);
 }
 
