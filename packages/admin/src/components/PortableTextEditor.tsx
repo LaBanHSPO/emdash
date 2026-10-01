@@ -4818,6 +4818,17 @@ interface BubbleMenuControl {
 	onOpenChange: (open: boolean) => void;
 }
 
+/**
+ * Escape from a selection-toolbar menu goes back to the editor. The menu's
+ * own focus return can miss once the page has scrolled while it was open.
+ */
+function closeToEditor(editor: Editor, onOpenChange: (open: boolean) => void) {
+	return (open: boolean, details: { reason: string }) => {
+		onOpenChange(open);
+		if (!open && details.reason === "escape-key" && !editor.isDestroyed) editor.view.focus();
+	};
+}
+
 /** `activeId` is unset when the selection mixes block types, so nothing is checked. */
 function TurnIntoMenu({
 	editor,
@@ -4828,7 +4839,7 @@ function TurnIntoMenu({
 	const { t } = useLingui();
 	const active = textBlockTypes.find((type) => type.id === activeId);
 	return (
-		<Menu.Root modal={false} open={open} onOpenChange={onOpenChange}>
+		<Menu.Root modal={false} open={open} onOpenChange={closeToEditor(editor, onOpenChange)}>
 			<Menu.Trigger
 				className={bubbleTriggerClassName}
 				onMouseDown={(event) => event.preventDefault()}
@@ -4891,7 +4902,7 @@ function MoreFormattingMenu({
 		},
 	});
 	return (
-		<Menu.Root modal={false} open={open} onOpenChange={onOpenChange}>
+		<Menu.Root modal={false} open={open} onOpenChange={closeToEditor(editor, onOpenChange)}>
 			<Menu.Trigger
 				className={cn(bubbleTriggerClassName, "w-8 justify-center px-0 pointer-coarse:w-11")}
 				onMouseDown={(event) => event.preventDefault()}
