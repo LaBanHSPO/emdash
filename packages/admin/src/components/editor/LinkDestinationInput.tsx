@@ -53,13 +53,15 @@ export function looksLikeUrl(value: string): boolean {
 }
 
 const EMAIL_LIKE = /^[^\s@/:]+@[^\s@/]+\.[^\s@/]{2,}$/;
+const HOST_WITH_PORT = /^[a-z0-9.-]+:\d+(?:[/?#]|$)/i;
 
 /**
- * Gives a bare domain `https://` and a bare email address `mailto:`, so
- * `example.com` doesn't become a link relative to the page it's on.
+ * Gives a bare domain or host `https://` and a bare email address `mailto:`,
+ * so `example.com` doesn't become a link relative to the page it's on.
  */
 export function normalizeLinkHref(value: string): string {
 	const trimmed = value.trim();
+	if (HOST_WITH_PORT.test(trimmed)) return `https://${trimmed}`;
 	if (SCHEME_OR_PATH.test(trimmed)) return trimmed;
 	if (EMAIL_LIKE.test(trimmed)) return `mailto:${trimmed}`;
 	return DOMAIN_LIKE.test(trimmed) ? `https://${trimmed}` : trimmed;
@@ -103,6 +105,8 @@ export interface LinkDestinationInputProps {
 	onPick: (href: string) => void;
 	/** Called when the user presses Escape. */
 	onEscape: () => void;
+	/** Whether the URL last applied was refused, until it changes. */
+	invalid?: boolean;
 	className?: string;
 }
 
@@ -112,6 +116,7 @@ export function LinkDestinationInput({
 	onSubmit,
 	onPick,
 	onEscape,
+	invalid = false,
 	className,
 }: LinkDestinationInputProps) {
 	const { t } = useLingui();
@@ -253,6 +258,7 @@ export function LinkDestinationInput({
 						showList && activeIndex >= 0 ? `${listboxId}-${activeIndex}` : undefined
 					}
 					aria-autocomplete="list"
+					aria-invalid={invalid || undefined}
 					placeholder={t`Search or type a URL`}
 					aria-label={t`Search or type a URL`}
 					value={value}
@@ -312,6 +318,11 @@ export function LinkDestinationInput({
 			{pickError && (
 				<p role="alert" className="px-2 py-1 text-xs text-kumo-danger">
 					{pickError}
+				</p>
+			)}
+			{invalid && (
+				<p role="alert" className="px-2 py-1 text-xs text-kumo-danger">
+					{t`This link can't be used. Enter a web address, such as https://example.com.`}
 				</p>
 			)}
 			{searchEnabled && isError && (

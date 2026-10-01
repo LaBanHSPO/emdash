@@ -4361,7 +4361,11 @@ function EditorBubbleMenu({
 }) {
 	const [showLinkInput, setShowLinkInput] = React.useState(false);
 	const [linkUrl, setLinkUrl] = React.useState("");
+	const [linkInvalid, setLinkInvalid] = React.useState(false);
 	const [openMenu, setOpenMenu] = React.useState<"turnInto" | "more" | null>(null);
+	// Opening one menu closes the other, whose close then mustn't undo the open.
+	const toggleMenu = (menu: "turnInto" | "more", open: boolean) =>
+		setOpenMenu((current) => (open ? menu : current === menu ? null : current));
 	const menuRef = React.useRef<HTMLDivElement>(null);
 	const { t } = useLingui();
 	const state = useEditorState({
@@ -4389,17 +4393,19 @@ function EditorBubbleMenu({
 	const closeLinkInput = () => {
 		setShowLinkInput(false);
 		setLinkUrl("");
+		setLinkInvalid(false);
 	};
 	const showLinkInputRef = React.useRef(showLinkInput);
 	showLinkInputRef.current = showLinkInput;
 	const closeLinkInputRef = React.useRef(closeLinkInput);
 	closeLinkInputRef.current = closeLinkInput;
 
-	// A URL the editor won't link keeps the field open.
+	// A URL the editor won't link keeps the field open, saying why.
 	const handleSetLink = () => {
 		if (linkUrl.trim() === "") {
 			editor.chain().focus().extendMarkRange("link").unsetLink().run();
 		} else if (!setSelectedTextLink(editor, linkUrl)) {
+			setLinkInvalid(true);
 			return;
 		}
 		closeLinkInput();
@@ -4407,6 +4413,7 @@ function EditorBubbleMenu({
 
 	const applyLinkHref = (href: string) => {
 		if (setSelectedTextLink(editor, href)) closeLinkInput();
+		else setLinkInvalid(true);
 	};
 
 	const handleRemoveLink = () => {
@@ -4493,7 +4500,11 @@ function EditorBubbleMenu({
 							<LinkDestinationInput
 								className="w-72 min-w-0 shrink"
 								value={linkUrl}
-								onValueChange={setLinkUrl}
+								onValueChange={(value) => {
+									setLinkUrl(value);
+									setLinkInvalid(false);
+								}}
+								invalid={linkInvalid}
 								onSubmit={handleSetLink}
 								onPick={applyLinkHref}
 								onEscape={() => {
@@ -4914,6 +4925,7 @@ function ImageBubbleMenu({
 	const altInputRef = React.useRef<HTMLInputElement>(null);
 	const [mode, setMode] = React.useState<"controls" | "alt" | "link">("controls");
 	const [draft, setDraft] = React.useState("");
+	const [linkInvalid, setLinkInvalid] = React.useState(false);
 	const [pickerOpen, setPickerOpen] = React.useState(false);
 	// Remounting the controls when the toolbar hides closes any hint left open on them.
 	const [controlsKey, setControlsKey] = React.useState(0);
@@ -5088,6 +5100,7 @@ function ImageBubbleMenu({
 		}
 		editSessionRef.current += 1;
 		setDraft(next === "alt" ? image.alt : image.link);
+		setLinkInvalid(false);
 		setMode(next);
 	};
 	// Focus the editor before the edit row unmounts, so focus never drops to the page.
@@ -5104,7 +5117,10 @@ function ImageBubbleMenu({
 	// A link search pick can resolve after its row closed, or once another edit began.
 	const applyLink = (href: string | null, session = editSessionRef.current) => {
 		if (editingPosRef.current === null || session !== editSessionRef.current) return;
-		if (!setSelectedImageLink(editor, href)) return;
+		if (!setSelectedImageLink(editor, href)) {
+			setLinkInvalid(true);
+			return;
+		}
 		showControls();
 	};
 	const toggleSettings = () => {
@@ -5224,7 +5240,11 @@ function ImageBubbleMenu({
 							<LinkDestinationInput
 								className="w-72 min-w-0"
 								value={draft}
-								onValueChange={setDraft}
+								onValueChange={(value) => {
+									setDraft(value);
+									setLinkInvalid(false);
+								}}
+								invalid={linkInvalid}
 								onSubmit={() => applyLink(draft)}
 								onPick={(href) => applyLink(href, editSession)}
 								onEscape={returnToEditor}
@@ -5564,6 +5584,7 @@ function EditorToolbar({
 	const { t } = useLingui();
 	const [showLinkPopover, setShowLinkPopover] = React.useState(false);
 	const [linkUrl, setLinkUrl] = React.useState("");
+	const [linkInvalid, setLinkInvalid] = React.useState(false);
 
 	// Subscribe to editor state changes for reactive button states
 	const editorState = useEditorState({
@@ -5617,6 +5638,7 @@ function EditorToolbar({
 
 	// Populate link URL when opening popover
 	React.useEffect(() => {
+		setLinkInvalid(false);
 		if (showLinkPopover) {
 			const existingUrl = editor.isActive("image")
 				? ((editor.getAttributes("image").link as { href?: string } | null)?.href ?? "")
@@ -5625,22 +5647,29 @@ function EditorToolbar({
 		}
 	}, [showLinkPopover, editor]);
 
-	// A URL the editor won't link keeps the popover open.
+	// A URL the editor won't link keeps the popover open, saying why.
 	const applyLinkHref = (href: string) => {
 		const applied = editor.isActive("image")
 			? setSelectedImageLink(editor, href)
 			: setSelectedTextLink(editor, href);
-		if (!applied) return;
+		if (!applied) {
+			setLinkInvalid(true);
+			return;
+		}
 		setShowLinkPopover(false);
 		setLinkUrl("");
 	};
 
 	const handleSetLink = () => {
 		if (editor.isActive("image")) {
-			if (!setSelectedImageLink(editor, linkUrl)) return;
+			if (!setSelectedImageLink(editor, linkUrl)) {
+				setLinkInvalid(true);
+				return;
+			}
 		} else if (linkUrl.trim() === "") {
 			editor.chain().focus().extendMarkRange("link").unsetLink().run();
 		} else if (!setSelectedTextLink(editor, linkUrl)) {
+			setLinkInvalid(true);
 			return;
 		}
 		setShowLinkPopover(false);
@@ -5943,7 +5972,11 @@ function EditorToolbar({
 							<LinkDestinationInput
 								className="w-80"
 								value={linkUrl}
-								onValueChange={setLinkUrl}
+								onValueChange={(value) => {
+									setLinkUrl(value);
+									setLinkInvalid(false);
+								}}
+								invalid={linkInvalid}
 								onSubmit={handleSetLink}
 								onPick={applyLinkHref}
 								onEscape={closeLinkPopover}

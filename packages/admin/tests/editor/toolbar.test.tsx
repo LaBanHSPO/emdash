@@ -1924,6 +1924,22 @@ describe("Link Insertion", () => {
 		});
 	});
 
+	it("says why it won't apply a link", async () => {
+		const { screen } = await renderEditor();
+		await focusAndSelectAll(screen);
+
+		screen.getByRole("button", { name: "Add link" }).element().click();
+		await typeLink("javascript:alert(1)");
+		screen.getByRole("button", { name: "Apply" }).element().click();
+
+		await expect
+			.element(screen.getByRole("alert"))
+			.toHaveTextContent(
+				"This link can't be used. Enter a web address, such as https://example.com.",
+			);
+		expect(screen.container.querySelector(".ProseMirror a")).toBeNull();
+	});
+
 	it("keeps the popover open for an image link it won't apply", async () => {
 		const { screen, editor } = await renderEditor({
 			value: [
