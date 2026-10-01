@@ -2357,27 +2357,6 @@ function SlashCommandMenu({
 		return () => document.removeEventListener("pointerdown", handlePointerDown, true);
 	}, [onClose, state.isOpen]);
 
-	// The page holds still under the mouse wheel while the menu is open, so the
-	// menu stays beside its line. Only the list scrolls.
-	React.useEffect(() => {
-		if (!state.isOpen) return;
-
-		const holdPage = (event: WheelEvent) => {
-			const list = containerRef.current;
-			const scrollsList =
-				list !== null &&
-				event.target instanceof Node &&
-				list.contains(event.target) &&
-				list.scrollHeight > list.clientHeight;
-			// Ctrl marks a pinch or zoom, which stays the browser's.
-			if (event.ctrlKey || scrollsList) return;
-			event.preventDefault();
-		};
-
-		document.addEventListener("wheel", holdPage, { capture: true, passive: false });
-		return () => document.removeEventListener("wheel", holdPage, { capture: true });
-	}, [state.isOpen]);
-
 	const selectedItem = state.items[state.selectedIndex];
 	const selectedItemTitle = selectedItem ? text(selectedItem.title) : "";
 	const groups = React.useMemo(() => {

@@ -551,38 +551,6 @@ describe("Slash Command Menu", () => {
 		await vi.waitFor(() => expect(menu.getBoundingClientRect().top).toBeCloseTo(top - 40, 0));
 	});
 
-	it("keeps the page still under the mouse wheel and scrolls only its list", async () => {
-		let editorInstance: Editor | null = null;
-		await render(
-			<div style={{ height: 400, overflowY: "auto" }} data-testid="scroller">
-				<PortableTextEditor onEditorReady={(editor) => (editorInstance = editor)} />
-			</div>,
-		);
-		await vi.waitFor(() => expect(editorInstance).toBeTruthy());
-		const editor = editorInstance!;
-		editor.commands.setContent(
-			Array.from({ length: 30 }, (_, index) => `<p>Paragraph ${index}</p>`).join(""),
-		);
-		editor
-			.chain()
-			.focus()
-			.setTextSelection(editor.state.doc.child(0).nodeSize + 1)
-			.run();
-		editor.commands.insertContent("/");
-		const menu = await waitForSlashMenu();
-		const scroller = document.querySelector<HTMLElement>('[data-testid="scroller"]')!;
-		const list = menu.querySelector<HTMLElement>("[data-slash-menu-scroll-viewport]")!;
-		// The menu's height comes from Tailwind classes these tests don't build.
-		Object.assign(list.style, { maxHeight: "120px", overflowY: "auto" });
-		const scrollTop = scroller.scrollTop;
-
-		await userEvent.wheel(editor.view.dom.querySelector("p")!, { delta: { y: 200 } });
-		await userEvent.wheel(list, { delta: { y: 200 } });
-
-		await vi.waitFor(() => expect(list.scrollTop).toBeGreaterThan(0));
-		expect(scroller.scrollTop).toBe(scrollTop);
-	});
-
 	it("keeps searching across a space while titles still match", async () => {
 		const { editor, pm } = await renderEditor();
 		await focusEditor(pm);
