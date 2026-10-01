@@ -919,6 +919,24 @@ describe("Slash Command Menu", () => {
 		expect(titles).toContain("Section");
 	});
 
+	it("matches a short query only against the starts of names", async () => {
+		const { editor, pm } = await renderEditor();
+		await focusEditor(pm);
+		editor.commands.insertContent("/");
+		await waitForSlashMenu();
+
+		await userEvent.keyboard("di");
+
+		await vi.waitFor(
+			() => {
+				const menu = getSlashMenu();
+				expect(menu).toBeTruthy();
+				expect(getItemTitles(menu!)).toEqual(["Divider"]);
+			},
+			{ timeout: 3000 },
+		);
+	});
+
 	it("prioritises title matches over description matches when filtering", async () => {
 		const { editor, pm } = await renderEditor();
 		await focusEditor(pm);

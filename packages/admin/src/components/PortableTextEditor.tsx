@@ -1888,8 +1888,10 @@ const htmlSlashCommand: SlashCommandItem = {
 
 /**
  * Ranks a command against the slash query: exact aliases (`/h1`) first, then
- * title prefixes, word prefixes, substrings, descriptions, and finally loose
- * in-order character matches (`/bl` → "Bulleted list"). Zero means no match.
+ * title prefixes, initials (`/bl` → "Bulleted list"), word prefixes,
+ * substrings, descriptions, and finally loose in-order character matches.
+ * The loose matches need three characters, so `/di` doesn't list every
+ * "heading". Zero means no match.
  */
 function scoreSlashCommand(
 	query: string,
@@ -1915,6 +1917,7 @@ function scoreSlashCommand(
 		return 85;
 	if (words.some((word) => word.startsWith(q))) return 80;
 	if (lowerAliases.some((alias) => alias.startsWith(q))) return 70;
+	if (q.length < 3) return 0;
 	if (lowerTitle.includes(q)) return 60;
 	if (description.toLowerCase().includes(q)) return 40;
 	let index = 0;
