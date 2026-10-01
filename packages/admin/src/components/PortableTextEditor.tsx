@@ -4439,7 +4439,7 @@ function EditorBubbleMenu({
 						</div>
 					) : (
 						// Scrolls with the fixed toolbar's edge fade when a narrow screen cuts it off.
-						<div className="emdash-editor-toolbar -m-1 flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-[inherit] p-1">
+						<div className="emdash-editor-toolbar -m-1 flex min-w-0 scroll-px-1 items-center gap-0.5 overflow-x-auto rounded-[inherit] p-1">
 							{state.blockType && (
 								<>
 									<TurnIntoMenu editor={editor} activeId={state.blockType} />
@@ -5599,7 +5599,7 @@ function EditorToolbar({
 	const controls = (
 		<div
 			className={cn(
-				"emdash-editor-toolbar flex flex-nowrap items-center gap-0.5 overflow-x-auto rounded-[inherit] p-1",
+				"emdash-editor-toolbar flex flex-nowrap scroll-px-1 items-center gap-0.5 overflow-x-auto rounded-[inherit] p-1",
 				isDocument && "justify-between",
 			)}
 			style={isDocument ? undefined : { justifyContent: "safe center" }}
