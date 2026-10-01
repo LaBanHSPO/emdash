@@ -17,6 +17,8 @@ import { userEvent } from "vitest/browser";
 import {
 	BlockSelectAll,
 	BlockSelection,
+	DoubleClickLineEnd,
+	SelectionHighlights,
 	focusDocumentStart,
 } from "../../src/components/editor/BlockCommands";
 
@@ -30,7 +32,13 @@ function create(content: string, onArrowUpAtStart: (() => boolean) | null = null
 	document.body.append(element);
 	editor = new Editor({
 		element,
-		extensions: [StarterKit, BlockSelection.configure({ onArrowUpAtStart }), BlockSelectAll],
+		extensions: [
+			StarterKit,
+			BlockSelection.configure({ onArrowUpAtStart }),
+			BlockSelectAll,
+			DoubleClickLineEnd,
+			SelectionHighlights,
+		],
 		content,
 	});
 }
@@ -130,6 +138,48 @@ describe("Block selection", () => {
 		expect(editor.getHTML()).toBe("<p>one</p><hr><p>two</p>");
 	});
 
+	it("doesn't let typing replace a block selected without block selection", async () => {
+		create("<blockquote><p>quote</p></blockquote><p>two</p>");
+		editor.commands.setNodeSelection(0);
+		editor.view.focus();
+		const before = editor.getJSON();
+
+		await userEvent.keyboard("x");
+
+		expect(editor.getJSON()).toEqual(before);
+	});
+
+	it("selects a divider with Backspace from the start of the block after it", () => {
+		create("<p>one</p><hr><p>two</p>");
+		caretIn("two");
+
+		press("Backspace");
+
+		expect((editor.state.selection as NodeSelection).node?.type.name).toBe("horizontalRule");
+		expect(editor.getHTML()).toBe("<p>one</p><hr><p>two</p>");
+	});
+
+	it("selects a divider with Delete from the end of the block before it", () => {
+		create("<p>one</p><hr><p>two</p>");
+		editor.commands.setTextSelection(4);
+
+		press("Delete");
+
+		expect((editor.state.selection as NodeSelection).node?.type.name).toBe("horizontalRule");
+		expect(editor.getHTML()).toBe("<p>one</p><hr><p>two</p>");
+	});
+
+	it("leaves the caret before a deleted block instead of selecting the next one", () => {
+		create("<p>one</p><hr><hr><p>two</p>");
+		editor.commands.setNodeSelection(5);
+
+		press("Backspace");
+
+		expect(editor.getHTML()).toBe("<p>one</p><hr><p>two</p>");
+		expect(editor.state.selection).toBeInstanceOf(TextSelection);
+		expect(editor.state.selection.$from.parent.textContent).toBe("one");
+	});
+
 	it("goes back to writing at the end of the block on Enter", () => {
 		create("<p>one</p><p>two</p>");
 		caretIn("two");
@@ -195,6 +245,95 @@ describe("Select All", () => {
 		selectAll();
 
 		expect(editor.state.selection).toBeInstanceOf(AllSelection);
+	});
+});
+
+describe("Double-click at a line end", () => {
+	/** A double-click that left the browser's word selection over `from`–`to`. */
+	function doubleClickSelecting(from: number, to: number) {
+		editor.view.dispatch(
+			editor.state.tr.setSelection(TextSelection.create(editor.state.doc, from, to)),
+		);
+		editor.view.dom.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+	}
+
+	it.each([
+		["the break into the next block", "<p>one</p><h2>two</h2>", 4, 6],
+		["a line break", "<p>one<br>two</p>", 4, 5],
+		["a newline in code", "<pre><code>one\ntwo</code></pre>", 4, 5],
+	])("leaves a caret at the line end instead of selecting %s", async (_name, content, from, to) => {
+		create(content);
+		doubleClickSelecting(from, to);
+
+		await vi.waitFor(() => expect(editor.state.selection.empty).toBe(true));
+		expect(editor.state.selection.from).toBe(from);
+	});
+
+	it("selects the word when the double click lands on its last letter", async () => {
+		create("<p>one two</p><p>next</p>");
+		const end = editor.view.coordsAtPos(8, -1);
+		editor.view.dispatch(
+			editor.state.tr.setSelection(TextSelection.create(editor.state.doc, 8, 10)),
+		);
+		editor.view.dom.dispatchEvent(
+			new MouseEvent("dblclick", {
+				bubbles: true,
+				clientX: end.left - 1,
+				clientY: (end.top + end.bottom) / 2,
+			}),
+		);
+
+		await vi.waitFor(() => expect(editor.state.selection).toMatchObject({ from: 5, to: 8 }));
+	});
+
+	it("keeps a double-clicked word selected", async () => {
+		create("<p>one two</p>");
+		doubleClickSelecting(5, 8);
+
+		await new Promise((resolve) => setTimeout(resolve));
+		expect(editor.state.selection).toMatchObject({ from: 5, to: 8 });
+	});
+});
+
+describe("Selection highlights", () => {
+	const lineBreakMarkers = () => editor.view.dom.querySelectorAll(".emdash-selected-line-break");
+
+	it("marks a line break selected from the keyboard", () => {
+		create("<p>one</p><p>two</p>");
+
+		editor.view.dispatch(
+			editor.state.tr.setSelection(TextSelection.create(editor.state.doc, 4, 6)),
+		);
+
+		expect(lineBreakMarkers()).toHaveLength(1);
+	});
+
+	it("doesn't mark a line break selected by the pointer, or one beside selected text", () => {
+		create("<p>one</p><p>two</p>");
+
+		editor.view.dispatch(
+			editor.state.tr
+				.setSelection(TextSelection.create(editor.state.doc, 4, 6))
+				.setMeta("pointer", true),
+		);
+		expect(lineBreakMarkers()).toHaveLength(0);
+
+		editor.view.dispatch(
+			editor.state.tr.setSelection(TextSelection.create(editor.state.doc, 2, 7)),
+		);
+		expect(lineBreakMarkers()).toHaveLength(0);
+	});
+
+	it("tints a divider inside a selection", () => {
+		create("<p>one</p><hr><p>two</p>");
+
+		editor.view.dispatch(
+			editor.state.tr.setSelection(TextSelection.create(editor.state.doc, 2, 8)),
+		);
+
+		expect(editor.view.dom.querySelector("hr")?.classList.contains("emdash-in-selection")).toBe(
+			true,
+		);
 	});
 });
 

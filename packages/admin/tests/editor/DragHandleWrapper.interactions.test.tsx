@@ -3,6 +3,7 @@ import type { Editor } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { DragHandleWrapper } from "../../src/components/editor/DragHandleWrapper";
 
@@ -116,6 +117,27 @@ describe("DragHandleWrapper interactions", () => {
 				}),
 			)
 			.toHaveAttribute("data-kumo-component", "Button");
+	});
+
+	it("keeps the handle in place while the pointer is on +, so a key press can't hide it", async () => {
+		const locks: boolean[] = [];
+		const editor = {
+			view: { dom: document.createElement("div"), nodeDOM: () => null },
+			commands: {
+				setMeta: (_key: string, locked: boolean) => {
+					locks.push(locked);
+					return true;
+				},
+			},
+		} as unknown as Editor;
+		const screen = await render(<DragHandleWrapper editor={editor} onInsertBlock={vi.fn()} />);
+		const insertButton = screen.getByRole("button", { name: "Insert block below" });
+
+		await userEvent.hover(insertButton);
+		expect(locks.at(-1)).toBe(true);
+
+		await userEvent.unhover(insertButton);
+		expect(locks.at(-1)).toBe(false);
 	});
 
 	it("disables native block dragging while pressing the insert button", async () => {

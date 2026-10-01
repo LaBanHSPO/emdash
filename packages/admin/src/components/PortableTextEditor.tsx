@@ -108,11 +108,13 @@ import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
 import TextAlign from "@tiptap/extension-text-align";
 import Typography from "@tiptap/extension-typography";
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import { closeHistory } from "@tiptap/pm/history";
+import type { Mark as ProseMirrorMark, Node as ProseMirrorNode } from "@tiptap/pm/model";
 import {
 	AllSelection,
 	NodeSelection,
 	Plugin,
+	Selection,
 	TextSelection,
 	type EditorState,
 	type Transaction,
@@ -144,7 +146,13 @@ import {
 } from "../portable-text-table.js";
 import { CaretNext } from "./ArrowIcons.js";
 import { BlockKitMediaPickerField } from "./BlockKitMediaPickerField";
-import { BlockSelectAll, BlockSelection, blockInsertPosition } from "./editor/BlockCommands.js";
+import {
+	BlockSelectAll,
+	BlockSelection,
+	DoubleClickLineEnd,
+	SelectionHighlights,
+	blockInsertPosition,
+} from "./editor/BlockCommands.js";
 import {
 	activeTextBlockType,
 	canTurnInto,
@@ -404,6 +412,23 @@ function setSelectedImageLink(editor: Editor, href: string | null): boolean {
 	const existing = editor.getAttributes("image").link as { blank?: boolean } | null;
 	const link = trimmed ? { href: trimmed, ...(existing?.blank ? { blank: true } : {}) } : null;
 	return editor.chain().focus().updateAttributes("image", { link }).run();
+}
+
+/**
+ * The link holding the caret, or ending or starting at it. A click on a
+ * link's first or last letter can leave the caret at its edge, where the
+ * link's mark doesn't apply.
+ */
+function linkAtCaret(state: EditorState): ProseMirrorMark | undefined {
+	const { selection, schema } = state;
+	const linkType = schema.marks.link;
+	if (!linkType || !selection.empty) return undefined;
+	const { $from } = selection;
+	return (
+		linkType.isInSet($from.marks()) ??
+		linkType.isInSet($from.nodeBefore?.marks ?? []) ??
+		linkType.isInSet($from.nodeAfter?.marks ?? [])
+	);
 }
 
 /**
@@ -1986,10 +2011,39 @@ interface SlashMenuState {
 	selectedIndex: number;
 	clientRect: (() => DOMRect | null) | null;
 	range: Range | null;
-	trigger: "slash" | "gutter";
-	gutterBlockPos: number | null;
 	dismissedSlashFrom: number | null;
 	query: string;
+}
+
+/** The slash the block insert button typed, while its menu is open. */
+interface InsertedSlashLine {
+	slashPos: number;
+	/** The button added the paragraph, rather than typing into an empty one. */
+	addedParagraph: boolean;
+}
+
+/** The nearest element around `element` that scrolls vertically. */
+function scrollContainer(element: HTMLElement): HTMLElement | null {
+	for (let node = element.parentElement; node; node = node.parentElement) {
+		if (SCROLLING_OVERFLOW_REGEX.test(getComputedStyle(node).overflowY)) return node;
+	}
+	return null;
+}
+
+function isEmptyParagraph(node: ProseMirrorNode | null | undefined): boolean {
+	return node?.type.name === "paragraph" && node.content.size === 0;
+}
+
+/** The paragraph the insert button added for this slash, if it holds nothing else. */
+function addedSlashParagraph(
+	doc: ProseMirrorNode,
+	range: Range,
+	line: InsertedSlashLine | null,
+): Range | null {
+	if (!line?.addedParagraph || line.slashPos !== range.from) return null;
+	const $slash = doc.resolve(range.from);
+	if ($slash.parent.content.size !== range.to - range.from) return null;
+	return { from: $slash.before(), to: $slash.after() };
 }
 
 /**
@@ -1999,15 +2053,12 @@ function createSlashCommandsExtension(options: {
 	filterCommands: (query: string) => SlashCommandItem[];
 	onStateChange: React.Dispatch<React.SetStateAction<SlashMenuState>>;
 	getState: () => SlashMenuState;
+	onCommand: (item: SlashCommandItem) => void;
+	/** Escape or Tab closed the menu without running a command. */
+	onDismiss: () => void;
+	onExit: () => void;
 }) {
-	const { filterCommands, onStateChange, getState } = options;
-	const execute = (item: SlashCommandItem, editor: Editor, range: Range) => {
-		if (item.opensTablePicker) {
-			onStateChange((state) => ({ ...state, isOpen: true, mode: "table-size", range }));
-			return;
-		}
-		item.command({ editor, range });
-	};
+	const { filterCommands, onStateChange, getState, onCommand, onDismiss, onExit } = options;
 
 	return Extension.create({
 		name: "slashCommands",
@@ -2026,13 +2077,21 @@ function createSlashCommandsExtension(options: {
 					editor: this.editor,
 					char: "/",
 					startOfLine: true,
-					command: ({ editor, range, props }) => {
-						const item = props as SlashCommandItem;
-						execute(item, editor, range);
-					},
+					decorationClass: "emdash-slash-query",
+					command: ({ props }) => onCommand(props as SlashCommandItem),
 					items: ({ query }) => filterCommands(query),
-					allow: ({ range }) =>
-						!this.editor.isActive("table") && getState().dismissedSlashFrom !== range.from,
+					// Titles such as "Code block" can be typed whole; a space after no match ends the query.
+					allowSpaces: true,
+					allow: ({ state, range }) => {
+						if (this.editor.isActive("table") || getState().dismissedSlashFrom === range.from) {
+							return false;
+						}
+						const query = state.doc.textBetween(range.from + 1, range.to);
+						return (
+							!WHITESPACE_START_REGEX.test(query) &&
+							(!WHITESPACE_REGEX.test(query) || filterCommands(query).length > 0)
+						);
+					},
 					render: () => {
 						return {
 							onStart: (props) => {
@@ -2043,8 +2102,6 @@ function createSlashCommandsExtension(options: {
 									selectedIndex: 0,
 									clientRect: props.clientRect ?? null,
 									range: props.range,
-									trigger: "slash",
-									gutterBlockPos: null,
 									dismissedSlashFrom: null,
 									query: props.query,
 								});
@@ -2056,20 +2113,13 @@ function createSlashCommandsExtension(options: {
 									selectedIndex: 0,
 									clientRect: props.clientRect ?? null,
 									range: props.range,
-									trigger: "slash",
-									gutterBlockPos: null,
 									dismissedSlashFrom: null,
 									query: props.query,
 								}));
 							},
 							onKeyDown: (props) => {
 								if (props.event.key === "Escape" || props.event.key === "Tab") {
-									onStateChange((prev) => ({
-										...prev,
-										isOpen: false,
-										dismissedSlashFrom: props.range.from,
-									}));
-									exitSuggestion(props.view);
+									onDismiss();
 									return props.event.key === "Escape";
 								}
 
@@ -2090,24 +2140,17 @@ function createSlashCommandsExtension(options: {
 								}
 
 								if (props.event.key === "Enter") {
-									const state = getState();
-									if (state.items.length > 0 && state.range) {
-										const item = state.items[state.selectedIndex];
-										if (item) {
-											execute(item, this.editor, state.range);
-											if (!item.opensTablePicker) {
-												onStateChange((prev) => ({ ...prev, isOpen: false }));
-											}
-											return true;
-										}
-									}
-									return false;
+									const item = getState().items[getState().selectedIndex];
+									if (!item) return false;
+									onCommand(item);
+									return true;
 								}
 
 								return false;
 							},
 							onExit: () => {
 								onStateChange((prev) => ({ ...prev, isOpen: false }));
+								onExit();
 							},
 						};
 					},
@@ -2117,9 +2160,19 @@ function createSlashCommandsExtension(options: {
 	});
 }
 
+/** The block insert buttons open the slash menu on a new line, so pressing one doesn't close it first. */
+function isBlockInsertButton(target: EventTarget | null): boolean {
+	return (
+		target instanceof Element &&
+		target.closest("[data-block-insert], [data-touch-block-insert]") !== null
+	);
+}
+
 /** Slash command menu anchored to the TipTap caret. */
 function SlashCommandMenu({
 	state,
+	contextElement,
+	getToolbarBottom,
 	onCommand,
 	onClose,
 	onTableInsert,
@@ -2127,6 +2180,10 @@ function SlashCommandMenu({
 	setSelectedIndex,
 }: {
 	state: SlashMenuState;
+	/** The editor element, so the menu follows its line when a container scrolls. */
+	contextElement: HTMLElement | undefined;
+	/** Where the sticky toolbar ends, which the menu stays below. */
+	getToolbarBottom: () => number;
 	onCommand: (item: SlashCommandItem) => void;
 	onClose: () => void;
 	onTableInsert: (rows: number, columns: number, withHeaderRow: boolean) => void;
@@ -2138,10 +2195,16 @@ function SlashCommandMenu({
 	const popupRef = React.useRef<HTMLDivElement>(null);
 	const virtualAnchor = React.useMemo(
 		() => ({
-			getBoundingClientRect: () => state.clientRect?.() ?? new DOMRect(),
+			getBoundingClientRect: () => {
+				const rect = state.clientRect?.();
+				// Base UI hides the menu for an empty rect, as when its line scrolls under the toolbar.
+				return rect && rect.bottom > getToolbarBottom() ? rect : new DOMRect();
+			},
+			contextElement,
 		}),
-		[state.clientRect],
+		[contextElement, getToolbarBottom, state.clientRect],
 	);
+	const toolbarBottom = getToolbarBottom();
 	const text = (value: MessageDescriptor | string) =>
 		typeof value === "string" ? value : t(value);
 
@@ -2182,6 +2245,7 @@ function SlashCommandMenu({
 		const handlePointerDown = (event: PointerEvent) => {
 			const target = event.target as Node | null;
 			if (target && popupRef.current?.contains(target)) return;
+			if (isBlockInsertButton(target)) return;
 			onClose();
 		};
 
@@ -2211,8 +2275,8 @@ function SlashCommandMenu({
 		<PopoverPrimitive.Root
 			open={state.isOpen}
 			modal={false}
-			onOpenChange={(open) => {
-				if (!open && state.isOpen) onClose();
+			onOpenChange={(open, details) => {
+				if (!open && state.isOpen && !isBlockInsertButton(details.event?.target ?? null)) onClose();
 			}}
 		>
 			<PopoverPrimitive.Portal>
@@ -2223,9 +2287,15 @@ function SlashCommandMenu({
 					align="start"
 					sideOffset={6}
 					positionMethod="fixed"
+					collisionBoundary={{
+						x: 0,
+						y: toolbarBottom,
+						width: window.innerWidth,
+						height: Math.max(0, window.innerHeight - toolbarBottom),
+					}}
 					collisionPadding={8}
 					collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "none" }}
-					className="slash-command-menu-positioner z-[100]"
+					className="slash-command-menu-positioner z-[100] data-anchor-hidden:invisible"
 				>
 					<PopoverPrimitive.Popup
 						ref={popupRef}
@@ -2245,6 +2315,17 @@ function SlashCommandMenu({
 						)}
 						onPointerMove={() => {
 							hasMouseMovedRef.current = true;
+						}}
+						onKeyDown={(event) => {
+							// Tab past the table picker's controls goes back to the editor, as in the other menus.
+							if (state.mode !== "table-size" || event.key !== "Tab") return;
+							const controls = [
+								...event.currentTarget.querySelectorAll<HTMLElement>("button, input, [tabindex]"),
+							].filter((control) => control.tabIndex >= 0 && !control.matches(":disabled"));
+							if (document.activeElement !== (event.shiftKey ? controls[0] : controls.at(-1)))
+								return;
+							event.preventDefault();
+							onTableCancel();
 						}}
 					>
 						{state.mode === "table-size" ? (
@@ -2323,7 +2404,7 @@ function SlashCommandMenu({
 									<span className="min-w-0 flex-1 truncate" aria-hidden="true">
 										{selectedItem ? text(selectedItem.description) : t`Type to filter`}
 									</span>
-									<span aria-hidden="true" className="flex-none">
+									<span aria-hidden="true" className="flex-none pointer-coarse:hidden">
 										<bdi dir="ltr">{t`esc`}</bdi>
 									</span>
 								</div>
@@ -2982,6 +3063,9 @@ export {
 const WORDS_PER_MINUTE = 200;
 const CJK_CHARACTERS_PER_MINUTE = 500;
 const WHITESPACE_REGEX = /\s+/;
+const WHITESPACE_START_REGEX = /^\s/;
+const NON_WHITESPACE_REGEX = /\S/;
+const SCROLLING_OVERFLOW_REGEX = /auto|scroll|overlay/;
 const URL_SCHEME_REGEX = /^[a-z][a-z0-9+.-]*:/i;
 const WWW_PREFIX_REGEX = /^www\./i;
 
@@ -3089,7 +3173,13 @@ function DocumentEnd({
 				if (event.button !== 0) return;
 				event.preventDefault();
 				// The trailing-node extension keeps a paragraph after any other last block.
-				editor.commands.focus("end");
+				if (!event.shiftKey) {
+					editor.commands.focus("end");
+					return;
+				}
+				const { doc, selection } = editor.state;
+				const end = Selection.atEnd(doc).from;
+				editor.chain().focus().setTextSelection({ from: selection.anchor, to: end }).run();
 			}}
 		>
 			{children}
@@ -3191,20 +3281,26 @@ export function PortableTextEditor({
 	const isDocument = variant === "document";
 	const documentPlaceholder = placeholder ?? t`Start writing, or type '/' for commands`;
 	const placeholderRef = React.useRef(
-		(_props: { node: ProseMirrorNode; pos: number; editor: Editor }) => documentPlaceholder,
+		(_props: { node: ProseMirrorNode; pos: number; editor: Editor; hasAnchor: boolean }) =>
+			documentPlaceholder,
 	);
-	placeholderRef.current = ({ node, pos, editor: placeholderEditor }) => {
+	// An empty heading always names its level; other blocks hint only where the caret is.
+	placeholderRef.current = ({ node, pos, editor: placeholderEditor, hasAnchor }) => {
 		if (node.type.name === "heading") {
 			const headingType = textBlockTypes.find((type) => type.id === `heading${node.attrs.level}`);
 			return headingType ? t(headingType.label) : documentPlaceholder;
 		}
-		if (node.type.name !== "paragraph") return "";
+		if (node.type.name !== "paragraph" || !hasAnchor) return "";
 		const parent = placeholderEditor.state.doc.resolve(pos).parent.type.name;
 		if (parent === "listItem") return t`List`;
 		if (parent === "blockquote") return t`Quote`;
 		return documentPlaceholder;
 	};
 	const toolbarRef = React.useRef<HTMLDivElement>(null);
+	const getToolbarBottom = React.useCallback(
+		() => toolbarRef.current?.getBoundingClientRect().bottom ?? 0,
+		[],
+	);
 	const floatingRootRef = React.useRef<HTMLDivElement>(null);
 	const appendBubbleMenu = React.useCallback(() => floatingRootRef.current!, []);
 	const getBubbleMenuCollisionOptions = React.useCallback(() => {
@@ -3300,10 +3396,13 @@ export function PortableTextEditor({
 		selectedIndex: 0,
 		clientRect: null,
 		range: null,
-		trigger: "slash",
-		gutterBlockPos: null,
 		dismissedSlashFrom: null,
 		query: "",
+	});
+	const insertedLineRef = React.useRef<InsertedSlashLine | null>(null);
+	const slashMenuActionsRef = React.useRef({
+		run: (_item: SlashCommandItem) => {},
+		dismiss: () => {},
 	});
 
 	// Ref to access current state synchronously in keyboard handlers.
@@ -3425,7 +3524,10 @@ export function PortableTextEditor({
 			.map((item, order) => ({
 				item,
 				order,
-				score: scoreSlashCommand(query, text(item.title), text(item.description), item.aliases),
+				score: scoreSlashCommand(query, text(item.title), text(item.description), [
+					...(item.aliases ?? []),
+					...(item.markdown ? [item.markdown] : []),
+				]),
 			}))
 			.filter((entry) => entry.score > 0)
 			.toSorted((a, b) => b.score - a.score || a.order - b.order)
@@ -3525,12 +3627,15 @@ export function PortableTextEditor({
 				},
 			}),
 			BlockSelectAll,
+			DoubleClickLineEnd,
+			SelectionHighlights,
 			createTableCellSafety(rejectTablePaste),
 			createTableClipboard(rejectTablePaste, (rows, columns) =>
 				extensionAnnouncementRef.current(rows, columns),
 			),
 			Placeholder.configure({
 				includeChildren: true,
+				showOnlyCurrent: false,
 				placeholder: (props) => placeholderRef.current(props),
 			}),
 			TextAlign.configure({
@@ -3540,6 +3645,11 @@ export function PortableTextEditor({
 				filterCommands: (query: string) => filterCommandsRef.current(query),
 				onStateChange: setSlashMenuState,
 				getState: () => slashMenuStateRef.current,
+				onCommand: (item) => slashMenuActionsRef.current.run(item),
+				onDismiss: () => slashMenuActionsRef.current.dismiss(),
+				onExit: () => {
+					insertedLineRef.current = null;
+				},
 			}),
 			CharacterCount.configure({ wordCounter: countWords }),
 			Focus.configure({
@@ -3556,6 +3666,9 @@ export function PortableTextEditor({
 	// Suggestion onExit → setSlashMenuState → re-render → infinite loop.
 	const editorProps = React.useMemo(
 		() => ({
+			// Keeps the caret clear of the document's sticky toolbar, and the fade under it,
+			// when the editor scrolls to it.
+			scrollMargin: isDocument ? { top: 96, right: 5, bottom: 5, left: 5 } : 5,
 			attributes: {
 				class: isDocument
 					? "emdash-document flow-root min-h-32 pb-2 focus:outline-none"
@@ -3598,177 +3711,121 @@ export function PortableTextEditor({
 		},
 	});
 
-	const openBlockInsertMenuAt = React.useCallback(
-		(insertPos: number) => {
-			if (!editor) return;
-			const state = slashMenuStateRef.current;
-			const activeSlashFrom = state.trigger === "slash" && state.isOpen ? state.range?.from : null;
-			if (activeSlashFrom != null) {
-				setSlashMenuState((prev) => ({ ...prev, dismissedSlashFrom: activeSlashFrom }));
-			}
-			exitSuggestion(editor.view);
-			editor.commands.focus();
-
-			setSlashMenuState((prev) => ({
-				isOpen: true,
-				mode: "commands",
-				items: filterCommandsRef.current(""),
-				selectedIndex: 0,
-				clientRect: () => {
-					if (editor.isDestroyed) return null;
-					const coords = editor.view.coordsAtPos(insertPos);
-					const DOMRectCtor = editor.view.dom.ownerDocument.defaultView?.DOMRect;
-					if (!DOMRectCtor) return null;
-					return new DOMRectCtor(
-						coords.left,
-						coords.top,
-						coords.right - coords.left,
-						coords.bottom - coords.top,
-					);
-				},
-				range: { from: insertPos, to: insertPos },
-				trigger: "gutter",
-				gutterBlockPos: insertPos,
-				dismissedSlashFrom: prev.dismissedSlashFrom,
-				query: "",
-			}));
-		},
-		[editor, setSlashMenuState],
-	);
-
-	const closeSlashMenu = React.useCallback(() => {
-		const state = slashMenuStateRef.current;
-		setSlashMenuState((prev) => ({
-			...prev,
-			isOpen: false,
-			mode: "commands",
-			gutterBlockPos: null,
-			dismissedSlashFrom:
-				state.trigger === "slash" ? (state.range?.from ?? null) : prev.dismissedSlashFrom,
-		}));
-		if (editor && state.trigger === "slash") {
-			exitSuggestion(editor.view);
-		}
-	}, [editor, setSlashMenuState]);
-
-	const executeSlashCommand = React.useCallback(
-		(item: SlashCommandItem, state: SlashMenuState) => {
-			if (!editor || !state.range) return;
-			if (item.opensTablePicker) {
-				setSlashMenuState((current) => ({ ...current, mode: "table-size", isOpen: true }));
-				return;
-			}
-
-			let range = state.range;
-			if (state.trigger === "gutter") {
-				const insertPos = state.gutterBlockPos;
-				if (insertPos === null) return;
-
-				if (item.deferInsertion) {
-					pendingBlockInsertPosRef.current = insertPos;
-					const selectionPos = editor.state.selection.from;
-					range = { from: selectionPos, to: selectionPos };
-				} else {
-					const selectionPos = insertPos + 1;
-					const inserted = editor
-						.chain()
-						.focus()
-						.insertContentAt(insertPos, { type: "paragraph" })
-						.setTextSelection(selectionPos)
-						.run();
-					if (!inserted) return;
-					range = { from: selectionPos, to: selectionPos };
-				}
-			}
-
-			item.command({ editor, range });
+	/**
+	 * Closes the menu without running a command, keeping what was typed. The
+	 * slash the block insert button typed goes again if nothing followed it,
+	 * with the paragraph the button added when `removeLine` is set; the
+	 * transaction that removed it is returned.
+	 */
+	const closeSlashMenu = React.useCallback(
+		(removeLine = false): Transaction | null => {
+			const { range } = slashMenuStateRef.current;
+			const untouched =
+				editor !== null &&
+				range !== null &&
+				insertedLineRef.current?.slashPos === range.from &&
+				editor.state.doc.textBetween(range.from, range.to) === "/";
 			setSlashMenuState((prev) => ({
 				...prev,
 				isOpen: false,
 				mode: "commands",
-				gutterBlockPos: null,
+				dismissedSlashFrom: untouched || !range ? prev.dismissedSlashFrom : range.from,
 			}));
+			if (!editor || !range) return null;
+			if (!untouched) {
+				exitSuggestion(editor.view);
+				return null;
+			}
+			const removed =
+				(removeLine && addedSlashParagraph(editor.state.doc, range, insertedLineRef.current)) ||
+				range;
+			const tr = editor.state.tr.delete(removed.from, removed.to).setMeta("addToHistory", false);
+			editor.view.dispatch(closeHistory(tr));
+			return tr;
 		},
 		[editor, setSlashMenuState],
 	);
 
-	React.useEffect(() => {
-		if (!editor || !slashMenuState.isOpen || slashMenuState.trigger !== "gutter") return;
+	/**
+	 * The block insert button types a slash on a new line at `insertPos`, or
+	 * into the empty paragraph just before it, which opens the slash menu there.
+	 */
+	const openBlockInsertMenuAt = React.useCallback(
+		(insertPos: number) => {
+			if (!editor) return;
+			const closed = slashMenuStateRef.current.isOpen ? closeSlashMenu(true) : null;
+			const pos = closed ? closed.mapping.map(insertPos) : insertPos;
+			const { doc } = editor.state;
+			if (pos < 0 || pos > doc.content.size || doc.resolve(pos).depth !== 0) return;
+			const { nodeBefore, nodeAfter } = doc.resolve(pos);
+			// An empty paragraph beside the insert point takes the slash instead of gaining a neighbour.
+			const reuseBefore = isEmptyParagraph(nodeBefore);
+			const reuse = reuseBefore || isEmptyParagraph(nodeAfter);
+			const slashPos = reuseBefore ? pos - 1 : pos + 1;
+			// A stale dismissed position could block this slash; opening a menu forgets it anyway.
+			setSlashMenuState((prev) => ({ ...prev, dismissedSlashFrom: null }));
+			editor
+				.chain()
+				.focus()
+				.command(({ tr }) => {
+					closeHistory(tr);
+					if (!reuse) tr.insert(pos, tr.doc.type.schema.nodes.paragraph!.create());
+					tr.insertText("/", slashPos).setSelection(TextSelection.create(tr.doc, slashPos + 1));
+					return true;
+				})
+				.run();
+			insertedLineRef.current = { slashPos, addedParagraph: !reuse };
+			// Scrolls far enough for the menu, up to 21rem tall, to open below the line, without
+			// scrolling the line under the toolbar.
+			const line = editor.view.coordsAtPos(slashPos);
+			const scroller = scrollContainer(editor.view.dom);
+			const viewBottom = Math.min(
+				window.innerHeight,
+				scroller?.getBoundingClientRect().bottom ?? Infinity,
+			);
+			const room = 23 * Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+			const distance = Math.min(line.bottom + room - viewBottom, line.top - getToolbarBottom() - 8);
+			if (distance > 0) (scroller ?? window).scrollBy({ top: distance });
+		},
+		[closeSlashMenu, editor, getToolbarBottom, setSlashMenuState],
+	);
 
-		const handleKeyDown = (event: KeyboardEvent) => {
-			const state = slashMenuStateRef.current;
-			if (!state.isOpen || state.trigger !== "gutter") return;
+	/**
+	 * The range a slash command replaces. The slash the block insert button
+	 * typed is cleared outside the undo history first, so undoing the command
+	 * doesn't bring it back. A picker inserts where the button's paragraph
+	 * was, so cancelling the picker leaves nothing behind.
+	 */
+	const takeSlashRange = React.useCallback(
+		(activeEditor: Editor, range: Range, deferred: boolean): Range => {
+			pendingBlockInsertPosRef.current = null;
+			const line = insertedLineRef.current;
+			if (line?.slashPos !== range.from) return range;
+			const paragraph = deferred ? addedSlashParagraph(activeEditor.state.doc, range, line) : null;
+			const cleared = paragraph ?? range;
+			const tr = activeEditor.state.tr.delete(cleared.from, cleared.to);
+			activeEditor.view.dispatch(closeHistory(tr.setMeta("addToHistory", false)));
+			if (paragraph) pendingBlockInsertPosRef.current = paragraph.from;
+			const caret = activeEditor.state.selection.from;
+			return { from: caret, to: caret };
+		},
+		[],
+	);
 
-			if (event.key === "Tab") {
-				closeSlashMenu();
+	const executeSlashCommand = React.useCallback(
+		(item: SlashCommandItem) => {
+			const { range } = slashMenuStateRef.current;
+			if (!editor || !range) return;
+			if (item.opensTablePicker) {
+				setSlashMenuState((current) => ({ ...current, mode: "table-size", isOpen: true }));
 				return;
 			}
-
-			if (event.key === "Escape") {
-				event.preventDefault();
-				closeSlashMenu();
-				return;
-			}
-
-			if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-				if (state.items.length === 0) return;
-				event.preventDefault();
-				const delta = event.key === "ArrowUp" ? -1 : 1;
-				setSlashMenuState((prev) => ({
-					...prev,
-					selectedIndex: (prev.selectedIndex + delta + prev.items.length) % prev.items.length,
-				}));
-				return;
-			}
-
-			if (event.key === "Enter") {
-				const item = state.items[state.selectedIndex];
-				if (!item || !state.range) return;
-				event.preventDefault();
-				executeSlashCommand(item, state);
-				return;
-			}
-
-			if (
-				event.key.length === 1 &&
-				!event.ctrlKey &&
-				!event.metaKey &&
-				!event.altKey &&
-				!event.isComposing &&
-				state.gutterBlockPos !== null
-			) {
-				event.preventDefault();
-				const selectionPos = state.gutterBlockPos + event.key.length + 1;
-				editor
-					.chain()
-					.focus()
-					.insertContentAt(state.gutterBlockPos, {
-						type: "paragraph",
-						content: [{ type: "text", text: event.key }],
-					})
-					.setTextSelection(selectionPos)
-					.run();
-				setSlashMenuState((prev) => ({ ...prev, isOpen: false, gutterBlockPos: null }));
-				return;
-			}
-
-			if (event.key === "Backspace" || event.key === "Delete") {
-				event.preventDefault();
-				closeSlashMenu();
-			}
-		};
-
-		const editorElement = editor.view.dom;
-		editorElement.addEventListener("keydown", handleKeyDown, true);
-		return () => editorElement.removeEventListener("keydown", handleKeyDown, true);
-	}, [
-		closeSlashMenu,
-		editor,
-		executeSlashCommand,
-		setSlashMenuState,
-		slashMenuState.isOpen,
-		slashMenuState.trigger,
-	]);
+			item.command({ editor, range: takeSlashRange(editor, range, item.deferInsertion === true) });
+			setSlashMenuState((prev) => ({ ...prev, isOpen: false, mode: "commands" }));
+		},
+		[editor, setSlashMenuState, takeSlashRange],
+	);
+	slashMenuActionsRef.current = { run: executeSlashCommand, dismiss: closeSlashMenu };
 
 	const handleTouchInsertBlock = React.useCallback(() => {
 		if (!editor) return;
@@ -3797,22 +3854,37 @@ export function PortableTextEditor({
 		const viewport = window.visualViewport;
 		if (!editor || !viewport) return;
 
+		let frame = 0;
 		const updateBubbleMenuPositions = () => {
-			if (editor.isDestroyed) return;
-			editor.view.dispatch(
-				editor.state.tr
-					.setMeta(INLINE_BUBBLE_MENU_KEY, "updatePosition")
-					.setMeta(TABLE_BUBBLE_MENU_KEY, "updatePosition")
-					.setMeta(IMAGE_BUBBLE_MENU_KEY, "updatePosition")
-					.setMeta(LINK_BUBBLE_MENU_KEY, "updatePosition"),
-			);
+			if (frame) return;
+			frame = requestAnimationFrame(() => {
+				frame = 0;
+				if (editor.isDestroyed) return;
+				editor.view.dispatch(
+					editor.state.tr
+						.setMeta(INLINE_BUBBLE_MENU_KEY, "updatePosition")
+						.setMeta(TABLE_BUBBLE_MENU_KEY, "updatePosition")
+						.setMeta(IMAGE_BUBBLE_MENU_KEY, "updatePosition")
+						.setMeta(LINK_BUBBLE_MENU_KEY, "updatePosition"),
+				);
+			});
+		};
+		// The bubble menus only follow the window's scroll, so they'd stay put over the
+		// sticky toolbar when the container around the editor scrolls instead.
+		const updateOnContainerScroll = (event: Event) => {
+			if (event.target instanceof Node && event.target.contains(editor.view.dom)) {
+				updateBubbleMenuPositions();
+			}
 		};
 
 		viewport.addEventListener("resize", updateBubbleMenuPositions);
 		viewport.addEventListener("scroll", updateBubbleMenuPositions);
+		document.addEventListener("scroll", updateOnContainerScroll, { capture: true, passive: true });
 		return () => {
+			cancelAnimationFrame(frame);
 			viewport.removeEventListener("resize", updateBubbleMenuPositions);
 			viewport.removeEventListener("scroll", updateBubbleMenuPositions);
+			document.removeEventListener("scroll", updateOnContainerScroll, { capture: true });
 		};
 	}, [editor]);
 
@@ -3983,14 +4055,6 @@ export function PortableTextEditor({
 		[editor, pluginBlockModal],
 	);
 
-	// Handle slash menu command execution
-	const handleSlashCommand = React.useCallback(
-		(item: SlashCommandItem) => {
-			const state = slashMenuStateRef.current;
-			executeSlashCommand(item, state);
-		},
-		[executeSlashCommand],
-	);
 	React.useEffect(() => {
 		if (editable || !editor || slashMenuStateRef.current.mode !== "table-size") return;
 		exitSuggestion(editor.view);
@@ -3999,50 +4063,38 @@ export function PortableTextEditor({
 				...current,
 				isOpen: false,
 				mode: "commands",
-				gutterBlockPos: null,
 			})),
 		);
 	}, [editable, editor, setSlashMenuState]);
 	const handleSlashTableInsert = React.useCallback(
 		(rows: number, columns: number, withHeaderRow: boolean) => {
+			const { range } = slashMenuStateRef.current;
 			if (!editor?.isEditable) return;
-			const state = slashMenuStateRef.current;
 			const inserted = insertEditorTable(
 				editor,
 				rows,
 				columns,
 				withHeaderRow,
-				state.trigger === "slash" ? (state.range ?? undefined) : undefined,
-				state.trigger === "gutter" ? (state.gutterBlockPos ?? undefined) : undefined,
+				range ? takeSlashRange(editor, range, false) : undefined,
 			);
 			if (!inserted) return;
-			if (state.trigger === "slash") exitSuggestion(editor.view);
+			exitSuggestion(editor.view);
+			// The picker's focused cell goes away with the menu.
+			editor.view.focus();
 			setSlashMenuState((current) => ({
 				...current,
 				isOpen: false,
 				mode: "commands",
-				gutterBlockPos: null,
 				dismissedSlashFrom: null,
 			}));
 			announceTable(t`Table inserted`);
 		},
-		[announceTable, editor, setSlashMenuState, t],
+		[announceTable, editor, setSlashMenuState, t, takeSlashRange],
 	);
 	const handleSlashTableCancel = React.useCallback(() => {
-		const state = slashMenuStateRef.current;
-		setSlashMenuState((current) => ({
-			...current,
-			isOpen: false,
-			mode: "commands",
-			gutterBlockPos: null,
-			dismissedSlashFrom:
-				state.trigger === "slash" ? (state.range?.from ?? null) : current.dismissedSlashFrom,
-		}));
-		if (editor) {
-			if (state.trigger === "slash") exitSuggestion(editor.view);
-			editor.view.focus();
-		}
-	}, [editor, setSlashMenuState]);
+		closeSlashMenu();
+		editor?.view.focus();
+	}, [closeSlashMenu, editor]);
 
 	// Handle section selection - insert section content at cursor
 	const handleSectionSelect = React.useCallback(
@@ -4251,7 +4303,13 @@ export function PortableTextEditor({
 						variant={variant}
 					/>
 				)}
-				<div className="relative overflow-visible">
+				<div
+					className="relative overflow-visible"
+					// CSS `content` takes the slash menu's hint as a quoted string.
+					style={
+						{ "--emdash-slash-hint": JSON.stringify(t`Type to search`) } as React.CSSProperties
+					}
+				>
 					<EditorContent editor={editor} />
 					{editable && <DragHandleWrapper editor={editor} onInsertBlock={openBlockInsertMenuAt} />}
 				</div>
@@ -4267,7 +4325,9 @@ export function PortableTextEditor({
 				{editable && (
 					<SlashCommandMenu
 						state={slashMenuState}
-						onCommand={handleSlashCommand}
+						contextElement={editor.isInitialized ? editor.view.dom : undefined}
+						getToolbarBottom={getToolbarBottom}
+						onCommand={executeSlashCommand}
 						onClose={closeSlashMenu}
 						onTableInsert={handleSlashTableInsert}
 						onTableCancel={handleSlashTableCancel}
@@ -4512,7 +4572,10 @@ function EditorBubbleMenu({
 					return (
 						activeEditor.isEditable &&
 						(selection instanceof TextSelection || selection instanceof AllSelection) &&
-						!selection.empty &&
+						// A selection of only line breaks or spaces has nothing to format.
+						NON_WHITESPACE_REGEX.test(
+							editorState.doc.textBetween(selection.from, selection.to, " "),
+						) &&
 						!activeEditor.isActive("codeBlock") &&
 						(view.hasFocus() || hasMenuFocus)
 					);
@@ -4614,8 +4677,8 @@ function LinkBubbleMenu({
 	const href = useEditorState({
 		editor,
 		selector: ({ editor: activeEditor }) => {
-			const value: unknown = activeEditor.getAttributes("link").href;
-			return activeEditor.isActive("link") && typeof value === "string" ? value : "";
+			const value: unknown = linkAtCaret(activeEditor.state)?.attrs.href;
+			return typeof value === "string" ? value : "";
 		},
 	});
 	const options = React.useMemo(
@@ -4639,8 +4702,7 @@ function LinkBubbleMenu({
 			shouldShow={({ editor: activeEditor, element, state: editorState, view }) =>
 				activeEditor.isEditable &&
 				editorState.selection instanceof TextSelection &&
-				editorState.selection.empty &&
-				activeEditor.isActive("link") &&
+				linkAtCaret(editorState) !== undefined &&
 				(view.hasFocus() || element.contains(document.activeElement))
 			}
 			data-emdash-link-bubble-menu
@@ -4884,7 +4946,7 @@ function TableBubbleMenu({
 					activeEditor.isEditable &&
 					hasEditorFocus &&
 					activeEditor.isActive("table") &&
-					((state.selection.empty && !activeEditor.isActive("link")) ||
+					((state.selection.empty && !linkAtCaret(state)) ||
 						state.selection instanceof CellSelection)
 				);
 			}}
@@ -5550,6 +5612,8 @@ function setSelectionTextAlignment(editor: Editor, alignment: TextAlignment): bo
  * align the way the toolbar does, and do nothing where the toolbar's buttons
  * are disabled, such as in a table.
  */
+const STYLED_TEXT_BLOCKS = new Set(["heading", "codeBlock"]);
+
 const BlockFormatShortcuts = Extension.create({
 	name: "emdashBlockFormatShortcuts",
 	priority: 1_200,
@@ -5562,7 +5626,18 @@ const BlockFormatShortcuts = Extension.create({
 			setSelectionTextAlignment(this.editor, alignment);
 			return true;
 		};
+		// Backspace at the start of a heading or code block turns it into text first, the way it
+		// lifts a list item or quote out, rather than joining it to the block above.
+		const backspaceToText = () => {
+			const { selection } = this.editor.state;
+			const { $from } = selection;
+			if (!selection.empty || $from.parentOffset !== 0) return false;
+			if (!STYLED_TEXT_BLOCKS.has($from.parent.type.name)) return false;
+			if (!this.editor.commands.undoInputRule()) turnInto(this.editor, "paragraph");
+			return true;
+		};
 		return {
+			Backspace: backspaceToText,
 			"Mod-Alt-1": convert("heading1"),
 			"Mod-Alt-2": convert("heading2"),
 			"Mod-Alt-3": convert("heading3"),
@@ -5613,6 +5688,19 @@ function EditorToolbar({
 	const [linkUrl, setLinkUrl] = React.useState("");
 	const [linkInvalid, setLinkInvalid] = React.useState(false);
 
+	// The document toolbar is stuck once the point it scrolls from leaves the view.
+	const stuckSentinelRef = React.useRef<HTMLDivElement>(null);
+	const [stuck, setStuck] = React.useState(false);
+	React.useEffect(() => {
+		const sentinel = stuckSentinelRef.current;
+		if (!sentinel) return;
+		const observer = new IntersectionObserver(([entry]) =>
+			setStuck(entry?.isIntersecting === false),
+		);
+		observer.observe(sentinel);
+		return () => observer.disconnect();
+	}, []);
+
 	// Subscribe to editor state changes for reactive button states
 	const editorState = useEditorState({
 		editor,
@@ -5652,7 +5740,7 @@ function EditorToolbar({
 				alignRightState:
 					!isAlignmentUnavailable && alignmentButtonState(alignments, isCellSelection, "right"),
 				isAlignmentUnavailable,
-				isLink: ctx.editor.isActive("link"),
+				isLink: ctx.editor.isActive("link") || linkAtCaret(ctx.editor.state) !== undefined,
 				isImage: ctx.editor.isActive("image"),
 				canLink: ctx.editor.isActive("image") || can.setLink({ href: "https://example.com" }),
 				imageHasLink:
@@ -5669,7 +5757,8 @@ function EditorToolbar({
 		if (showLinkPopover) {
 			const existingUrl = editor.isActive("image")
 				? ((editor.getAttributes("image").link as { href?: string } | null)?.href ?? "")
-				: editor.getAttributes("link").href || "";
+				: ((linkAtCaret(editor.state)?.attrs.href as string | undefined) ??
+					(editor.getAttributes("link").href || ""));
 			setLinkUrl(existingUrl);
 		}
 	}, [showLinkPopover, editor]);
@@ -6067,11 +6156,13 @@ function EditorToolbar({
 
 	return (
 		<TooltipProvider>
+			{isDocument && <div ref={stuckSentinelRef} aria-hidden="true" />}
 			<div
 				ref={toolbarRef}
 				role="toolbar"
 				aria-label={t`Text formatting`}
 				data-emdash-editor-toolbar={variant}
+				data-stuck={stuck || undefined}
 				className={cn(
 					"sticky z-10",
 					// The band of page colour above the card hides text scrolling under the stuck toolbar.

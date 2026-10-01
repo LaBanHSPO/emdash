@@ -69,9 +69,18 @@ vi.mock("../../src/components/editor/DragHandleWrapper", () => ({
 		editor: Editor;
 		onInsertBlock?: (insertPos: number) => void;
 	}) => (
-		<button type="button" onClick={() => onInsertBlock?.(editor.state.doc.content.size)}>
-			Test gutter insert
-		</button>
+		<>
+			<button type="button" onClick={() => onInsertBlock?.(editor.state.doc.content.size)}>
+				Test gutter insert
+			</button>
+			<button
+				type="button"
+				data-block-insert
+				onClick={() => onInsertBlock?.(editor.state.doc.child(0).nodeSize)}
+			>
+				Test insert after first block
+			</button>
+		</>
 	),
 }));
 
@@ -232,6 +241,13 @@ function isItemSelected(el: HTMLElement): boolean {
 	return el.getAttribute("aria-current") === "true";
 }
 
+/** The text of each top-level block. */
+function blockTexts(editor: Editor): string[] {
+	const texts: string[] = [];
+	editor.state.doc.forEach((block) => texts.push(block.textContent));
+	return texts;
+}
+
 function isSlashSuggestionActive(editor: Editor): boolean {
 	return Boolean(
 		(SuggestionPluginKey.getState(editor.state) as { active?: boolean } | undefined)?.active,
@@ -301,45 +317,130 @@ describe("Slash Command Menu", () => {
 		expect(isSlashSuggestionActive(editor)).toBe(false);
 	});
 
-	it("closes a gutter-triggered menu on Tab without inserting content", async () => {
+	it("types a slash on a new line below the block from the insert button", async () => {
 		const { screen, editor, pm } = await renderEditor();
 		await focusEditor(pm);
-		const before = editor.getJSON();
+		editor.commands.insertContent("First");
 
 		await screen.getByRole("button", { name: "Test gutter insert" }).click();
-		await waitForSlashMenu();
-		await userEvent.keyboard("{Tab}");
 
-		await waitForSlashMenuClosed();
-		expect(editor.getJSON()).toEqual(before);
+		await waitForSlashMenu();
+		expect(blockTexts(editor)).toEqual(["First", "/"]);
+		expect(isSlashSuggestionActive(editor)).toBe(true);
+		await userEvent.keyboard("hea");
+		await vi.waitFor(() => expect(getItemTitles(getSlashMenu()!)).toContain("Heading 1"));
+		expect(getItemTitles(getSlashMenu()!).every((title) => title.startsWith("Heading"))).toBe(true);
 	});
 
-	it("opens from the gutter and cancels without inserting a slash", async () => {
+	it("types into an empty paragraph from the insert button instead of adding a line", async () => {
 		const { screen, editor, pm } = await renderEditor();
 		await focusEditor(pm);
-		const before = editor.getJSON();
 
 		await screen.getByRole("button", { name: "Test gutter insert" }).click();
+
 		await waitForSlashMenu();
-		expect(editor.getText()).not.toContain("/");
-		expect(editor.getJSON()).toEqual(before);
+		expect(blockTexts(editor)).toEqual(["/"]);
+	});
+
+	it.each([
+		["Escape", () => userEvent.keyboard("{Escape}")],
+		["Tab", () => userEvent.keyboard("{Tab}")],
+		[
+			"a click outside the menu",
+			async () => {
+				document
+					.querySelector(".ProseMirror")!
+					.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+			},
+		],
+	])("removes the insert button's slash when %s closes the menu", async (_name, close) => {
+		const { screen, editor, pm } = await renderEditor();
+		await focusEditor(pm);
+		editor.commands.insertContent("First");
+		await screen.getByRole("button", { name: "Test gutter insert" }).click();
+		await waitForSlashMenu();
+
+		await close();
+
+		await waitForSlashMenuClosed();
+		expect(blockTexts(editor)).toEqual(["First", ""]);
+		expect(editor.commands.undo()).toBe(true);
+		expect(blockTexts(editor)).toEqual(["First"]);
+	});
+
+	it("types into an empty paragraph right after the insert point instead of adding a line", async () => {
+		const { screen, editor, pm } = await renderEditor();
+		await focusEditor(pm);
+		editor.commands.setContent("<p>First</p><p></p><p>Last</p>");
+
+		await screen.getByRole("button", { name: "Test insert after first block" }).click();
+
+		await waitForSlashMenu();
+		expect(blockTexts(editor)).toEqual(["First", "/", "Last"]);
+	});
+
+	it("keeps one line when the insert button is pressed again", async () => {
+		const { screen, editor, pm } = await renderEditor();
+		await focusEditor(pm);
+		editor.commands.setContent("<p>First</p><p>Last</p>");
+		const insert = screen.getByRole("button", { name: "Test insert after first block" }).element();
+
+		insert.click();
+		await waitForSlashMenu();
+		insert.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+		insert.click();
+
+		await waitForSlashMenu();
+		expect(blockTexts(editor)).toEqual(["First", "/", "Last"]);
+	});
+
+	it("hides the menu while its line is under the sticky toolbar", async () => {
+		let editorInstance: Editor | null = null;
+		await render(
+			<div style={{ height: 400, overflowY: "auto" }} data-testid="scroller">
+				<PortableTextEditor
+					variant="document"
+					onEditorReady={(editor) => (editorInstance = editor)}
+				/>
+			</div>,
+		);
+		await vi.waitFor(() => expect(editorInstance).toBeTruthy());
+		const editor = editorInstance!;
+		// The test build has no Tailwind utilities, so the toolbar gets its sticky position here.
+		const toolbar = document.querySelector<HTMLElement>('[data-emdash-editor-toolbar="document"]')!;
+		toolbar.style.position = "sticky";
+		toolbar.style.top = "0px";
+		editor.commands.setContent(
+			Array.from({ length: 30 }, (_, index) => `<p>Paragraph ${index}</p>`).join(""),
+		);
+		editor
+			.chain()
+			.focus()
+			.setTextSelection(editor.state.doc.child(0).nodeSize * 10 + 1)
+			.run();
+		editor.commands.insertContent("/");
+		await waitForSlashMenu();
+		const positioner = document.querySelector(".slash-command-menu-positioner")!;
+		expect(positioner.hasAttribute("data-anchor-hidden")).toBe(false);
+
+		const scroller = document.querySelector<HTMLElement>('[data-testid="scroller"]')!;
+		const line = editor.view.coordsAtPos(editor.state.selection.from);
+		scroller.scrollTop += line.top - scroller.getBoundingClientRect().top - 4;
+
+		await vi.waitFor(() => expect(positioner.hasAttribute("data-anchor-hidden")).toBe(true));
+	});
+
+	it("keeps a query typed after the insert button's slash when the menu closes", async () => {
+		const { screen, editor, pm } = await renderEditor();
+		await focusEditor(pm);
+		await screen.getByRole("button", { name: "Test gutter insert" }).click();
+		await waitForSlashMenu();
+		await userEvent.keyboard("zz");
 
 		await userEvent.keyboard("{Escape}");
-		await waitForSlashMenuClosed();
-		expect(editor.getJSON()).toEqual(before);
-	});
-
-	it("discards an untouched gutter block when clicking outside the menu", async () => {
-		const { screen, editor, pm } = await renderEditor();
-		await focusEditor(pm);
-		const before = editor.getText();
-
-		await screen.getByRole("button", { name: "Test gutter insert" }).click();
-		await waitForSlashMenu();
-		pm.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
 
 		await waitForSlashMenuClosed();
-		expect(editor.getText()).toBe(before);
+		expect(blockTexts(editor)).toEqual(["/zz"]);
 	});
 
 	it("exits the slash suggestion plugin when clicking outside the menu", async () => {
@@ -355,56 +456,60 @@ describe("Slash Command Menu", () => {
 		expect(isSlashSuggestionActive(editor)).toBe(false);
 	});
 
-	it("keeps slash suggestion dismissed when opening the gutter menu", async () => {
+	it.each([
+		["a pointer", true],
+		["the keyboard", false],
+	])(
+		"leaves a typed slash as text when the insert button is used with %s",
+		async (_name, withPointer) => {
+			const { screen, editor, pm } = await renderEditor();
+			await focusEditor(pm);
+			editor.commands.insertContent("/");
+			await waitForSlashMenu();
+
+			const insertButton = screen.getByRole("button", { name: "Test gutter insert" }).element();
+			if (withPointer)
+				insertButton.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+			insertButton.click();
+
+			await waitForSlashMenu();
+			expect(blockTexts(editor)).toEqual(["/", "/"]);
+			const suggestion = SuggestionPluginKey.getState(editor.state) as { range: { from: number } };
+			expect(suggestion.range.from).toBe(editor.state.doc.child(0).nodeSize + 1);
+		},
+	);
+
+	it("does not leave the insert button's line when a command opens a picker", async () => {
 		const { screen, editor, pm } = await renderEditor();
 		await focusEditor(pm);
-		editor.commands.insertContent("/");
-		await waitForSlashMenu();
-
-		const gutterButton = screen.getByRole("button", { name: "Test gutter insert" }).element();
-		gutterButton.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
-		gutterButton.click();
-		await waitForSlashMenu();
-		editor.view.dispatch(editor.state.tr.setMeta("test", true));
-
-		expect(isSlashSuggestionActive(editor)).toBe(false);
-		expect(getSlashMenu()).toBeTruthy();
-	});
-
-	it("records slash dismissal when opening the gutter menu from the keyboard", async () => {
-		const { screen, editor, pm } = await renderEditor();
-		await focusEditor(pm);
-		editor.commands.insertContent("/");
-		await waitForSlashMenu();
-
-		screen.getByRole("button", { name: "Test gutter insert" }).element().click();
-		await waitForSlashMenu();
-		editor.view.dispatch(editor.state.tr.setMeta("test", true));
-
-		expect(isSlashSuggestionActive(editor)).toBe(false);
-		expect(getSlashMenu()).toBeTruthy();
-	});
-
-	it("does not leave a staging paragraph when a gutter command opens a modal", async () => {
-		const { screen, editor, pm } = await renderEditor();
-		await focusEditor(pm);
+		editor.commands.insertContent("First");
 		const before = editor.getJSON();
 
 		await screen.getByRole("button", { name: "Test gutter insert" }).click();
 		const menu = await waitForSlashMenu();
-		const imageCommand = getSlashMenuItems(menu).find((item) =>
-			item.textContent?.includes("Image"),
-		);
-		expect(imageCommand).toBeTruthy();
+		findItem(menu, "Image")?.click();
 
-		imageCommand?.click();
 		await waitForSlashMenuClosed();
 		expect(editor.getJSON()).toEqual(before);
 	});
 
-	it("materializes a new block when a direct gutter command is selected", async () => {
+	it("inserts picker content where the insert button's line was", async () => {
 		const { screen, editor, pm } = await renderEditor();
 		await focusEditor(pm);
+		editor.commands.insertContent("First");
+
+		await screen.getByRole("button", { name: "Test gutter insert" }).click();
+		const menu = await waitForSlashMenu();
+		findItem(menu, "Section")?.click();
+		await screen.getByRole("button", { name: "Select test section" }).click();
+
+		expect(blockTexts(editor)).toEqual(["First", "Inserted section"]);
+	});
+
+	it("turns the insert button's line into the chosen block, and undoes it without the slash", async () => {
+		const { screen, editor, pm } = await renderEditor();
+		await focusEditor(pm);
+		editor.commands.insertContent("First");
 
 		await screen.getByRole("button", { name: "Test gutter insert" }).click();
 		const menu = await waitForSlashMenu();
@@ -414,49 +519,88 @@ describe("Slash Command Menu", () => {
 		const content = editor.getJSON().content;
 		expect(content?.[1]?.type).toBe("heading");
 		expect(content?.[1]?.attrs?.level).toBe(1);
+		expect(editor.commands.undo()).toBe(true);
+		expect(blockTexts(editor)).toEqual(["First", ""]);
+		expect(editor.commands.undo()).toBe(true);
+		expect(blockTexts(editor)).toEqual(["First"]);
 	});
 
-	it("inserts modal-backed gutter content at the requested block position", async () => {
-		const { screen, editor, pm } = await renderEditor();
-		await focusEditor(pm);
-
-		await screen.getByRole("button", { name: "Test gutter insert" }).click();
-		const menu = await waitForSlashMenu();
-		const sectionCommand = getSlashMenuItems(menu).find((item) =>
-			item.textContent?.includes("Section"),
+	it("follows its line when the editor scrolls inside a container", async () => {
+		let editorInstance: Editor | null = null;
+		await render(
+			<div style={{ height: 400, overflowY: "auto" }} data-testid="scroller">
+				<PortableTextEditor onEditorReady={(editor) => (editorInstance = editor)} />
+			</div>,
 		);
-		sectionCommand?.click();
-		await screen.getByRole("button", { name: "Select test section" }).click();
+		await vi.waitFor(() => expect(editorInstance).toBeTruthy());
+		const editor = editorInstance!;
+		editor.commands.setContent(
+			Array.from({ length: 30 }, (_, index) => `<p>Paragraph ${index}</p>`).join(""),
+		);
+		editor
+			.chain()
+			.focus()
+			.setTextSelection(editor.state.doc.child(0).nodeSize + 1)
+			.run();
+		editor.commands.insertContent("/");
+		const menu = await waitForSlashMenu();
+		const top = menu.getBoundingClientRect().top;
 
-		const content = editor.getJSON().content;
-		expect(content).toHaveLength(2);
-		expect(content?.[1]?.content?.[0]?.text).toBe("Inserted section");
+		document.querySelector<HTMLElement>('[data-testid="scroller"]')!.scrollTop += 40;
+
+		await vi.waitFor(() => expect(menu.getBoundingClientRect().top).toBeCloseTo(top - 40, 0));
 	});
 
-	it("materializes a new gutter paragraph when the user starts typing", async () => {
+	it("keeps searching across a space while titles still match", async () => {
+		const { editor, pm } = await renderEditor();
+		await focusEditor(pm);
+		editor.commands.insertContent("/");
+		await waitForSlashMenu();
+
+		await userEvent.keyboard("heading 2");
+		await vi.waitFor(() => expect(getItemTitles(getSlashMenu()!)).toEqual(["Heading 2"]));
+
+		await userEvent.keyboard(" is next");
+		await waitForSlashMenuClosed();
+		expect(editor.getText()).toBe("/heading 2 is next");
+	});
+
+	it("finds blocks by the Markdown shown beside them", async () => {
+		const { editor, pm } = await renderEditor();
+		await focusEditor(pm);
+		editor.commands.insertContent("/#");
+
+		const menu = await waitForSlashMenu();
+
+		expect(getItemTitles(menu)[0]).toBe("Heading 1");
+	});
+
+	it("goes back to the editor when Tab leaves the table picker", async () => {
 		const { screen, editor, pm } = await renderEditor();
 		await focusEditor(pm);
+		editor.commands.insertContent("/table");
+		const menu = await waitForSlashMenu();
+		findItem(menu, "Table")?.click();
+		await expect.element(screen.getByRole("grid", { name: "Table size" })).toBeVisible();
 
-		await screen.getByRole("button", { name: "Test gutter insert" }).click();
-		await waitForSlashMenu();
-		await userEvent.keyboard("A");
+		await userEvent.keyboard("{Tab}{Tab}");
 
 		await waitForSlashMenuClosed();
-		const content = editor.getJSON().content;
-		expect(content).toHaveLength(2);
-		expect(content?.[1]?.content?.[0]?.text).toBe("A");
+		expect(editor.view.hasFocus()).toBe(true);
+		expect(editor.getText()).toBe("/table");
 	});
 
-	it("does not materialize a gutter paragraph for modifier shortcuts", async () => {
-		const { screen, editor, pm } = await renderEditor();
+	it("hints at searching until a query is typed", async () => {
+		const { editor, pm } = await renderEditor();
 		await focusEditor(pm);
-		const before = editor.getJSON();
-
-		await screen.getByRole("button", { name: "Test gutter insert" }).click();
+		editor.commands.insertContent("/");
 		await waitForSlashMenu();
-		await userEvent.keyboard("{Control>}b{/Control}");
 
-		expect(editor.getJSON()).toEqual(before);
+		const hint = () =>
+			getComputedStyle(pm.querySelector(".emdash-slash-query")!, "::after").content;
+		expect(hint()).toBe('"Type to search"');
+		await userEvent.keyboard("h");
+		await vi.waitFor(() => expect(hint()).toBe("none"));
 	});
 
 	it("opens when typing / at the start of an empty line", async () => {
@@ -576,6 +720,7 @@ describe("Slash Command Menu", () => {
 		await userEvent.keyboard("{ArrowRight}{ArrowRight}{ArrowDown}{Enter}");
 
 		await waitForSlashMenuClosed();
+		expect(editor.view.hasFocus()).toBe(true);
 		const table = editor.state.doc.firstChild!;
 		expect(TableMap.get(table)).toMatchObject({ width: 3, height: 2 });
 		expect(table.firstChild?.firstChild?.type.spec.tableRole).toBe("header_cell");

@@ -766,6 +766,29 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 }
 
 /*
+ * Text scrolling under the stuck document toolbar fades out below it instead
+ * of being cut at its edge. The fade continues the band of page colour the
+ * toolbar sits on, behind the card, so the card's border and rounded corners
+ * stay on top.
+ */
+[data-emdash-editor-toolbar="document"]::after {
+	position: absolute;
+	z-index: -1;
+	inset-inline: 0;
+	top: 100%;
+	height: 1.5rem;
+	background-image: linear-gradient(var(--emdash-editor-surface), transparent);
+	opacity: 0;
+	content: "";
+	pointer-events: none;
+	transition: opacity 150ms ease-out;
+}
+
+[data-emdash-editor-toolbar="document"][data-stuck]::after {
+	opacity: 1;
+}
+
+/*
  * Page layout for the document variant. The page's inline padding is its
  * margin, which widens into a gutter for the block handles where they show.
  * The editor extends into it, so its text aligns with the fields around it
@@ -861,9 +884,43 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 	pointer-events: none;
 }
 
-/* Only the focused block hints at what to type; an empty document always does. */
-.emdash-document:not(:focus-within) .is-empty:not(.is-editor-empty)::before {
+/*
+ * Only the focused block hints at what to type. An empty document always
+ * does, and an empty heading always names its level.
+ */
+.emdash-document:not(:focus-within)
+	.is-empty:not(.is-editor-empty, :is(h1, h2, h3, h4, h5, h6))::before {
 	content: none;
+}
+
+/* The slash command being typed, with a hint until there is a query. */
+.ProseMirror .emdash-slash-query {
+	margin-inline: -0.25em;
+	border-radius: 0.375rem;
+	background-color: var(--color-kumo-tint);
+	padding: 0.125em 0.25em;
+}
+
+.ProseMirror .emdash-slash-query.is-empty::after {
+	content: var(--emdash-slash-hint);
+	color: var(--text-color-kumo-inactive);
+	pointer-events: none;
+}
+
+/* A selected line break, which browsers don't draw, and a divider inside a selection. */
+.ProseMirror .emdash-selected-line-break {
+	display: inline-block;
+	width: 0.5em;
+	height: 1lh;
+	vertical-align: top;
+}
+
+.ProseMirror :is(.emdash-selected-line-break, hr.emdash-in-selection) {
+	background-color: var(--color-kumo-interact);
+}
+
+.emdash-document :is(.emdash-selected-line-break, hr.emdash-in-selection) {
+	background-color: color-mix(in oklab, var(--color-kumo-brand) 28%, transparent);
 }
 
 /**

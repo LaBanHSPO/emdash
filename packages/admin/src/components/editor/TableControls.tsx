@@ -41,7 +41,6 @@ export function insertTable(
 	columns: number,
 	withHeaderRow: boolean,
 	range?: Range,
-	insertPosition?: number,
 ): boolean {
 	const chain = editor
 		.chain()
@@ -50,11 +49,7 @@ export function insertTable(
 			closeHistory(tr);
 			return true;
 		});
-	if (insertPosition !== undefined)
-		chain
-			.insertContentAt(insertPosition, { type: "paragraph" })
-			.setTextSelection(insertPosition + 1);
-	else if (range) chain.deleteRange(range);
+	if (range) chain.deleteRange(range);
 	chain.command(({ tr }) => prepareBlockInsert(tr));
 	return chain
 		.insertTable({ rows, cols: columns, withHeaderRow })

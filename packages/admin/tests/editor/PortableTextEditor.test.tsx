@@ -1369,6 +1369,68 @@ describe("Editor component behaviour", () => {
 		expect(editor.getJSON()).toEqual(before);
 	});
 
+	it("extends the selection to the end on a shift-click below the page", async () => {
+		const { screen, editor } = await renderAndGetEditor({
+			variant: "document",
+			value: [textBlock("Hello"), textBlock("world")],
+		});
+		editor.chain().focus().setTextSelection(2).run();
+
+		await userEvent.keyboard("{Shift>}");
+		await userEvent.click(screen.getByText("2 words"));
+		await userEvent.keyboard("{/Shift}");
+
+		expect(editor.state.selection).toMatchObject({
+			from: 2,
+			to: editor.state.doc.content.size - 1,
+		});
+	});
+
+	it.each([
+		["heading", textBlock("Title", { style: "h2" })],
+		["code block", { _type: "code" as const, _key: "c1", code: "let a = 1;", language: "js" }],
+	])("turns a %s into text with Backspace at its start", async (_name, block) => {
+		const { editor, pm } = await renderAndGetEditor({ value: [textBlock("Above"), block] });
+		await focusEditor(pm);
+		editor.commands.setTextSelection(editor.state.doc.child(0).nodeSize + 1);
+
+		await userEvent.keyboard("{Backspace}");
+
+		expect(editor.state.doc.child(0).textContent).toBe("Above");
+		expect(editor.state.doc.child(1).type.name).toBe("paragraph");
+	});
+
+	it("names an empty heading's level when the caret is elsewhere", async () => {
+		const { editor, pm } = await renderAndGetEditor({
+			variant: "document",
+			value: [textBlock("Intro"), textBlock("", { style: "h2" })],
+		});
+		editor.commands.setTextSelection(1);
+
+		const heading = pm.querySelector("h2")!;
+		await vi.waitFor(() => expect(heading.getAttribute("data-placeholder")).toBe("Heading 2"));
+		expect(getComputedStyle(heading, "::before").content).toBe('"Heading 2"');
+	});
+
+	it("fades text under the document toolbar only while it's stuck", async () => {
+		await render(
+			<div style={{ height: 300, overflowY: "auto" }} data-testid="scroller">
+				<PortableTextEditor
+					variant="document"
+					value={Array.from({ length: 30 }, (_, index) => textBlock(`Line ${index}`))}
+				/>
+			</div>,
+		);
+		await waitForEditor();
+		const toolbar = document.querySelector<HTMLElement>('[data-emdash-editor-toolbar="document"]')!;
+		const fade = () => getComputedStyle(toolbar, "::after").opacity;
+		expect(fade()).toBe("0");
+
+		document.querySelector<HTMLElement>('[data-testid="scroller"]')!.scrollTop = 200;
+
+		await vi.waitFor(() => expect(fade()).toBe("1"));
+	});
+
 	it("sets contenteditable=false when editable is false", async () => {
 		await render(<PortableTextEditor editable={false} value={[textBlock("Read only")]} />);
 		const pm = await waitForEditor();

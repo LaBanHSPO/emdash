@@ -375,6 +375,33 @@ describe("Bubble Menu", () => {
 		expect(menu).toBeTruthy();
 	});
 
+	it("stays hidden for a selection of only the break between two blocks", async () => {
+		const { editor, pm } = await renderEditor({
+			value: [
+				...defaultValue,
+				{
+					_type: "block" as const,
+					_key: "2",
+					style: "normal" as const,
+					children: [{ _type: "span" as const, _key: "s2", text: "Second" }],
+				},
+			],
+		});
+		pm.focus();
+		const lineEnd = getTextPosition(editor, "Hello world") + "Hello world".length;
+
+		editor
+			.chain()
+			.focus()
+			.setTextSelection({ from: lineEnd, to: lineEnd + 2 })
+			.run();
+		await new Promise((resolve) => setTimeout(resolve, 300));
+		expect(getBubbleMenu()).toBeNull();
+
+		editor.commands.setTextSelection({ from: lineEnd - 5, to: lineEnd + 2 });
+		await waitForBubbleMenu();
+	});
+
 	it("scrolls inside its own rounded surface, so no wrapper clips its corners", async () => {
 		const { editor, pm } = await renderEditor();
 		await focusAndSelectAll(editor, pm);
@@ -440,6 +467,77 @@ describe("Bubble Menu", () => {
 			const menuRect = menu.getBoundingClientRect();
 			expect(menuRect.bottom).toBeLessThanOrEqual(selectionRect.top);
 		});
+	});
+
+	it("flips below a selection that the editor's container scrolls under the sticky toolbar", async () => {
+		const value = Array.from({ length: 30 }, (_, index) => ({
+			_type: "block" as const,
+			_key: String(index),
+			style: "normal" as const,
+			children: [{ _type: "span" as const, _key: `span-${index}`, text: `Line ${index}` }],
+		}));
+		const { editor, pm } = await renderEditor({ value }, 1);
+		// The test build has no Tailwind utilities, so the toolbar and the menus' positioning
+		// root get their positions here.
+		const toolbar = document.querySelector<HTMLElement>(
+			'[role="toolbar"][aria-label="Text formatting"]',
+		)!;
+		toolbar.style.position = "sticky";
+		toolbar.style.top = "0px";
+		pm.closest<HTMLElement>("[data-emdash-editor-floating-root]")!.style.position = "relative";
+		pm.focus();
+		const start = getTextPosition(editor, "Line 20");
+		editor
+			.chain()
+			.focus()
+			.setTextSelection({ from: start, to: start + 7 })
+			.run();
+		const menu = await waitForBubbleMenu();
+		const selectionRect = () => window.getSelection()!.getRangeAt(0).getBoundingClientRect();
+		await vi.waitFor(() =>
+			expect(menu.getBoundingClientRect().bottom).toBeLessThanOrEqual(selectionRect().top),
+		);
+
+		const scroller = pm.closest<HTMLElement>('[style*="overflow-y"]')!;
+		scroller.scrollTop += selectionRect().top - toolbar.getBoundingClientRect().bottom - 8;
+
+		await vi.waitFor(() => {
+			const gap = menu.getBoundingClientRect().top - selectionRect().bottom;
+			expect(gap).toBeGreaterThanOrEqual(0);
+			expect(gap).toBeLessThan(24);
+		});
+	});
+
+	it.each([
+		["end", "here".length],
+		["start", 0],
+	])("previews a link from a caret at its %s", async (_edge, offset) => {
+		const { editor, pm } = await renderEditor({
+			value: [
+				{
+					_type: "block" as const,
+					_key: "1",
+					style: "normal" as const,
+					children: [
+						{ _type: "span" as const, _key: "a", text: "See " },
+						{ _type: "span" as const, _key: "b", text: "here", marks: ["link1"] },
+						{ _type: "span" as const, _key: "c", text: " now" },
+					],
+					markDefs: [{ _type: "link", _key: "link1", href: "https://example.com" }],
+				},
+			],
+		});
+		pm.focus();
+
+		editor
+			.chain()
+			.focus()
+			.setTextSelection(getTextPosition(editor, "here") + offset)
+			.run();
+
+		await vi.waitFor(() =>
+			expect(document.querySelector("[data-emdash-link-bubble-menu]")).toBeTruthy(),
+		);
 	});
 
 	it("keeps table controls mounted, unclipped, and below obstructing sticky chrome", async () => {

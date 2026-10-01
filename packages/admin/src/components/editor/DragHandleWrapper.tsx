@@ -74,6 +74,7 @@ export function DragHandleWrapper({ editor, onInsertBlock }: DragHandleWrapperPr
 	const [menuAnchor, setMenuAnchor] = React.useState<HTMLElement | null>(null);
 	const handleRef = React.useRef<HTMLButtonElement>(null);
 	const insertPressLockedRef = React.useRef(false);
+	const insertHoverLockedRef = React.useRef(false);
 
 	const disableDrag = React.useCallback(
 		(e: React.PointerEvent<HTMLButtonElement>) => {
@@ -89,8 +90,19 @@ export function DragHandleWrapper({ editor, onInsertBlock }: DragHandleWrapperPr
 	const restoreDrag = React.useCallback(() => {
 		if (insertPressLockedRef.current) {
 			insertPressLockedRef.current = false;
-			editor.commands.setMeta("lockDragHandle", menuOpen);
+			editor.commands.setMeta("lockDragHandle", menuOpen || insertHoverLockedRef.current);
 		}
+	}, [editor, menuOpen]);
+
+	// TipTap hides the handle on any key press while the editor has focus,
+	// including the Alt that Alt-click on + needs, so it stays while hovered.
+	const lockWhileHovered = React.useCallback(() => {
+		insertHoverLockedRef.current = true;
+		editor.commands.setMeta("lockDragHandle", true);
+	}, [editor]);
+	const unlockAfterHover = React.useCallback(() => {
+		insertHoverLockedRef.current = false;
+		if (!insertPressLockedRef.current) editor.commands.setMeta("lockDragHandle", menuOpen);
 	}, [editor, menuOpen]);
 
 	React.useEffect(() => {
@@ -217,6 +229,8 @@ export function DragHandleWrapper({ editor, onInsertBlock }: DragHandleWrapperPr
 									variant="ghost"
 									shape="square"
 									className={cn(handleButtonClass, "h-6 w-6")}
+									onPointerEnter={lockWhileHovered}
+									onPointerLeave={unlockAfterHover}
 									onPointerDown={disableDrag}
 									onPointerUp={restoreDrag}
 									onPointerCancel={restoreDrag}

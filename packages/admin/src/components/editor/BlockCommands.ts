@@ -125,11 +125,11 @@ function isBlockSelectionActive(state: EditorState): boolean {
 }
 
 /**
- * Typing, dictation, and paste can't replace a block selected whole, or a
- * selected image, divider, or embed.
+ * Typing, dictation, and paste can't replace a block selected whole, such as
+ * an image, a divider, or a table selected with Backspace.
  */
 function isSelectedBlockProtected(state: EditorState): boolean {
-	return isBlockSelectionActive(state) || topLevelNodeSelection(state)?.node.isAtom === true;
+	return topLevelNodeSelection(state) !== null;
 }
 
 /** Treats an existing whole-block selection, like the block handle's, as keyboard block selection. */
@@ -198,6 +198,44 @@ function moveAfterSelectedBlock(view: EditorView): void {
 	tr.insert(position, tr.doc.type.schema.nodes.paragraph!.create());
 	tr.setSelection(TextSelection.create(tr.doc, position + 1));
 	view.dispatch(tr.scrollIntoView());
+}
+
+/**
+ * Deleting a selected block leaves the caret in the text beside it, so the
+ * next press doesn't select the following block and delete that too.
+ */
+function deleteSelectedBlock(view: EditorView, direction: -1 | 1): boolean {
+	const selection = topLevelNodeSelection(view.state);
+	if (!selection) return false;
+	const tr = view.state.tr.deleteSelection();
+	const $pos = tr.doc.resolve(tr.mapping.map(selection.from));
+	tr.setSelection(
+		Selection.findFrom($pos, direction, true) ??
+			Selection.findFrom($pos, -direction, true) ??
+			Selection.near($pos, direction),
+	);
+	view.dispatch(tr.scrollIntoView());
+	return true;
+}
+
+/**
+ * Backspace at the start of a block after an image, divider, or embed, or
+ * Delete at the end of a block before one, selects it rather than deleting
+ * it unseen. An empty block is deleted as usual, which selects its neighbour.
+ */
+function selectAtomBeside(view: EditorView, direction: -1 | 1): boolean {
+	const { selection, doc } = view.state;
+	if (!(selection instanceof TextSelection) || !selection.empty) return false;
+	const { $from } = selection;
+	const size = $from.parent.content.size;
+	if ($from.depth !== 1 || size === 0) return false;
+	if ($from.parentOffset !== (direction < 0 ? 0 : size)) return false;
+	const $edge = doc.resolve(direction < 0 ? $from.before() : $from.after());
+	const atom = direction < 0 ? $edge.nodeBefore : $edge.nodeAfter;
+	if (!atom?.isAtom || !NodeSelection.isSelectable(atom)) return false;
+	const pos = direction < 0 ? $edge.pos - atom.nodeSize : $edge.pos;
+	view.dispatch(view.state.tr.setSelection(NodeSelection.create(doc, pos)).scrollIntoView());
+	return true;
 }
 
 /** Enter on a selected block goes back to writing at the end of it. */
@@ -293,6 +331,10 @@ export const BlockSelection = Extension.create<BlockSelectionOptions>({
 							return false;
 						}
 						if (SuggestionPluginKey.getState(view.state)?.active) return false;
+						if (event.key === "Backspace" || event.key === "Delete") {
+							const direction = event.key === "Backspace" ? -1 : 1;
+							return deleteSelectedBlock(view, direction) || selectAtomBeside(view, direction);
+						}
 						const plain = !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey;
 						if (!plain) return false;
 						switch (event.key) {
@@ -347,5 +389,116 @@ export const BlockSelectAll = Extension.create({
 		return {
 			"Mod-a": () => selectTextblockText(this.editor),
 		};
+	},
+});
+
+/** Whether a text selection holds nothing visible: only line breaks, spaces, or dividers. */
+function isLineBreakSelection(selection: Selection, doc: ProseMirrorNode): boolean {
+	if (!(selection instanceof TextSelection) || selection.empty) return false;
+	const text = doc.textBetween(selection.from, selection.to, "\n", "\n");
+	return text.includes("\n") && !text.trim();
+}
+
+const wordSegmenter = new Intl.Segmenter(undefined, { granularity: "word" });
+
+/** Where the word ending at `pos` starts, if the double click landed on its last letter. */
+function clickedWordStart(view: EditorView, pos: number, event: MouseEvent): number | null {
+	const $pos = view.state.doc.resolve(pos);
+	if ($pos.parentOffset === 0) return null;
+	const end = view.coordsAtPos(pos, -1);
+	const start = view.coordsAtPos(pos - 1, 1);
+	const onLastLetter =
+		event.clientY >= end.top &&
+		event.clientY <= end.bottom &&
+		event.clientX >= Math.min(start.left, end.left) &&
+		event.clientX <= Math.max(start.left, end.left);
+	if (!onLastLetter) return null;
+	const before = $pos.parent.textBetween(0, $pos.parentOffset, undefined, "\ufffc");
+	const word = [...wordSegmenter.segment(before)].at(-1)?.segment;
+	return word?.trim() ? pos - word.length : null;
+}
+
+/**
+ * Double-clicking the right half of a line's last letter, or past the end of
+ * the line, selects only the line break after it. That looks like a caret,
+ * but the next keystroke would join the line to the next one. A click on the
+ * letter selects its word instead, and a click past the end leaves a caret.
+ */
+export const DoubleClickLineEnd = Extension.create({
+	name: "emdashDoubleClickLineEnd",
+
+	addProseMirrorPlugins() {
+		return [
+			new Plugin({
+				props: {
+					handleDOMEvents: {
+						dblclick: (view, event) => {
+							// The browser's word selection reaches the editor state after this event.
+							setTimeout(() => {
+								if (view.isDestroyed) return;
+								const { selection, doc } = view.state;
+								if (!isLineBreakSelection(selection, doc)) return;
+								const wordStart = clickedWordStart(view, selection.from, event);
+								const next = TextSelection.create(doc, wordStart ?? selection.from, selection.from);
+								view.dispatch(view.state.tr.setSelection(next));
+							});
+							return false;
+						},
+					},
+				},
+			}),
+		];
+	},
+});
+
+const keyboardSelectionKey = new PluginKey<boolean>("emdashKeyboardSelection");
+
+function lineBreakMarker(): HTMLElement {
+	const marker = document.createElement("span");
+	marker.className = "emdash-selected-line-break";
+	return marker;
+}
+
+/**
+ * Browsers draw nothing for a selected line break, or for a divider inside a
+ * selection, though the next keystroke deletes them. A selection made from
+ * the keyboard that holds only line breaks marks each selected line end, and
+ * a divider inside any selection is tinted like selected text.
+ */
+export const SelectionHighlights = Extension.create({
+	name: "emdashSelectionHighlights",
+
+	addProseMirrorPlugins() {
+		return [
+			new Plugin<boolean>({
+				key: keyboardSelectionKey,
+				state: {
+					init: () => false,
+					// A double click past a line end selects its break until DoubleClickLineEnd collapses it.
+					apply: (tr, fromKeyboard) => (tr.selectionSet ? !tr.getMeta("pointer") : fromKeyboard),
+				},
+				props: {
+					decorations: (state) => {
+						const { selection, doc } = state;
+						if (!(selection instanceof TextSelection) || selection.empty) return null;
+						const markLineEnds =
+							keyboardSelectionKey.getState(state) === true && isLineBreakSelection(selection, doc);
+						const decorations: Decoration[] = [];
+						doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+							const end = pos + node.nodeSize - 1;
+							if (node.type.name === "horizontalRule") {
+								decorations.push(
+									Decoration.node(pos, pos + node.nodeSize, { class: "emdash-in-selection" }),
+								);
+							} else if (markLineEnds && node.isTextblock && end < selection.to) {
+								decorations.push(Decoration.widget(end, lineBreakMarker, { side: -1 }));
+							}
+							return !node.isTextblock;
+						});
+						return decorations.length > 0 ? DecorationSet.create(doc, decorations) : null;
+					},
+				},
+			}),
+		];
 	},
 });
