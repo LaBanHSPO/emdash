@@ -1095,6 +1095,20 @@ describe("Portable Text ↔ ProseMirror conversion", () => {
 		expect(editor.state.doc.firstChild?.childCount).toBe(1);
 	});
 
+	it("adds a divider from a quote's last line at the end of the document, with the caret after it", async () => {
+		const { editor } = await renderAndGetEditor({
+			value: [textBlock("quoted", { style: "blockquote" })],
+		});
+		editor.chain().focus().setTextSelection(8).splitBlock().run();
+
+		simulateTyping(editor, "---");
+
+		const topLevel: string[] = [];
+		editor.state.doc.forEach((node) => topLevel.push(node.type.name));
+		expect(topLevel).toEqual(["blockquote", "horizontalRule", "paragraph"]);
+		expect(editor.state.selection.$from.parent.type.name).toBe("paragraph");
+	});
+
 	it("turns a list item into a quote with Mod+Shift+B, like the toolbar's Quote", async () => {
 		const { editor } = await renderAndGetEditor({
 			value: [textBlock("one", { listItem: "bullet" })],

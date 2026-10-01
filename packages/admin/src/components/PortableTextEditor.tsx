@@ -115,6 +115,7 @@ import {
 	Plugin,
 	TextSelection,
 	type EditorState,
+	type Transaction,
 } from "@tiptap/pm/state";
 import { CellSelection } from "@tiptap/pm/tables";
 import { useEditor, EditorContent, useEditorState, type Editor } from "@tiptap/react";
@@ -454,8 +455,7 @@ const PortableTextStarterKit = StarterKit.extend({
 									props
 										.chain()
 										.deleteRange(props.range)
-										.command(({ tr }) => prepareBlockInsert(tr))
-										.setHorizontalRule()
+										.command(({ tr }) => insertDivider(tr))
 										.run();
 								},
 							}),
@@ -1779,6 +1779,26 @@ interface SlashCommandItem {
 	category?: MessageDescriptor | string;
 }
 
+/**
+ * Puts a divider where an inserted block can be saved, with the caret in the
+ * text after it. TipTap's own command can leave the caret between blocks
+ * when the divider ends the document.
+ */
+function insertDivider(tr: Transaction): boolean {
+	prepareBlockInsert(tr);
+	const { $from } = tr.selection;
+	if ($from.depth !== 1 || $from.parent.content.size > 0) return false;
+	const { schema } = tr.doc.type;
+	const start = $from.before();
+	tr.replaceWith(start, $from.after(), schema.nodes.horizontalRule!.create());
+	const after = start + 1;
+	if (!tr.doc.resolve(after).nodeAfter?.isTextblock) {
+		tr.insert(after, schema.nodes.paragraph!.create());
+	}
+	tr.setSelection(TextSelection.create(tr.doc, after + 1)).scrollIntoView();
+	return true;
+}
+
 function insertHtmlBlock(editor: Editor, range?: Range) {
 	const chain = editor.chain().focus();
 	if (range) chain.deleteRange(range);
@@ -1883,8 +1903,7 @@ const defaultSlashCommands: SlashCommandItem[] = [
 				.chain()
 				.focus()
 				.deleteRange(range)
-				.command(({ tr }) => prepareBlockInsert(tr))
-				.setHorizontalRule()
+				.command(({ tr }) => insertDivider(tr))
 				.run();
 		},
 	},

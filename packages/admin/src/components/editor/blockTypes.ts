@@ -373,11 +373,11 @@ export function turnInto(editor: Editor, id: TextBlockTypeId, range?: Range): vo
  * other blocks go back to text.
  */
 export function toggleTextBlockType(editor: Editor, id: TextBlockTypeId): void {
+	const isList = id === "bulletList" || id === "orderedList";
 	if (activeTextBlockType(editor)?.id !== id) {
 		turnInto(editor, id);
-	} else if (id === "bulletList" || id === "orderedList") {
-		editor.chain().focus().liftListItem("listItem").run();
-	} else {
+	} else if (!isList || !editor.chain().focus().liftListItem("listItem").run()) {
+		// A list selected whole has no single item to lift, so all of it goes back to text.
 		turnInto(editor, "paragraph");
 	}
 }

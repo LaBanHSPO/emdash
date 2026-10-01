@@ -392,6 +392,15 @@ describe("Turn into", () => {
 		expect(editor.getHTML()).toBe("<ul><li><p>a</p></li><li><p>n1</p></li></ul><p>end</p>");
 	});
 
+	it("turns a list selected whole back into text when its list type is toggled off", () => {
+		create("<ul><li><p>one</p></li><li><p>two</p></li></ul><p>end</p>");
+		editor.commands.setNodeSelection(0);
+
+		toggleTextBlockType(editor, "bulletList");
+
+		expect(editor.getHTML()).toBe("<p>one</p><p>two</p><p>end</p>");
+	});
+
 	it("offers to convert a selection that mixes block types", () => {
 		create("<p>one</p><h2>two</h2><p>end</p>");
 		editor.commands.setTextSelection({ from: 2, to: 8 });

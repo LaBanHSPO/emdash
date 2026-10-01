@@ -7,6 +7,7 @@ import { userEvent } from "vitest/browser";
 import {
 	LinkDestinationInput,
 	looksLikeUrl,
+	normalizeLinkHref,
 	type LinkDestinationInputProps,
 } from "../../src/components/editor/LinkDestinationInput";
 import {
@@ -191,6 +192,29 @@ describe("looksLikeUrl", () => {
 	it("treats plain text as a search query", () => {
 		for (const text of ["hello", "hello world", "emdash 0.38 release", "St. Gallen news"]) {
 			expect(looksLikeUrl(text), text).toBe(false);
+		}
+	});
+});
+
+describe("normalizeLinkHref", () => {
+	it("gives bare domains and hosts https and bare emails mailto", () => {
+		expect(normalizeLinkHref(" example.com/docs ")).toBe("https://example.com/docs");
+		expect(normalizeLinkHref("localhost:3000/x")).toBe("https://localhost:3000/x");
+		expect(normalizeLinkHref("127.0.0.1:8787")).toBe("https://127.0.0.1:8787");
+		expect(normalizeLinkHref("hi@example.com")).toBe("mailto:hi@example.com");
+	});
+
+	it("leaves links that already say where they go", () => {
+		for (const href of [
+			"https://example.com",
+			"tel:5551234",
+			"sms:12345",
+			"mailto:hi@example.com",
+			"/blog/hello",
+			"#section",
+			"?page=2",
+		]) {
+			expect(normalizeLinkHref(href), href).toBe(href);
 		}
 	});
 });

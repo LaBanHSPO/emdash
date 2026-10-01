@@ -53,7 +53,8 @@ export function looksLikeUrl(value: string): boolean {
 }
 
 const EMAIL_LIKE = /^[^\s@/:]+@[^\s@/]+\.[^\s@/]{2,}$/;
-const HOST_WITH_PORT = /^[a-z0-9.-]+:\d+(?:[/?#]|$)/i;
+// A host needs a dot or to be localhost, so `tel:5551234` stays a phone link.
+const HOST_WITH_PORT = /^(?:localhost|[a-z0-9-]+(?:\.[a-z0-9-]+)+):\d+(?:[/?#]|$)/i;
 
 /**
  * Gives a bare domain or host `https://` and a bare email address `mailto:`,
