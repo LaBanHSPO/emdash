@@ -4414,6 +4414,11 @@ function EditorBubbleMenu({
 		setLinkUrl("");
 		setLinkInvalid(false);
 	};
+	// The error makes the toolbar taller, so it moves to keep the selection in view.
+	React.useEffect(() => {
+		if (editor.isDestroyed) return;
+		editor.view.dispatch(editor.state.tr.setMeta(INLINE_BUBBLE_MENU_KEY, "updatePosition"));
+	}, [editor, linkInvalid]);
 	const showLinkInputRef = React.useRef(showLinkInput);
 	showLinkInputRef.current = showLinkInput;
 	const closeLinkInputRef = React.useRef(closeLinkInput);
@@ -5271,7 +5276,7 @@ function ImageBubbleMenu({
 							/>
 							{image.link && (
 								<BubbleButton onClick={() => applyLink(null)} title={t`Remove link`}>
-									<LinkBreak className="h-4 w-4 text-kumo-danger" aria-hidden="true" />
+									<LinkBreak className="h-4 w-4" aria-hidden="true" />
 								</BubbleButton>
 							)}
 							<BubbleButton onClick={returnToEditor} title={t`Cancel`}>
@@ -5990,7 +5995,7 @@ function EditorToolbar({
 						<div className="flex flex-col gap-2">
 							<label className="text-xs font-medium text-kumo-subtle">{t`Link`}</label>
 							<LinkDestinationInput
-								className="w-80"
+								className="w-80 max-w-full"
 								value={linkUrl}
 								onValueChange={(value) => {
 									setLinkUrl(value);

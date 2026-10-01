@@ -125,6 +125,7 @@ export function LinkDestinationInput({
 	const [activeIndex, setActiveIndex] = React.useState(-1);
 	const [isResolving, setIsResolving] = React.useState(false);
 	const listboxId = React.useId();
+	const errorId = React.useId();
 	const inputRef = React.useRef<HTMLInputElement>(null);
 
 	React.useEffect(() => {
@@ -260,6 +261,7 @@ export function LinkDestinationInput({
 					}
 					aria-autocomplete="list"
 					aria-invalid={invalid || undefined}
+					aria-describedby={invalid ? errorId : undefined}
 					placeholder={t`Search or type a URL`}
 					aria-label={t`Search or type a URL`}
 					value={value}
@@ -322,7 +324,7 @@ export function LinkDestinationInput({
 				</p>
 			)}
 			{invalid && (
-				<p role="alert" className="px-2 py-1 text-xs text-kumo-danger">
+				<p id={errorId} role="alert" className="px-2 py-1 text-xs text-kumo-danger">
 					{t`This link can't be used. Enter a web address, such as https://example.com.`}
 				</p>
 			)}

@@ -457,7 +457,7 @@ export function ImageFieldRenderer({
 	const featuredCard = displayUrl ? (
 		<LayerCard className="grid w-full grid-cols-[5rem_minmax(0,1fr)_auto] items-center rounded-xl p-0 @lg/featured:grid-cols-[12rem_minmax(0,1fr)] @lg/featured:items-stretch">
 			<div
-				className="emdash-featured-image-preview m-2 overflow-hidden rounded bg-kumo-tint ring ring-kumo-line"
+				className="emdash-featured-image-preview m-2 overflow-hidden rounded bg-kumo-tint ring ring-kumo-line @lg/featured:self-center"
 				style={{ aspectRatio: "16 / 9" }}
 			>
 				{imageBroken ? (

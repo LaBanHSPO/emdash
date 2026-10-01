@@ -98,7 +98,7 @@ function HtmlBlockNodeView({
 		<NodeViewWrapper className="html-block relative my-4" contentEditable={false} data-drag-handle>
 			<div className="relative group">
 				{/* Main block */}
-				<div className="rounded-lg border bg-kumo-base transition-colors overflow-hidden hover:border-kumo-line">
+				<div className="rounded-lg border bg-kumo-base overflow-hidden">
 					{/* Header */}
 					<div className="flex items-center gap-3 px-4 py-3">
 						<div className="flex-shrink-0 w-10 h-10 rounded-lg bg-kumo-tint flex items-center justify-center text-kumo-subtle">

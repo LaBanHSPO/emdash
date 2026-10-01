@@ -263,7 +263,7 @@ function PluginBlockNodeView({
 		>
 			<div className="relative group">
 				{/* Main block content */}
-				<div className="rounded-lg border bg-kumo-base transition-colors hover:border-kumo-line">
+				<div className="rounded-lg border bg-kumo-base">
 					{/* Header with icon, label, and actions */}
 					<div className="flex items-center gap-3 px-4 py-3">
 						{/* Icon */}
