@@ -544,7 +544,8 @@ describe("Toolbar Presence and Structure", () => {
 
 	it("restores the editor bookmark when the toolbar picker is cancelled", async () => {
 		const { screen, editor } = await renderEditor();
-		editor.chain().focus().setTextSelection(getTextPosition(editor, "Hello world")).run();
+		editor.view.focus();
+		editor.commands.setTextSelection(getTextPosition(editor, "Hello world"));
 		const before = editor.state.selection.toJSON();
 		getToolbarButton(screen, "Table").element().click();
 		const insert = screen.getByRole("menuitem", { name: "Insert table" });
@@ -567,7 +568,8 @@ describe("Toolbar Presence and Structure", () => {
 		["picker", "outside"],
 	])("preserves newer focus after closing the %s in the %s", async (kind, destination) => {
 		const { screen, editor } = await renderEditor();
-		editor.chain().focus().setTextSelection(getTextPosition(editor, "Hello world")).run();
+		editor.view.focus();
+		editor.commands.setTextSelection(getTextPosition(editor, "Hello world"));
 		if (kind === "menu") editor.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
 		const before = editor.state.selection.toJSON();
 		getToolbarButton(screen, "Table").element().click();
