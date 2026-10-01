@@ -781,9 +781,11 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 	pointer-events: none;
 }
 
+/* The band also takes clicks, so covered block handles beside the card can't be pressed. */
 [data-emdash-editor-toolbar="document"]::before {
 	inset-block: 0;
 	background-color: var(--emdash-editor-surface);
+	pointer-events: auto;
 }
 
 [data-emdash-editor-toolbar="document"]::after {

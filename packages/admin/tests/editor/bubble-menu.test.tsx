@@ -537,7 +537,7 @@ describe("Bubble Menu", () => {
 		const selectionRect = () => window.getSelection()!.getRangeAt(0).getBoundingClientRect();
 
 		const scroller = pm.closest<HTMLElement>('[style*="overflow-y"]')!;
-		scroller.scrollTop += selectionRect().bottom - toolbar.getBoundingClientRect().bottom - 2;
+		scroller.scrollTop += selectionRect().bottom - toolbar.getBoundingClientRect().bottom + 4;
 
 		await vi.waitFor(() => expect(getComputedStyle(menu).visibility).toBe("hidden"));
 	});
@@ -1042,46 +1042,78 @@ describe("Bubble Menu", () => {
 		await waitForTableToolbar();
 	});
 
-	it("removes only the link the caret is in when another touches it", async () => {
-		const { editor, pm } = await renderEditor({
-			value: [
-				{
-					_type: "block" as const,
-					_key: "1",
-					style: "normal" as const,
-					children: [
-						{ _type: "span" as const, _key: "a", text: "first", marks: ["link1"] },
-						{ _type: "span" as const, _key: "b", text: "second", marks: ["link2"] },
-					],
-					markDefs: [
-						{ _type: "link", _key: "link1", href: "https://a.example" },
-						{ _type: "link", _key: "link2", href: "https://b.example" },
-					],
-				},
+	const touchingLinks = [
+		{
+			_type: "block" as const,
+			_key: "1",
+			style: "normal" as const,
+			children: [
+				{ _type: "span" as const, _key: "a", text: "first", marks: ["link1"] },
+				{ _type: "span" as const, _key: "b", text: "second", marks: ["link2"] },
 			],
+			markDefs: [
+				{ _type: "link", _key: "link1", href: "https://a.example" },
+				{ _type: "link", _key: "link2", href: "https://b.example" },
+			],
+		},
+	];
+
+	function linkTargets(editor: Editor) {
+		const links: string[] = [];
+		editor.state.doc.descendants((node) => {
+			const link = node.marks.find((mark) => mark.type.name === "link");
+			if (node.isText) links.push(`${node.text}:${link?.attrs.href ?? ""}`);
 		});
+		return links;
+	}
+
+	async function waitForLinkPreview() {
+		let preview: HTMLElement | null = null;
+		await vi.waitFor(() => {
+			preview = document.querySelector<HTMLElement>("[data-emdash-link-bubble-menu]");
+			expect(preview).toBeTruthy();
+		});
+		return preview!;
+	}
+
+	it.each([
+		["inside it", 3],
+		["between the two", 0],
+	])("removes only the second of two touching links from a caret %s", async (_where, offset) => {
+		const { editor, pm } = await renderEditor({ value: touchingLinks });
+		pm.focus();
+		editor
+			.chain()
+			.focus()
+			.setTextSelection(getTextPosition(editor, "second") + offset)
+			.run();
+		const preview = await waitForLinkPreview();
+		expect(preview.textContent).toContain("b.example");
+
+		getBubbleButton(preview, "Remove link")!.click();
+
+		await vi.waitFor(() =>
+			expect(linkTargets(editor)).toEqual(["first:https://a.example", "second:"]),
+		);
+	});
+
+	it("edits one of two touching links without merging them", async () => {
+		const { editor, pm } = await renderEditor({ value: touchingLinks });
 		pm.focus();
 		editor
 			.chain()
 			.focus()
 			.setTextSelection(getTextPosition(editor, "second") + 3)
 			.run();
-		let preview: HTMLElement | null = null;
-		await vi.waitFor(() => {
-			preview = document.querySelector<HTMLElement>("[data-emdash-link-bubble-menu]");
-			expect(preview).toBeTruthy();
-		});
+		getBubbleButton(await waitForLinkPreview(), "Edit link")!.click();
+		await vi.waitFor(() => expect(document.activeElement).toBe(getLinkInput()));
 
-		getBubbleButton(preview!, "Remove link")!.click();
+		setInputValue(getLinkInput()!, "https://c.example");
+		await userEvent.keyboard("{Enter}");
 
-		await vi.waitFor(() => {
-			const links: string[] = [];
-			editor.state.doc.descendants((node) => {
-				const link = node.marks.find((mark) => mark.type.name === "link");
-				if (node.isText) links.push(`${node.text}:${link?.attrs.href ?? ""}`);
-			});
-			expect(links).toEqual(["first:https://a.example", "second:"]);
-		});
+		await vi.waitFor(() =>
+			expect(linkTargets(editor)).toEqual(["first:https://a.example", "second:https://c.example"]),
+		);
 	});
 
 	it("hides the link preview while typing at the link's edge", async () => {

@@ -110,7 +110,7 @@ export function duplicateBlocks(editor: Editor, range = selectedBlockRange(edito
  * as usual.
  */
 const blockSelectionKey = new PluginKey<boolean>("emdashBlockSelection");
-/** Which side of a selected block the caret was on, when Backspace or Delete selected it. */
+/** Which side of a selected block the caret was on, when a key press selected it from beside it. */
 const selectedFromKey = new PluginKey<-1 | 1 | null>("emdashSelectedFrom");
 
 /** The key code browsers report for key presses an IME is handling. */
@@ -241,8 +241,7 @@ function selectAtomBeside(view: EditorView, direction: -1 | 1): boolean {
 	const atom = direction < 0 ? $edge.nodeBefore : $edge.nodeAfter;
 	if (!atom?.isAtom || !NodeSelection.isSelectable(atom)) return false;
 	const pos = direction < 0 ? $edge.pos - atom.nodeSize : $edge.pos;
-	const tr = view.state.tr.setSelection(NodeSelection.create(doc, pos));
-	view.dispatch(tr.setMeta(selectedFromKey, direction < 0 ? 1 : -1).scrollIntoView());
+	view.dispatch(view.state.tr.setSelection(NodeSelection.create(doc, pos)).scrollIntoView());
 	return true;
 }
 
@@ -315,15 +314,21 @@ export const BlockSelection = Extension.create<BlockSelectionOptions>({
 
 	addProseMirrorPlugins() {
 		const { editor, options } = this;
+		// Whether a key press is being handled, so a block it selects records the caret's side.
+		let pressingKey = false;
 		return [
 			new Plugin<-1 | 1 | null>({
 				key: selectedFromKey,
 				state: {
 					init: () => null,
-					apply: (tr, side) => {
-						const meta: unknown = tr.getMeta(selectedFromKey);
-						if (meta === 1 || meta === -1) return meta;
-						return tr.selectionSet || tr.docChanged ? null : side;
+					apply: (tr, side, oldState, newState) => {
+						if (tr.docChanged) return null;
+						if (!tr.selectionSet) return side;
+						const block = topLevelNodeSelection(newState);
+						const { $from, empty } = oldState.selection;
+						if (!pressingKey || !block || !empty || $from.depth === 0) return null;
+						if ($from.before(1) === block.to) return 1;
+						return $from.after(1) === block.from ? -1 : null;
 					},
 				},
 			}),
@@ -340,6 +345,10 @@ export const BlockSelection = Extension.create<BlockSelectionOptions>({
 				},
 				props: {
 					handleKeyDown: (view, event) => {
+						pressingKey = true;
+						queueMicrotask(() => {
+							pressingKey = false;
+						});
 						if (event.defaultPrevented || !editor.isEditable) return false;
 						const blockMode = isBlockSelectionActive(view.state);
 						if (event.isComposing || event.keyCode === IME_KEY_CODE) {

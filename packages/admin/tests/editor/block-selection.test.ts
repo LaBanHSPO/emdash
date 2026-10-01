@@ -192,6 +192,18 @@ describe("Block selection", () => {
 		expect(editor.state.selection.$from.parentOffset).toBe(0);
 	});
 
+	it("keeps the caret where it was when the editor itself selected the block it deletes", () => {
+		create("<ul><li><p>a</p></li></ul><hr><p>z</p>");
+		editor.commands.setTextSelection(4);
+
+		press("Delete");
+		press("Delete");
+
+		expect(editor.getHTML()).toBe("<ul><li><p>a</p></li></ul><p>z</p>");
+		expect(editor.state.selection.$from.parent.textContent).toBe("a");
+		expect(editor.state.selection.$from.parentOffset).toBe(1);
+	});
+
 	it("goes back to writing at the end of the block on Enter", () => {
 		create("<p>one</p><p>two</p>");
 		caretIn("two");

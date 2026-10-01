@@ -415,20 +415,18 @@ function setSelectedImageLink(editor: Editor, href: string | null): boolean {
 }
 
 /**
- * The link holding the caret, or ending or starting at it. A click on a
- * link's first or last letter can leave the caret at its edge, where the
- * link's mark doesn't apply.
+ * The link at the start of the selection, or holding the caret. A caret at a
+ * link's edge, where a click on its first or last letter can leave it, counts
+ * too, and between two links the one after the caret wins.
  */
 function linkAtCaret(state: EditorState): ProseMirrorMark | undefined {
 	const { selection, schema } = state;
 	const linkType = schema.marks.link;
-	if (!linkType || !selection.empty) return undefined;
+	if (!linkType) return undefined;
 	const { $from } = selection;
-	return (
-		linkType.isInSet($from.marks()) ??
-		linkType.isInSet($from.nodeAfter?.marks ?? []) ??
-		linkType.isInSet($from.nodeBefore?.marks ?? [])
-	);
+	const after = linkType.isInSet($from.nodeAfter?.marks ?? []);
+	if (!selection.empty) return after;
+	return after ?? linkType.isInSet($from.nodeBefore?.marks ?? []);
 }
 
 /**
@@ -4417,6 +4415,26 @@ const BUBBLE_MENU_SELECTOR = [
 /** Popups opened from the selection toolbar keep it visible while they have focus. */
 const BUBBLE_POPUP_ATTR = "data-emdash-bubble-popup";
 
+/** A boundary no selection falls outside of. */
+const UNBOUNDED_RECT = { x: -1e6, y: -1e6, width: 2e6, height: 2e6 };
+
+/**
+ * Options for floating-ui's hide check: a floating toolbar hides while its
+ * selection is under the sticky toolbar, and stays while it, or a menu or
+ * field opened from it, has focus, so typing there isn't lost. No padding,
+ * so a caret near the screen's edge doesn't count as hidden.
+ */
+function hideUnderToolbar(getCollisionOptions: BubbleMenuCollisionOptions) {
+	return () => ({
+		rootBoundary: document.activeElement?.closest(
+			`${BUBBLE_MENU_SELECTOR}, [role="menu"], [${BUBBLE_POPUP_ATTR}]`,
+		)
+			? UNBOUNDED_RECT
+			: getCollisionOptions().rootBoundary,
+		padding: 0,
+	});
+}
+
 const INLINE_MARKS = [
 	{ mark: "bold", label: msg`Bold`, icon: TextB },
 	{ mark: "italic", label: msg`Italic`, icon: TextItalic },
@@ -4547,8 +4565,7 @@ function EditorBubbleMenu({
 			offset: 8,
 			flip: getCollisionOptions,
 			shift: getCollisionOptions,
-			// Hidden while the selection is under the sticky toolbar, but not near the screen's edges.
-			hide: () => ({ ...getCollisionOptions(), padding: 0 }),
+			hide: hideUnderToolbar(getCollisionOptions),
 			size: () => ({
 				...getCollisionOptions(),
 				apply: ({
@@ -4723,7 +4740,7 @@ function LinkBubbleMenu({
 			offset: 6,
 			flip: getCollisionOptions,
 			shift: getCollisionOptions,
-			hide: () => ({ ...getCollisionOptions(), padding: 0 }),
+			hide: hideUnderToolbar(getCollisionOptions),
 		}),
 		[getCollisionOptions],
 	);
@@ -4738,6 +4755,7 @@ function LinkBubbleMenu({
 			shouldShow={({ editor: activeEditor, element, state: editorState, oldState, view }) =>
 				activeEditor.isEditable &&
 				editorState.selection instanceof TextSelection &&
+				editorState.selection.empty &&
 				linkAtCaret(editorState) !== undefined &&
 				// At a link's edge, typing goes beside the link, so the preview gets out of the way.
 				(activeEditor.isActive("link") || !oldState || oldState.doc.eq(editorState.doc)) &&
@@ -4969,7 +4987,7 @@ function TableBubbleMenu({
 				offset: 8,
 				flip: getCollisionOptions,
 				shift: getCollisionOptions,
-				hide: () => ({ ...getCollisionOptions(), padding: 0 }),
+				hide: hideUnderToolbar(getCollisionOptions),
 				size: () => ({
 					...getCollisionOptions(),
 					apply: ({ availableWidth, elements }) => {
