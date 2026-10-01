@@ -3,7 +3,8 @@
  *
  * Escape selects the block holding the caret, the arrow keys then move
  * between blocks, typing can't replace the selected block, and Enter goes
- * back to writing. Select All in a code block selects just its code first.
+ * back to writing. Select All selects just the text of the block holding the
+ * caret first.
  */
 
 import { Editor } from "@tiptap/core";
@@ -131,22 +132,38 @@ describe("Block selection", () => {
 describe("Select All", () => {
 	const selectAll = () => press("a", isMac ? { metaKey: true } : { ctrlKey: true });
 
-	it("selects a code block's code before the document", () => {
-		create("<p>intro</p><pre><code>const a = 1;</code></pre><p>outro</p>");
-		caretIn("const a = 1;");
+	it.each([
+		["a paragraph", "<p>intro</p><p>text</p><p>outro</p>"],
+		["a heading", "<p>intro</p><h2>text</h2><p>outro</p>"],
+		["a list item", "<ul><li><p>intro</p></li><li><p>text</p></li></ul><p>outro</p>"],
+		["a quote", "<blockquote><p>intro</p><p>text</p></blockquote><p>outro</p>"],
+		["a code block", "<p>intro</p><pre><code>text</code></pre><p>outro</p>"],
+	])("selects the text of %s before the document", (_, content) => {
+		create(content);
+		caretIn("text");
 
 		selectAll();
 		const { selection } = editor.state;
 		expect(selection).toBeInstanceOf(TextSelection);
-		expect(editor.state.doc.textBetween(selection.from, selection.to)).toBe("const a = 1;");
+		expect(editor.state.doc.textBetween(selection.from, selection.to)).toBe("text");
 
 		selectAll();
 		expect(editor.state.selection).toBeInstanceOf(AllSelection);
 	});
 
-	it("selects the whole document from a paragraph", () => {
-		create("<p>intro</p><p>outro</p>");
-		caretIn("intro");
+	it("selects the whole document from an empty block", () => {
+		create("<p>intro</p><p></p><p>outro</p>");
+		editor.commands.setTextSelection(8);
+
+		selectAll();
+
+		expect(editor.state.selection).toBeInstanceOf(AllSelection);
+	});
+
+	it("selects the whole document from a selected block", () => {
+		create("<p>intro</p><p>text</p>");
+		caretIn("text");
+		press("Escape");
 
 		selectAll();
 

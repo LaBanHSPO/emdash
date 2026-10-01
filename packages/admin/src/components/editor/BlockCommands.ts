@@ -176,16 +176,16 @@ function editSelectedBlock(editor: Editor): boolean {
 }
 
 /**
- * Select All in a code block first selects just its code, like Notion, so it
- * can be copied or cleared on its own. Pressing it again selects the whole
- * document.
+ * Select All first selects just the text of the block holding the caret,
+ * like Notion, so it can be copied or cleared on its own. Pressing it again
+ * selects the whole document.
  */
-function selectCodeBlockText(editor: Editor): boolean {
+function selectTextblockText(editor: Editor): boolean {
 	const { state } = editor;
 	const { selection } = state;
-	if (selection instanceof AllSelection || selection instanceof NodeSelection) return false;
+	if (!(selection instanceof TextSelection)) return false;
 	const { $from, $to } = selection;
-	if (!$from.sameParent($to) || !$from.parent.type.spec.code) return false;
+	if (!$from.sameParent($to) || !$from.parent.isTextblock) return false;
 	const start = $from.start();
 	const end = $from.end();
 	if (start === end || (selection.from === start && selection.to === end)) return false;
@@ -293,8 +293,8 @@ export const BlockSelection = Extension.create<BlockSelectionOptions>({
 });
 
 /**
- * Select All scoped to the code block holding the caret. Runs ahead of
- * TipTap's own Select All, which takes over on the second press.
+ * Select All scoped to the block holding the caret. Runs ahead of TipTap's
+ * own Select All, which takes over on the second press.
  */
 export const BlockSelectAll = Extension.create({
 	name: "emdashBlockSelectAll",
@@ -302,7 +302,7 @@ export const BlockSelectAll = Extension.create({
 
 	addKeyboardShortcuts() {
 		return {
-			"Mod-a": () => selectCodeBlockText(this.editor),
+			"Mod-a": () => selectTextblockText(this.editor),
 		};
 	},
 });

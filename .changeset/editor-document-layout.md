@@ -4,7 +4,7 @@
 
 Redesigns the content editor as a page. The entry's title field is a large heading at the top, the `content` field's Portable Text editor sits under it without a frame, and one bar above the page holds the back link, the entry title, the save status, and **Live View**, **Preview**, and **Publish**. Distraction-free mode uses the same bar and adds **Discard changes** and **Schedule**.
 
-- **Writing:** Enter or Down Arrow at the end of the title moves into the body, and Up Arrow on the body's first line moves back. Clicking below the last block continues writing at the end. In a code block, Select All selects the code first and the whole document on a second press.
+- **Writing:** Enter or Down Arrow at the end of the title moves into the body, and Up Arrow on the body's first line moves back. Clicking below the last block continues writing at the end. Select All selects the text of the block holding the caret, and the whole document on a second press.
 - **Toolbar:** the formatting toolbar floats above the text and stays in view while you scroll. When it doesn't fit, it scrolls sideways.
 - **Blocks:** hovering a block shows **+** to add a block below it (Alt-click adds one above) and a handle to drag the block or open its menu: **Turn into**, **Align**, **Continue numbering** and **Restart numbering**, **Duplicate**, **Move up** and **Move down**, and **Delete**. Escape selects the block holding the caret, and the arrow keys then move between blocks.
 - **Slash menu:** commands are grouped, show the Markdown that creates each block, and match abbreviated searches such as `/bl` for **Bulleted list**. Headings 4 to 6 appear when you search for them.
