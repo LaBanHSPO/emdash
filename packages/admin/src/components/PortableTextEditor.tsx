@@ -3141,6 +3141,7 @@ export function PortableTextEditor({
 	const uploadImageRef = React.useRef(async (file: File, signal: AbortSignal) => {
 		const item = await uploadMedia(file, { signal });
 		void queryClient.invalidateQueries({ queryKey: ["media"] });
+		if (file.type.startsWith("video/")) return mediaItemToVideoAttrs(item);
 		return mediaItemToImageAttrs({ ...item, url: item.url || localMediaFileUrl(item.storageKey) });
 	});
 
@@ -3207,6 +3208,8 @@ export function PortableTextEditor({
 		() => new Set(pluginBlocks.map((block) => block.type)),
 		[pluginBlocks],
 	);
+	const pluginBlockTypesRef = React.useRef(pluginBlockTypes);
+	pluginBlockTypesRef.current = pluginBlockTypes;
 
 	// Build slash commands
 	const slashCommands = React.useMemo(() => {
@@ -3417,6 +3420,8 @@ export function PortableTextEditor({
 			ImageExtension,
 			ImageUploadExtension.configure({
 				upload: (file, signal) => uploadImageRef.current(file, signal),
+				// A plugin's own video block replaces the built-in one.
+				acceptsVideo: () => !pluginBlockTypesRef.current.has("video"),
 			}),
 			MarkdownLinkExtension,
 			PluginBlockExtension,

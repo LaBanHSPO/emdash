@@ -15,7 +15,7 @@ import {
 	_prosemirrorToPortableText as prosemirrorToPortableText,
 	type PortableTextEditorProps,
 } from "../../src/components/PortableTextEditor";
-import { fetchMediaItem, type MediaItem } from "../../src/lib/api/media.js";
+import { fetchMediaItem, uploadMedia, type MediaItem } from "../../src/lib/api/media.js";
 import { render } from "../utils/render";
 
 import "../../src/styles.css";
@@ -61,7 +61,7 @@ vi.mock("../../src/lib/api/media.js", async () => {
 	const actual = await vi.importActual<typeof import("../../src/lib/api/media.js")>(
 		"../../src/lib/api/media.js",
 	);
-	return { ...actual, fetchMediaItem: vi.fn() };
+	return { ...actual, fetchMediaItem: vi.fn(), uploadMedia: vi.fn() };
 });
 
 type Block = { _type: string; _key: string; [key: string]: unknown };
@@ -130,7 +130,27 @@ beforeAll(async () => {
 
 afterEach(() => {
 	vi.mocked(fetchMediaItem).mockReset();
+	vi.mocked(uploadMedia).mockReset();
 });
+
+function dropFiles(target: HTMLElement, files: File[]) {
+	const dataTransfer = new DataTransfer();
+	for (const file of files) dataTransfer.items.add(file);
+	const rect = target.getBoundingClientRect();
+	target.dispatchEvent(
+		new DragEvent("drop", {
+			bubbles: true,
+			cancelable: true,
+			dataTransfer,
+			clientX: rect.left + rect.width - 2,
+			clientY: rect.top + rect.height / 2,
+		}),
+	);
+}
+
+function videoFile(name: string) {
+	return new File([new Uint8Array(16)], name, { type: "video/webm" });
+}
 
 async function renderEditor(props: Partial<PortableTextEditorProps> = {}) {
 	if (!vi.mocked(fetchMediaItem).getMockImplementation()) {
@@ -367,6 +387,26 @@ describe("Video block editor", () => {
 		expect(latest()).toEqual([saved]);
 	});
 
+	it("uploads a video dropped into the text into a video block", async () => {
+		vi.mocked(uploadMedia).mockResolvedValue(mediaItem("03VIDEO", playableUrl));
+		const { pm, latest } = await renderEditor({ value: [INTRO] });
+
+		dropFiles(pm.querySelector("p")!, [videoFile("demo.webm")]);
+
+		await vi.waitFor(() =>
+			expect(videos(latest())).toEqual([
+				{
+					_type: "video",
+					_key: expect.any(String),
+					asset: { _ref: "03VIDEO", url: playableUrl },
+					width: 1920,
+					height: 1080,
+				},
+			]),
+		);
+		expect(vi.mocked(uploadMedia)).toHaveBeenCalledTimes(1);
+	});
+
 	it("keeps a video through copy and paste", async () => {
 		const { editor, latest } = await renderEditor({
 			value: [videoBlock({ caption: "Launch day" }), INTRO],
@@ -410,6 +450,22 @@ describe("Video block with a plugin's video block", () => {
 		expect(menu.textContent).not.toContain("Upload or choose a video");
 		await userEvent.keyboard("{Escape}");
 		expect(videos(latest())).toEqual([saved]);
+	});
+
+	it("doesn't upload dropped video files", async () => {
+		const { pm } = await renderEditor({
+			value: [INTRO],
+			pluginBlocks: [{ type: "video", pluginId: "acme", label: "Acme video" }],
+		});
+
+		dropFiles(pm.querySelector("p")!, [videoFile("demo.webm")]);
+
+		await vi.waitFor(() =>
+			expect(
+				document.querySelector("[data-image-upload-placeholder] [role='alert']")?.textContent,
+			).toContain("Only image files can be uploaded here."),
+		);
+		expect(vi.mocked(uploadMedia)).not.toHaveBeenCalled();
 	});
 });
 
