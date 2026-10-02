@@ -197,6 +197,9 @@ test.describe("Schedule content", () => {
 		await page.setViewportSize({ width: 320, height: 576 });
 		await page.getByRole("button", { name: "Enter distraction-free mode" }).click();
 		const distractionFreeHeader = page.locator("[data-emdash-editor-bar]");
+		await expect(
+			distractionFreeHeader.getByRole("button", { name: "Exit distraction-free mode" }),
+		).toBeVisible();
 		const headerBox = await distractionFreeHeader.boundingBox();
 		expect(headerBox).not.toBeNull();
 		for (const action of [
@@ -439,6 +442,9 @@ test.describe("Schedule content", () => {
 		await page.getByRole("button", { name: "Entrar no modo sem distrações" }).click();
 
 		const distractionFreeHeader = page.locator("[data-emdash-editor-bar]");
+		await expect(
+			distractionFreeHeader.getByRole("button", { name: "Sair do modo sem distrações" }),
+		).toBeVisible();
 		const headerBox = await distractionFreeHeader.boundingBox();
 		expect(headerBox).not.toBeNull();
 		const headerActions = distractionFreeHeader.locator("button, a");
