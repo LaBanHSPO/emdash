@@ -163,22 +163,16 @@ function VideoNodeView({
 		isString(attrs.mediaId) && attrs.mediaId && canonicalMediaProviderId(attrs.provider) === "local"
 			? attrs.mediaId
 			: null;
-	const { data: currentMedia, isError: mediaMissing } = useQuery({
+	const { data: currentMedia } = useQuery({
 		queryKey: ["media", mediaId],
 		queryFn: ({ signal }) => fetchMediaItem(mediaId!, { signal }),
 		enabled: mediaId !== null,
 	});
-	// The single-item API has no URL, so a block saved with only its media ID
-	// plays from the item's storage key.
-	const src = getMediaPreviewUrl(
-		currentMedia?.url ||
-			storedSrc ||
-			(currentMedia?.storageKey ? localMediaFileUrl(currentMedia.storageKey) : ""),
-		currentMedia?.contentHash,
-	);
+	// Without a stored file URL the site can't play the video either, so the
+	// editor doesn't preview one.
+	const src = getMediaPreviewUrl(currentMedia?.url || storedSrc, currentMedia?.contentHash);
 	const [failedSrc, setFailedSrc] = React.useState<string | null>(null);
-	const lookingUp = !src && mediaId !== null && !currentMedia && !mediaMissing;
-	const failed = src ? failedSrc === src : !lookingUp;
+	const failed = !src || failedSrc === src;
 	const [pickerOpen, setPickerOpen] = React.useState(false);
 	const captionRef = React.useRef<HTMLTextAreaElement>(null);
 	const caption = isString(attrs.caption) ? attrs.caption : "";

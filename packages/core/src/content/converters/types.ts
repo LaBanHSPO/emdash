@@ -189,7 +189,7 @@ export interface PortableTextVideoBlock {
 	asset: {
 		/** Media Library id, or the provider's asset id */
 		_ref: string;
-		/** File URL of a Media Library video */
+		/** File URL of a Media Library video, which needs it to play */
 		url?: string;
 		/** Provider ID for external media (e.g., "cloudflare-stream"); omitted for the Media Library */
 		provider?: string;

@@ -362,16 +362,6 @@ describe("Video block editor", () => {
 		expect(player().getAttribute("src")).toBe("/_emdash/api/media/file/01GONE.mp4");
 	});
 
-	it("doesn't call a video broken while it looks up its file", async () => {
-		vi.mocked(fetchMediaItem).mockReturnValue(new Promise(() => {}));
-		const { screen } = await renderEditor({
-			value: [videoBlock({ asset: { _ref: "01VIDEO" }, width: undefined, height: undefined })],
-		});
-
-		await expect.element(screen.getByRole("button", { name: "Replace video" })).toBeInTheDocument();
-		expect(document.body.textContent).not.toContain("This video can't be played.");
-	});
-
 	it("keeps its messages out of the direction the editor reads from the text", async () => {
 		const arabic: Block = {
 			...INTRO,
@@ -389,19 +379,16 @@ describe("Video block editor", () => {
 		expect(getComputedStyle(pm).direction).toBe("rtl");
 	});
 
-	it("plays a block saved with only its media ID from the item's storage key", async () => {
-		const saved = videoBlock({ asset: { _ref: "01VIDEO" }, width: undefined, height: undefined });
+	it("calls a block saved without a file URL unplayable, as the site does", async () => {
+		const saved: Block = { _type: "video", _key: "video1", asset: { _ref: "01VIDEO" } };
 		const { url: _url, ...item } = mediaItem("01VIDEO", "");
-		vi.mocked(fetchMediaItem).mockResolvedValue({
-			...item,
-			storageKey: "01VIDEO.webm",
-		} as Awaited<ReturnType<typeof fetchMediaItem>>);
-		const { latest } = await renderEditor({ value: [saved] });
+		vi.mocked(fetchMediaItem).mockResolvedValue(item as Awaited<ReturnType<typeof fetchMediaItem>>);
+		const { screen } = await renderEditor({ value: [saved] });
 
-		await vi.waitFor(() =>
-			expect(player().getAttribute("src")).toBe("/_emdash/api/media/file/01VIDEO.webm"),
-		);
-		expect(latest()).toEqual([saved]);
+		await expect.element(screen.getByText("This video can't be played.")).toBeVisible();
+		await vi.waitFor(() => expect(vi.mocked(fetchMediaItem)).toHaveBeenCalled());
+		expect(player().getAttribute("src")).toBeNull();
+		expect(prosemirrorToPortableText(portableTextToProsemirror([saved]))).toStrictEqual([saved]);
 	});
 
 	it("uploads a video dropped into the text into a video block", async () => {
