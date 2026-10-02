@@ -298,6 +298,21 @@ describe("Video block editor", () => {
 		expect(editor.getJSON()).toEqual(before);
 	});
 
+	it("deletes an empty block with Backspace while its placeholder has focus", async () => {
+		const { screen, editor, latest } = await renderEditor({
+			value: [INTRO, { _type: "video", _key: "video1" }],
+		});
+
+		selectVideo(editor);
+		await userEvent.keyboard("{Tab}");
+		expect(document.activeElement).toBe(
+			screen.getByRole("button", { name: "Upload or choose a video" }).element(),
+		);
+		await userEvent.keyboard("{Backspace}");
+
+		await vi.waitFor(() => expect(videos(latest())).toEqual([]));
+	});
+
 	it("highlights an empty block under dragged files, without an insertion line", async () => {
 		const { screen } = await renderEditor({ value: [INTRO, { _type: "video", _key: "video1" }] });
 		const placeholder = screen.getByRole("button", { name: "Upload or choose a video" }).element();

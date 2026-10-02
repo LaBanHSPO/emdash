@@ -269,6 +269,15 @@ function VideoNodeView({
 		deleteNode();
 	};
 
+	// ProseMirror ignores keydown on the placeholder, so it removes the block itself rather
+	// than relying on the browser's editing.
+	const removeOnDeleteKey = (event: React.KeyboardEvent<HTMLElement>) => {
+		if (event.key !== "Backspace" && event.key !== "Delete") return;
+		if (event.nativeEvent.isComposing) return;
+		event.preventDefault();
+		removeBlock();
+	};
+
 	// Selected, the pill stays visible while the picker is open, so the
 	// picker can hand focus back to Replace when it closes.
 	const openPicker = () => {
@@ -325,6 +334,7 @@ function VideoNodeView({
 								data-video-placeholder=""
 								className="h-auto w-full justify-start gap-3 rounded-[7px] px-4 py-3 text-start text-sm font-normal text-kumo-subtle"
 								onClick={openPicker}
+								onKeyDown={removeOnDeleteKey}
 							>
 								<VideoCamera className="size-5 shrink-0" aria-hidden="true" />
 								{dropping ? t`Drop to upload` : t`Upload or choose a video`}
