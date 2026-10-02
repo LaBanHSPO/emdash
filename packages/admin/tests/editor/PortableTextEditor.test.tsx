@@ -1349,7 +1349,7 @@ describe("Editor component behaviour", () => {
 
 		await userEvent.click(screen.getByText("1 word"));
 
-		expect(document.activeElement).toBe(pm);
+		await vi.waitFor(() => expect(document.activeElement).toBe(pm));
 		expect(editor.state.selection.empty).toBe(true);
 		expect(editor.state.selection.from).toBe(editor.state.doc.content.size - 1);
 		expect(editor.getJSON()).toEqual(before);
