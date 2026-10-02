@@ -8,6 +8,7 @@
 import { toPlainText } from "@portabletext/toolkit";
 
 import type { PortableTextBlock } from "../content/converters/types.js";
+import { isPortableTextVideoBlock } from "../content/converters/video.js";
 
 /**
  * Validate that a value looks like a Portable Text block array.
@@ -44,8 +45,8 @@ function extractCustomBlockText(block: PortableTextBlock): string {
 		return parts.join(" ");
 	}
 
-	if (block._type === "video" && "caption" in block && typeof block.caption === "string") {
-		return block.caption;
+	if (isPortableTextVideoBlock(block)) {
+		return block.caption ?? "";
 	}
 
 	return "";

@@ -15,4 +15,18 @@ describe("extractPlainText", () => {
 
 		expect(text).toBe("Keynote recording");
 	});
+
+	it("leaves the caption of a plugin's video block alone", () => {
+		const text = extractPlainText([
+			{
+				_type: "video",
+				_key: "video1",
+				asset: { _ref: "01VIDEO" },
+				autoplay: true,
+				caption: "Internal note",
+			},
+		]);
+
+		expect(text).toBe("");
+	});
 });
