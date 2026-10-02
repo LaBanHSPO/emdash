@@ -372,6 +372,23 @@ describe("Video block editor", () => {
 		expect(document.body.textContent).not.toContain("This video can't be played.");
 	});
 
+	it("keeps its messages out of the direction the editor reads from the text", async () => {
+		const arabic: Block = {
+			...INTRO,
+			_key: "arabic",
+			children: [{ _type: "span", _key: "arabic-span", text: "مرحبا بالعالم", marks: [] }],
+		};
+		const { screen, pm } = await renderEditor({
+			value: [
+				videoBlock({ asset: { _ref: "01GONE", url: "/_emdash/api/media/file/01GONE.mp4" } }),
+				arabic,
+			],
+		});
+
+		await expect.element(screen.getByText("This video can't be played.")).toBeVisible();
+		expect(getComputedStyle(pm).direction).toBe("rtl");
+	});
+
 	it("plays a block saved with only its media ID from the item's storage key", async () => {
 		const saved = videoBlock({ asset: { _ref: "01VIDEO" }, width: undefined, height: undefined });
 		const { url: _url, ...item } = mediaItem("01VIDEO", "");

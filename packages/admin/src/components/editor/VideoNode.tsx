@@ -26,6 +26,7 @@ import {
 	localMediaFileUrl,
 } from "../../lib/media-utils.js";
 import { cn } from "../../lib/utils";
+import { getLocaleDir } from "../../locales/config.js";
 import { MediaPickerModal } from "../MediaPickerModal";
 
 type FieldCheck = (value: unknown) => boolean;
@@ -135,7 +136,7 @@ function stopEvent({ event }: { event: Event }): boolean {
 	return Boolean(target?.closest("video, textarea, button"));
 }
 
-/** The Replace picker is a portal, so its keys reach the figure through React. */
+/** Only keys from the figure's own elements count, not portals React bubbles through it. */
 function ownsKey(event: React.KeyboardEvent<HTMLElement>): boolean {
 	return (
 		event.target instanceof Element &&
@@ -152,7 +153,9 @@ function VideoNodeView({
 	updateAttributes,
 	deleteNode,
 }: NodeViewProps) {
-	const { t } = useLingui();
+	const { t, i18n } = useLingui();
+	// The editor reads its direction from the text, so admin chrome sets its own.
+	const chromeDir = getLocaleDir(i18n.locale);
 	const editable = editor.isEditable;
 	const attrs = node.attrs;
 	const storedSrc = isString(attrs.src) ? attrs.src : "";
@@ -287,7 +290,10 @@ function VideoNodeView({
 						className="my-0! block h-auto max-h-[70vh] w-full"
 					/>
 					{failed && (
-						<div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-kumo-tint text-sm text-kumo-subtle">
+						<div
+							dir={chromeDir}
+							className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-kumo-tint text-sm text-kumo-subtle"
+						>
 							<VideoCameraSlash className="size-8" aria-hidden="true" />
 							<p className="m-0!">{t`This video can't be played.`}</p>
 						</div>
@@ -324,6 +330,7 @@ function VideoNodeView({
 					<div
 						role="group"
 						aria-label={t`Video actions`}
+						dir={chromeDir}
 						className={cn(
 							"absolute end-2 top-2 flex items-center gap-0.5 rounded-md border border-kumo-line bg-kumo-base p-0.5 shadow-sm",
 							// Invisible, not only transparent, so a tap on the player can't hit a hidden button.
