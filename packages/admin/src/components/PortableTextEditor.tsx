@@ -3236,13 +3236,18 @@ function EditorFooter({
 	const readingTime = calculateReadingTime(text);
 
 	if (variant === "document") {
+		if (characters === 0) return null;
 		return (
-			<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-kumo-subtle tabular-nums">
-				<span>{plural(words, { one: "# word", other: "# words" })}</span>
-				<span aria-hidden="true">·</span>
-				<span>{plural(characters, { one: "# character", other: "# characters" })}</span>
-				<span aria-hidden="true">·</span>
-				<span>{plural(readingTime, { one: "# min read", other: "# min read" })}</span>
+			<div className="flex items-center gap-3">
+				<span aria-hidden="true" className="h-px min-w-6 flex-1 bg-kumo-hairline" />
+				<div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-kumo-subtle tabular-nums">
+					<span>{plural(words, { one: "# word", other: "# words" })}</span>
+					<span aria-hidden="true">·</span>
+					<span>{plural(characters, { one: "# character", other: "# characters" })}</span>
+					<span aria-hidden="true">·</span>
+					<span>{plural(readingTime, { one: "# min read", other: "# min read" })}</span>
+				</div>
+				<span aria-hidden="true" className="h-px min-w-6 flex-1 bg-kumo-hairline" />
 			</div>
 		);
 	}
@@ -3269,10 +3274,10 @@ function DocumentEnd({
 	editable: boolean;
 	children?: React.ReactNode;
 }) {
-	if (!editable) return <div className="pt-6">{children}</div>;
+	if (!editable) return <div className="pt-8 pb-6">{children}</div>;
 	return (
 		<div
-			className="cursor-text pt-6 pb-2"
+			className="cursor-text pt-8 pb-6"
 			onMouseDown={(event) => {
 				if (event.button !== 0) return;
 				event.preventDefault();
