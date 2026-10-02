@@ -1096,6 +1096,46 @@ export class EmDashRuntime {
 	}
 
 	/**
+	 * Run install → activate for native plugins that are registered in the
+	 * integration config and have no persisted `_plugin_state` row.
+	 *
+	 * Config plugins are active by default, but before this the host boot path
+	 * never created their state row or invoked their lifecycle hooks, so
+	 * one-time setup such as `ctx.cron.schedule()` was silently skipped.
+	 * Running it here brings config-registered plugins in line with admin-
+	 * installed plugins.
+	 *
+	 * Built-in plugins are not passed in `configPlugins`, and marketplace/
+	 * registry plugins already go through their own install finalization, so
+	 * neither group is affected.
+	 */
+	private static async installConfigPluginsOnBoot(
+		db: Kysely<Database>,
+		configPlugins: ResolvedPlugin[],
+		initialStates: ReadonlyMap<string, string>,
+		pluginStates: Map<string, string>,
+		pipeline: HookPipeline,
+	): Promise<void> {
+		const stateRepo = new PluginStateRepository(db);
+
+		for (const plugin of configPlugins) {
+			const status = initialStates.get(plugin.id);
+			// A row already exists (active or inactive) -> lifecycle was or will
+			// be handled through admin flows; don't run it again at boot.
+			if (status !== undefined) continue;
+
+			try {
+				await stateRepo.upsert(plugin.id, plugin.version, "active", { source: "config" });
+				pluginStates.set(plugin.id, "active");
+				await pipeline.runPluginInstall(plugin.id);
+				await pipeline.runPluginActivate(plugin.id);
+			} catch (error) {
+				console.error(`EmDash: Config plugin "${plugin.id}" install/activate failed:`, error);
+			}
+		}
+	}
+
+	/**
 	 * Rebuild the hook pipeline from the current set of enabled plugins.
 	 *
 	 * Filters `allPipelinePlugins` to only those in `enabledPlugins`,
@@ -2218,6 +2258,22 @@ export class EmDashRuntime {
 			runtime.handlePluginCommentModerate(pluginId, id, status, expectedStatus),
 		);
 		sandboxRunner?.setContentActions?.(contentActions);
+
+		// Native config plugins are active by default, but the boot path used to
+		// skip their install/activate lifecycle entirely. Run it once for any
+		// configured plugin that has no persisted state, so one-time setup
+		// (cron schedules, etc.) happens the same way it does for admin-installed
+		// plugins.
+		await phase("rt.lifecycle", "Config plugin install/activate", () =>
+			EmDashRuntime.installConfigPluginsOnBoot(
+				db,
+				deps.plugins,
+				pluginStates,
+				pluginStates,
+				pipeline,
+			),
+		);
+
 		return runtime;
 	}
 
