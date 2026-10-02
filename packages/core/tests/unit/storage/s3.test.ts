@@ -404,15 +404,19 @@ describe("S3Storage ranged download", () => {
 		expect(result.size).toBe(10);
 	});
 
-	it("fails instead of passing off part of the object as all of it", async () => {
+	it("downloads the whole object when Content-Range doesn't give its size", async () => {
 		s3Send.mockResolvedValueOnce({
 			Body: objectBody("234"),
 			ContentLength: 3,
 			ContentRange: "bytes 2-4/*",
 		});
+		s3Send.mockResolvedValueOnce({ Body: objectBody("0123456789"), ContentLength: 10 });
 
-		await expect(
-			storage().download("clip.mp4", { range: { offset: 2, length: 3 } }),
-		).rejects.toMatchObject({ code: "DOWNLOAD_FAILED" });
+		const result = await storage().download("clip.mp4", { range: { offset: 2, length: 3 } });
+
+		expect(sentRanges()).toEqual(["bytes=2-4", undefined]);
+		expect(result.range).toBeUndefined();
+		expect(result.size).toBe(10);
+		expect(await new Response(result.body).text()).toBe("0123456789");
 	});
 });

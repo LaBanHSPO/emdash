@@ -215,7 +215,7 @@ export class S3Storage implements Storage {
 
 	async download(key: string, options: DownloadOptions = {}): Promise<DownloadResult> {
 		try {
-			const { response, ranged } = await this.getObject(key, options.range);
+			const { response, served } = await this.getObject(key, options.range);
 
 			if (!response.Body) {
 				throw new EmDashStorageError(`File not found: ${key}`, "NOT_FOUND");
@@ -225,13 +225,7 @@ export class S3Storage implements Storage {
 			const body = response.Body.transformToWebStream();
 			const contentType = response.ContentType || "application/octet-stream";
 
-			// A service that ignores `Range` sends the whole object without `Content-Range`.
-			if (ranged && response.ContentRange) {
-				const served = parseContentRange(response.ContentRange);
-				if (!served) {
-					await body.cancel();
-					throw new Error(`Unexpected Content-Range: ${response.ContentRange}`);
-				}
+			if (served) {
 				return {
 					body,
 					contentType,
@@ -256,17 +250,23 @@ export class S3Storage implements Storage {
 		}
 	}
 
-	/** Get the object, or all of it when the service can't satisfy `range` */
+	/** Get the object, or all of it when the service can't serve `range` */
 	private async getObject(key: string, range: ByteRange | undefined) {
 		const get = (rangeHeader?: string) =>
 			this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key, Range: rangeHeader }));
-		if (!range) return { response: await get(), ranged: false };
-		try {
-			return { response: await get(formatRangeHeader(range)), ranged: true };
-		} catch (error) {
-			if (!hasErrorName(error) || error.name !== "InvalidRange") throw error;
-			return { response: await get(), ranged: false };
+		if (range) {
+			try {
+				const response = await get(formatRangeHeader(range));
+				// A service that ignores `Range` sends the whole object without `Content-Range`.
+				if (!response.ContentRange) return { response };
+				const served = parseContentRange(response.ContentRange);
+				if (served) return { response, served };
+				await response.Body?.transformToWebStream().cancel();
+			} catch (error) {
+				if (!hasErrorName(error) || error.name !== "InvalidRange") throw error;
+			}
 		}
+		return { response: await get() };
 	}
 
 	async delete(key: string): Promise<void> {
