@@ -205,6 +205,37 @@ describe("DragHandleWrapper interactions", () => {
 		}
 	});
 
+	it("centers the handle on a code block's header row rather than its first line of code", async () => {
+		const block = document.createElement("div");
+		block.className = "node-codeBlock";
+		block.style.position = "relative";
+		block.innerHTML =
+			'<pre class="emdash-code-block" style="margin: 0; padding-top: 36px; line-height: 20px">code</pre>' +
+			'<div class="emdash-code-block-controls" style="position: absolute; top: 4px; height: 28px"></div>';
+		document.body.append(block);
+		const editor = {
+			view: { dom: document.createElement("div"), nodeDOM: () => block },
+		} as unknown as Editor;
+
+		try {
+			const screen = await render(<DragHandleWrapper editor={editor} onInsertBlock={vi.fn()} />);
+			await hoverBlock(editor, {} as PMNode, 0);
+
+			// The handle is placed at the block's top, so compare offsets from each one's top.
+			const insertButton = screen.getByRole("button", { name: "Insert block below" }).element();
+			const handleTop = insertButton.closest(".drag-handle")!.getBoundingClientRect().top;
+			const handle = insertButton.getBoundingClientRect();
+			const row = block.querySelector(".emdash-code-block-controls")!.getBoundingClientRect();
+			const blockTop = block.getBoundingClientRect().top;
+			expect(handle.top + handle.height / 2 - handleTop).toBeCloseTo(
+				row.top + row.height / 2 - blockTop,
+				0,
+			);
+		} finally {
+			block.remove();
+		}
+	});
+
 	it("keeps the controls and menu pinned to the block that opened the menu", async () => {
 		const selectedPositions: number[] = [];
 		const setMeta = vi.fn((_key: string, locked: boolean) => {

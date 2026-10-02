@@ -41,16 +41,26 @@ export function _getDragHandlePlacement(direction: "ltr" | "rtl") {
 
 /**
  * How far to push the handle down so it centers on the block's first line
- * of text, a code block's first line, or a table's first row. Media and
+ * of text, a code block's header row, or a table's first row. Media and
  * embeds keep it near the top.
  */
 function firstLineOffset(block: HTMLElement): number {
 	if (block.matches("hr")) return (block.offsetHeight - HANDLE_SIZE_PX) / 2;
+	const codeControls = block.matches(".node-codeBlock")
+		? block.querySelector<HTMLElement>(".emdash-code-block-controls")
+		: null;
+	if (codeControls) {
+		const row = codeControls.getBoundingClientRect();
+		return Math.max(
+			0,
+			row.top - block.getBoundingClientRect().top + (row.height - HANDLE_SIZE_PX) / 2,
+		);
+	}
 	const line = block.matches(TEXT_BLOCK_SELECTOR)
 		? block
 		: block.matches("ul, ol, blockquote, .tableWrapper")
 			? block.querySelector<HTMLElement>(TEXT_BLOCK_SELECTOR)
-			: block.querySelector<HTMLElement>(".emdash-code-block");
+			: null;
 	if (!line) return 4;
 	const style = getComputedStyle(line);
 	const lineHeight = Number.parseFloat(style.lineHeight);

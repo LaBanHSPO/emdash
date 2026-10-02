@@ -272,7 +272,7 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 	background: var(--emdash-code-background);
 	color: var(--emdash-code-foreground);
 	caret-color: var(--emdash-code-foreground);
-	padding-block: 1.875rem;
+	padding-block: 2.25rem;
 }
 
 [data-mode="dark"] :is(.emdash-code-block, .emdash-code-editor) {

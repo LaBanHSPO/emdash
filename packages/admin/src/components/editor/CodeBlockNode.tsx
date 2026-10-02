@@ -211,7 +211,7 @@ function CodeBlockNodeView({ node, updateAttributes }: NodeViewProps) {
 			</pre>
 
 			<div
-				className="absolute end-1 top-0 z-10 select-none"
+				className="absolute end-1 top-1 z-10 select-none"
 				style={{ width: "max-content", maxWidth: "calc(100% - 0.25rem)" }}
 				contentEditable={false}
 			>
