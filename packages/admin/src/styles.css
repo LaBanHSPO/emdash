@@ -268,7 +268,7 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 /* Code reads left to right even in a right-to-left document. */
 .emdash-code-block {
 	direction: ltr;
-	text-align: left;
+	text-align: start;
 	background: var(--emdash-code-background);
 	color: var(--emdash-code-foreground);
 	caret-color: var(--emdash-code-foreground);
