@@ -4771,7 +4771,10 @@ function EditorBubbleMenu({
 					);
 				}}
 				data-emdash-inline-bubble-menu
+				role="toolbar"
+				aria-label={t`Format selection`}
 				className={bubbleMenuClassName}
+				onKeyDown={(event) => moveToolbarFocus(event, false)}
 			>
 				<TooltipProvider delay={400}>
 					{showLinkInput ? (
@@ -4900,7 +4903,10 @@ function LinkBubbleMenu({
 				(view.hasFocus() || element.contains(document.activeElement))
 			}
 			data-emdash-link-bubble-menu
+			role="toolbar"
+			aria-label={t`Link options`}
 			className={cn(bubbleMenuClassName, "max-w-[min(28rem,calc(100vw-1rem))]")}
+			onKeyDown={(event) => moveToolbarFocus(event, false)}
 		>
 			<TooltipProvider delay={400}>
 				<Globe className="ms-1.5 size-4 flex-none text-kumo-subtle" aria-hidden="true" />
@@ -5164,9 +5170,10 @@ function TableBubbleMenu({
 				);
 			}}
 			data-emdash-table-bubble-menu
-			role="group"
+			role="toolbar"
 			aria-label={t`Table controls`}
 			className={bubbleMenuClassName}
+			onKeyDown={(event) => moveToolbarFocus(event, false)}
 		>
 			{controls && (controls.rows > 1 || controls.columns > 1) && (
 				<span className="px-2 text-xs text-kumo-subtle">
@@ -5486,7 +5493,7 @@ function ImageBubbleMenu({
 					);
 				}}
 				data-emdash-image-bubble-menu
-				role="group"
+				role="toolbar"
 				aria-label={t`Image controls`}
 				className={cn(
 					bubbleMenuClassName,
@@ -5511,7 +5518,9 @@ function ImageBubbleMenu({
 					) {
 						event.preventDefault();
 						(getSelectedCaption() ?? editor.view).focus();
+						return;
 					}
+					moveToolbarFocus(event, false);
 				}}
 			>
 				<TooltipProvider key={controlsKey} delay={200}>
@@ -6036,49 +6045,6 @@ function EditorToolbar({
 	};
 
 	// Keyboard navigation for toolbar (WAI-ARIA toolbar pattern)
-	const handleKeyDown = React.useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-		const toolbar = toolbarRef.current;
-		if (!toolbar) return;
-
-		const buttons = [
-			...toolbar.querySelectorAll<HTMLButtonElement>(
-				'button:not([disabled]), [role="button"]:not([disabled])',
-			),
-		].filter((button) => button.getClientRects().length > 0);
-		const currentIndex = buttons.findIndex((btn) => btn === document.activeElement);
-		if (currentIndex === -1) return;
-		const isRtl = getComputedStyle(toolbar).direction === "rtl";
-
-		let nextIndex: number | null = null;
-
-		switch (e.key) {
-			case "ArrowRight":
-				nextIndex = (currentIndex + (isRtl ? -1 : 1) + buttons.length) % buttons.length;
-				break;
-			case "ArrowLeft":
-				nextIndex = (currentIndex + (isRtl ? 1 : -1) + buttons.length) % buttons.length;
-				break;
-			case "ArrowDown":
-				nextIndex = (currentIndex + 1) % buttons.length;
-				break;
-			case "ArrowUp":
-				nextIndex = (currentIndex - 1 + buttons.length) % buttons.length;
-				break;
-			case "Home":
-				nextIndex = 0;
-				break;
-			case "End":
-				nextIndex = buttons.length - 1;
-				break;
-			default:
-				return;
-		}
-
-		if (nextIndex !== null) {
-			e.preventDefault();
-			buttons[nextIndex]?.focus();
-		}
-	}, []);
 
 	const isDocument = variant === "document";
 	const linkLabel = editorState.isImage
@@ -6399,7 +6365,7 @@ function EditorToolbar({
 						? "top-0 -mt-2 mb-4 bg-(--emdash-editor-surface) pt-2"
 						: "top-[var(--emdash-editor-sticky-top,-1.5rem)] border-b bg-kumo-tint",
 				)}
-				onKeyDown={handleKeyDown}
+				onKeyDown={(event) => moveToolbarFocus(event, true)}
 			>
 				{isDocument ? (
 					<div className="rounded-xl bg-kumo-base shadow-xs ring ring-kumo-line">{controls}</div>
@@ -6409,6 +6375,53 @@ function EditorToolbar({
 			</div>
 		</TooltipProvider>
 	);
+}
+
+/**
+ * Left and Right move focus between a toolbar's enabled buttons and links,
+ * flipped for right-to-left text, and Home and End go to the first and last.
+ * Up and Down do the same when `vertical`; otherwise the menus and selects in
+ * the toolbar keep them.
+ */
+function moveToolbarFocus(event: React.KeyboardEvent<HTMLElement>, vertical: boolean) {
+	if (event.nativeEvent.isComposing) return;
+	const toolbar = event.currentTarget;
+	const items = [
+		...toolbar.querySelectorAll<HTMLElement>(
+			'button:not([disabled]), [role="button"]:not([disabled]), a[href]',
+		),
+	].filter((item) => item.getClientRects().length > 0);
+	const currentIndex = items.findIndex((item) => item === document.activeElement);
+	if (currentIndex === -1) return;
+	const forward = getComputedStyle(toolbar).direction === "rtl" ? -1 : 1;
+
+	let nextIndex: number;
+	switch (event.key) {
+		case "ArrowRight":
+			nextIndex = currentIndex + forward;
+			break;
+		case "ArrowLeft":
+			nextIndex = currentIndex - forward;
+			break;
+		case "ArrowDown":
+			if (!vertical) return;
+			nextIndex = currentIndex + 1;
+			break;
+		case "ArrowUp":
+			if (!vertical) return;
+			nextIndex = currentIndex - 1;
+			break;
+		case "Home":
+			nextIndex = 0;
+			break;
+		case "End":
+			nextIndex = items.length - 1;
+			break;
+		default:
+			return;
+	}
+	event.preventDefault();
+	items[(nextIndex + items.length) % items.length]?.focus();
 }
 
 function ToolbarGroup({ children }: { children: React.ReactNode }) {

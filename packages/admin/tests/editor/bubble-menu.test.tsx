@@ -214,7 +214,7 @@ async function waitForTableToolbar(): Promise<HTMLElement> {
 	let toolbar: HTMLElement | null = null;
 	await vi.waitFor(
 		() => {
-			toolbar = document.querySelector('[role="group"][aria-label="Table controls"]');
+			toolbar = document.querySelector('[role="toolbar"][aria-label="Table controls"]');
 			expect(toolbar).toBeTruthy();
 		},
 		{ timeout: 3000 },
@@ -373,6 +373,48 @@ describe("Bubble Menu", () => {
 
 		const menu = await waitForBubbleMenu();
 		expect(menu).toBeTruthy();
+	});
+
+	it("is a toolbar whose buttons the arrow keys move between", async () => {
+		const { editor, pm } = await renderEditor();
+		await focusAndSelectAll(editor, pm);
+		const menu = await waitForBubbleMenu();
+		const buttons = [...menu.querySelectorAll<HTMLButtonElement>("button:not([disabled])")].filter(
+			(button) => button.getClientRects().length > 0,
+		);
+		expect(menu.getAttribute("role")).toBe("toolbar");
+		expect(menu.getAttribute("aria-label")).toBe("Format selection");
+		expect(buttons.length).toBeGreaterThan(2);
+
+		buttons[0]!.focus();
+		await userEvent.keyboard("{ArrowRight}");
+		expect(document.activeElement).toBe(buttons[1]);
+		await userEvent.keyboard("{End}");
+		expect(document.activeElement).toBe(buttons.at(-1));
+		await userEvent.keyboard("{ArrowRight}");
+		expect(document.activeElement).toBe(buttons[0]);
+		await userEvent.keyboard("{ArrowLeft}");
+		expect(document.activeElement).toBe(buttons.at(-1));
+		await userEvent.keyboard("{Home}");
+		expect(document.activeElement).toBe(buttons[0]);
+	});
+
+	it("leaves the arrow keys to the link field inside it", async () => {
+		const { editor, pm } = await renderEditor();
+		await focusAndSelectAll(editor, pm);
+		const menu = await waitForBubbleMenu();
+		getBubbleButton(menu, "Add link")!.click();
+		const input = await vi.waitFor(() => {
+			const field = getLinkInput(menu);
+			expect(field).toBeTruthy();
+			return field!;
+		});
+
+		input.focus();
+		await userEvent.keyboard("abc{ArrowLeft}{Home}");
+
+		expect(document.activeElement).toBe(input);
+		expect(input.selectionStart).toBe(0);
 	});
 
 	it("stays hidden for a selection of only the break between two blocks", async () => {
@@ -1006,6 +1048,33 @@ describe("Bubble Menu", () => {
 		await userEvent.keyboard("x");
 
 		expect(editor.getText()).toBe("Click here");
+	});
+
+	it("moves from the link to its actions with the arrow keys", async () => {
+		const { editor, pm } = await renderEditor({
+			value: [
+				{
+					_type: "block" as const,
+					_key: "1",
+					style: "normal" as const,
+					children: [{ _type: "span" as const, _key: "s1", text: "Click here", marks: ["link1"] }],
+					markDefs: [{ _type: "link", _key: "link1", href: "https://example.com" }],
+				},
+			],
+		});
+		pm.focus();
+		editor.commands.setTextSelection(3);
+		const preview = await vi.waitFor(() => {
+			const element = document.querySelector<HTMLElement>("[data-emdash-link-bubble-menu]");
+			expect(element && getBubbleButton(element, "Edit link")).toBeTruthy();
+			return element!;
+		});
+		expect(preview.getAttribute("role")).toBe("toolbar");
+
+		preview.querySelector<HTMLElement>("a[href]")!.focus();
+		await userEvent.keyboard("{ArrowRight}");
+
+		expect(document.activeElement).toBe(getBubbleButton(preview, "Edit link"));
 	});
 
 	it("keeps the caret and the link preview when a link is clicked", async () => {
