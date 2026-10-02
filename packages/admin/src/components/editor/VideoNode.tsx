@@ -2,19 +2,22 @@
  * Video block node for the admin editor.
  *
  * A Media Library video in a rounded player as wide as the text, with a
- * caption under it and Replace and Delete in a pill over its corner.
+ * caption under it and Replace and Delete in a pill over its corner. An empty
+ * block is a dashed placeholder: click it to choose a video, or drop files on it.
  * Round-trips through Portable Text as
- * `{ _type: "video", _key, asset: { _ref, url?, provider? }, caption?, width?, height? }`.
+ * `{ _type: "video", _key, asset?: { _ref, url?, provider? }, caption?, width?, height? }`,
+ * without `asset` while empty.
  * Keep the shape in sync with core's `content/converters/video.ts`.
  */
 
 import { Button } from "@cloudflare/kumo";
 import { useLingui } from "@lingui/react/macro";
-import { ArrowsClockwise, Trash, VideoCameraSlash } from "@phosphor-icons/react";
+import { ArrowsClockwise, Trash, VideoCamera, VideoCameraSlash } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Node, mergeAttributes, type Editor } from "@tiptap/core";
 import type { NodeType } from "@tiptap/pm/model";
 import { NodeSelection } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 import * as React from "react";
@@ -65,12 +68,7 @@ const VIDEO_FIELDS = new Map<string, FieldCheck>([
  * fields, or values of other types, belongs to a plugin.
  */
 export function isVideoBlock(block: unknown): boolean {
-	return (
-		isRecord(block) &&
-		block._type === "video" &&
-		isAsset(block.asset) &&
-		hasOnly(block, VIDEO_FIELDS)
-	);
+	return isRecord(block) && block._type === "video" && hasOnly(block, VIDEO_FIELDS);
 }
 
 /** A video block's node attributes. */
@@ -79,7 +77,7 @@ export function videoNodeAttrs(block: unknown): Record<string, unknown> {
 	const asset = isRecord(record.asset) ? record.asset : {};
 	return {
 		src: isString(asset.url) ? asset.url : "",
-		mediaId: isString(asset._ref) ? asset._ref : "",
+		mediaId: isString(asset._ref) ? asset._ref : null,
 		provider: isString(asset.provider) ? asset.provider : null,
 		caption: isString(record.caption) ? record.caption : "",
 		width: isDimension(record.width) ? record.width : null,
@@ -93,8 +91,10 @@ export function videoBlockFields(attrs: Record<string, unknown>): Record<string,
 	const asset: Record<string, string> = { _ref: isString(mediaId) ? mediaId : "" };
 	if (isString(src) && src) asset.url = src;
 	if (isString(provider) && provider && provider !== "local") asset.provider = provider;
+	// An empty block has no media id, file or provider.
+	const empty = !isString(mediaId) && !asset.url && !asset.provider;
 	return {
-		asset,
+		...(empty ? {} : { asset }),
 		...(isString(caption) && caption ? { caption } : {}),
 		...(isDimension(width) ? { width } : {}),
 		...(isDimension(height) ? { height } : {}),
@@ -112,7 +112,13 @@ export function mediaItemToVideoAttrs(item: MediaItem) {
 	};
 }
 
+/** Whether a video node is empty, still waiting for a video. */
+export function isEmptyVideo(attrs: Record<string, unknown>): boolean {
+	return !attrs.mediaId && !attrs.src;
+}
+
 const STOP = "[data-video-stop]";
+const PLACEHOLDER = "[data-video-placeholder]";
 
 /** Focus the node-selected video's first control, for keyboard users. */
 function focusSelectedVideo(editor: Editor, type: NodeType): boolean {
@@ -123,6 +129,21 @@ function focusSelectedVideo(editor: Editor, type: NodeType): boolean {
 	first?.focus();
 	return first !== null && document.activeElement === first;
 }
+
+/** Open the picker of a node-selected empty video, as clicking it does. */
+function chooseSelectedVideo(editor: Editor, type: NodeType): boolean {
+	const { selection } = editor.state;
+	if (!(selection instanceof NodeSelection) || selection.node.type !== type) return false;
+	if (!isEmptyVideo(selection.node.attrs)) return false;
+	const dom = editor.view.nodeDOM(selection.from);
+	const placeholder =
+		dom instanceof HTMLElement ? dom.querySelector<HTMLElement>(PLACEHOLDER) : null;
+	placeholder?.click();
+	return placeholder !== null;
+}
+
+const isFileDrag = (event: { dataTransfer: DataTransfer | null }) =>
+	Boolean(event.dataTransfer?.types.includes("Files"));
 
 /**
  * Drags and drops go to ProseMirror, so dropped files reach the upload
@@ -178,6 +199,9 @@ function VideoNodeView({
 	const caption = isString(attrs.caption) ? attrs.caption : "";
 	const width = isDimension(attrs.width) ? attrs.width : undefined;
 	const height = isDimension(attrs.height) ? attrs.height : undefined;
+	const empty = isEmptyVideo(attrs);
+	const [dropping, setDropping] = React.useState(false);
+	const dragDepth = React.useRef(0);
 
 	// ProseMirror would take text dragged over or dropped on the caption into the document.
 	React.useEffect(() => {
@@ -192,7 +216,7 @@ function VideoNodeView({
 			textarea.removeEventListener("dragover", keepTextDrag);
 			textarea.removeEventListener("drop", keepTextDrag);
 		};
-	}, [editable]);
+	}, [editable, empty]);
 
 	const selectBlock = (focus: boolean) => {
 		const position = getPos();
@@ -252,6 +276,25 @@ function VideoNodeView({
 		setPickerOpen(true);
 	};
 
+	// Only the highlight: ProseMirror takes the drop, and the upload extension
+	// puts the dropped files in this block's place.
+	const dropHighlight = {
+		onDragEnter: (event: React.DragEvent) => {
+			if (!isFileDrag(event)) return;
+			dragDepth.current += 1;
+			setDropping(true);
+		},
+		onDragLeave: (event: React.DragEvent) => {
+			if (!isFileDrag(event)) return;
+			dragDepth.current = Math.max(0, dragDepth.current - 1);
+			if (dragDepth.current === 0) setDropping(false);
+		},
+		onDrop: () => {
+			dragDepth.current = 0;
+			setDropping(false);
+		},
+	};
+
 	const pillButtonClass = "h-7 w-7 pointer-coarse:h-11 pointer-coarse:w-11";
 
 	return (
@@ -261,107 +304,145 @@ function VideoNodeView({
 				onKeyDownCapture={handleEscape}
 				onKeyDown={handleTab}
 			>
-				<div
-					className={cn(
-						"relative overflow-hidden rounded-lg bg-kumo-recessed",
-						// Shown only while focus is inside this editor, as with images.
-						selected &&
-							"group-focus-within/editor:ring-2 ring-kumo-brand ring-offset-2 ring-offset-kumo-base",
-					)}
-				>
-					<video
-						src={src || undefined}
-						width={width}
-						height={height}
-						controls
-						playsInline
-						preload="metadata"
-						draggable={false}
-						tabIndex={-1}
-						inert={failed || undefined}
-						data-video-stop={failed ? undefined : ""}
-						onError={() => setFailedSrc(src)}
-						className="my-0! block h-auto max-h-[70vh] w-full"
-					/>
-					{failed && (
-						<div
-							dir={chromeDir}
-							className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-kumo-tint text-sm text-kumo-subtle"
-						>
-							<VideoCameraSlash className="size-8" aria-hidden="true" />
-							<p className="m-0!">{t`This video can't be played.`}</p>
-						</div>
-					)}
-				</div>
-
-				{editable ? (
-					// Inline-size containment keeps the placeholder from widening the block.
-					<figcaption className="mt-2 [contain:inline-size]">
-						<textarea
-							ref={captionRef}
-							aria-label={t`Caption`}
-							placeholder={t`Type caption for video (optional)`}
-							rows={1}
-							tabIndex={-1}
-							dir="auto"
-							value={caption}
-							data-video-stop=""
-							onChange={(event) => {
-								if (editor.isEditable) updateAttributes({ caption: event.target.value });
-							}}
-							onFocus={() => selectBlock(false)}
-							onKeyDown={handleCaptionKeyDown}
-							className="block w-full resize-none field-sizing-content rounded-sm bg-transparent text-center text-sm text-kumo-subtle placeholder:text-kumo-placeholder focus:outline-none focus-visible:ring-2 focus-visible:ring-kumo-focus/50"
-						/>
-					</figcaption>
-				) : (
-					caption && (
-						<figcaption className="mt-2 text-center text-sm text-kumo-subtle">{caption}</figcaption>
-					)
-				)}
-
-				{editable && (
+				{empty ? (
 					<div
-						role="group"
-						aria-label={t`Video actions`}
 						dir={chromeDir}
 						className={cn(
-							"absolute end-2 top-2 flex items-center gap-0.5 rounded-md border border-kumo-line bg-kumo-base p-0.5 shadow-sm",
-							// Invisible, not only transparent, so a tap on the player can't hit a hidden button.
-							"invisible opacity-0 motion-safe:transition-[opacity,visibility] motion-safe:duration-150",
-							"group-hover/video:visible group-hover/video:opacity-100 group-focus-within/video:visible group-focus-within/video:opacity-100",
-							selected && "visible opacity-100",
+							"rounded-lg border border-dashed border-kumo-line bg-kumo-control motion-safe:transition-colors",
+							// Important, because the admin's unlayered `*` border color beats utilities.
+							dropping && "border-kumo-brand! bg-kumo-tint",
+							selected &&
+								"group-focus-within/editor:ring-2 ring-kumo-brand ring-offset-2 ring-offset-kumo-base",
 						)}
+						{...(editable ? dropHighlight : {})}
 					>
-						<Button
-							type="button"
-							variant="ghost"
-							shape="square"
-							size="sm"
-							className={pillButtonClass}
-							aria-label={t`Replace video`}
-							title={t`Replace video`}
-							tabIndex={-1}
-							data-video-stop=""
-							onClick={openPicker}
-						>
-							<ArrowsClockwise className="size-4" aria-hidden="true" />
-						</Button>
-						<Button
-							type="button"
-							variant="ghost"
-							shape="square"
-							size="sm"
-							className={pillButtonClass}
-							aria-label={t`Delete video`}
-							title={t`Delete video`}
-							tabIndex={-1}
-							data-video-stop=""
-							onClick={removeBlock}
-						>
-							<Trash className="size-4" aria-hidden="true" />
-						</Button>
+						{editable ? (
+							<Button
+								type="button"
+								variant="ghost"
+								tabIndex={-1}
+								data-video-stop=""
+								data-video-placeholder=""
+								className="h-auto w-full justify-start gap-3 rounded-[7px] px-4 py-3 text-start text-sm font-normal text-kumo-subtle"
+								onClick={openPicker}
+							>
+								<VideoCamera className="size-5 shrink-0" aria-hidden="true" />
+								{dropping ? t`Drop to upload` : t`Upload or choose a video`}
+							</Button>
+						) : (
+							<p className="m-0! flex items-center gap-3 px-4 py-3 text-sm text-kumo-subtle">
+								<VideoCamera className="size-5 shrink-0" aria-hidden="true" />
+								{t`No video`}
+							</p>
+						)}
 					</div>
+				) : (
+					<>
+						<div
+							className={cn(
+								"relative overflow-hidden rounded-lg bg-kumo-recessed",
+								// Shown only while focus is inside this editor, as with images.
+								selected &&
+									"group-focus-within/editor:ring-2 ring-kumo-brand ring-offset-2 ring-offset-kumo-base",
+							)}
+						>
+							<video
+								src={src || undefined}
+								width={width}
+								height={height}
+								controls
+								playsInline
+								preload="metadata"
+								draggable={false}
+								tabIndex={-1}
+								inert={failed || undefined}
+								data-video-stop={failed ? undefined : ""}
+								onError={() => setFailedSrc(src)}
+								className="my-0! block h-auto max-h-[70vh] w-full"
+							/>
+							{failed && (
+								<div
+									dir={chromeDir}
+									className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-kumo-tint text-sm text-kumo-subtle"
+								>
+									<VideoCameraSlash className="size-8" aria-hidden="true" />
+									<p className="m-0!">{t`This video can't be played.`}</p>
+								</div>
+							)}
+						</div>
+
+						{editable ? (
+							// Inline-size containment keeps the placeholder from widening the block.
+							<figcaption className="mt-2 [contain:inline-size]">
+								<textarea
+									ref={captionRef}
+									aria-label={t`Caption`}
+									placeholder={t`Type caption for video (optional)`}
+									rows={1}
+									tabIndex={-1}
+									dir="auto"
+									value={caption}
+									data-video-stop=""
+									onChange={(event) => {
+										if (editor.isEditable) updateAttributes({ caption: event.target.value });
+									}}
+									onFocus={() => selectBlock(false)}
+									onKeyDown={handleCaptionKeyDown}
+									className="block w-full resize-none field-sizing-content rounded-sm bg-transparent text-center text-sm text-kumo-subtle placeholder:text-kumo-placeholder focus:outline-none focus-visible:ring-2 focus-visible:ring-kumo-focus/50"
+								/>
+							</figcaption>
+						) : (
+							caption && (
+								<figcaption className="mt-2 text-center text-sm text-kumo-subtle">
+									{caption}
+								</figcaption>
+							)
+						)}
+
+						{editable && (
+							<div
+								role="group"
+								aria-label={t`Video actions`}
+								dir={chromeDir}
+								className={cn(
+									"absolute end-2 top-2 flex items-center gap-0.5 rounded-md border border-kumo-line bg-kumo-base p-0.5 shadow-sm",
+									// Invisible, not only transparent, so a tap on the player can't hit a hidden button.
+									"invisible opacity-0 motion-safe:transition-[opacity,visibility] motion-safe:duration-150",
+									"group-hover/video:visible group-hover/video:opacity-100 group-focus-within/video:visible group-focus-within/video:opacity-100",
+									selected && "visible opacity-100",
+								)}
+							>
+								<Button
+									type="button"
+									variant="ghost"
+									shape="square"
+									size="sm"
+									className={pillButtonClass}
+									aria-label={t`Replace video`}
+									title={t`Replace video`}
+									tabIndex={-1}
+									data-video-stop=""
+									onClick={openPicker}
+								>
+									<ArrowsClockwise className="size-4" aria-hidden="true" />
+								</Button>
+								<Button
+									type="button"
+									variant="ghost"
+									shape="square"
+									size="sm"
+									className={pillButtonClass}
+									aria-label={t`Delete video`}
+									title={t`Delete video`}
+									tabIndex={-1}
+									data-video-stop=""
+									onClick={removeBlock}
+								>
+									<Trash className="size-4" aria-hidden="true" />
+								</Button>
+							</div>
+						)}
+					</>
 				)}
 			</figure>
 
@@ -372,12 +453,14 @@ function VideoNodeView({
 					onSelect={(item) => {
 						if (editor.isEditable) updateAttributes(mediaItemToVideoAttrs(item));
 						setPickerOpen(false);
+						// The placeholder that opened the picker is gone, so the editor takes focus.
+						if (empty) selectBlock(true);
 					}}
 					mimeTypeFilter="video/"
 					mediaKind="video"
 					localOnly
-					title={t`Replace video`}
-					confirmLabel={t`Replace`}
+					title={empty ? t`Select video` : t`Replace video`}
+					confirmLabel={empty ? t`Insert video` : t`Replace`}
 				/>
 			)}
 		</NodeViewWrapper>
@@ -424,7 +507,7 @@ export const VideoExtension = Node.create({
 	addAttributes() {
 		return {
 			src: textAttribute("src", "src", ""),
-			mediaId: textAttribute("mediaId", "media-id", ""),
+			mediaId: textAttribute("mediaId", "media-id", null),
 			provider: textAttribute("provider", "provider", null),
 			caption: textAttribute("caption", "caption", ""),
 			width: numberAttribute("width"),
@@ -440,6 +523,17 @@ export const VideoExtension = Node.create({
 		return ["figure", mergeAttributes(HTMLAttributes, { "data-video-block": "" })];
 	},
 
+	// Files dropped on an empty block replace it, so no insertion line is drawn over it.
+	extendNodeSchema(extension) {
+		if (extension.name !== "videoBlock") return {};
+		return {
+			disableDropCursor: (view: EditorView, pos: { inside: number }, event: DragEvent) => {
+				const node = view.state.doc.nodeAt(pos.inside);
+				return isFileDrag(event) && node !== null && isEmptyVideo(node.attrs);
+			},
+		};
+	},
+
 	addNodeView() {
 		return ReactNodeViewRenderer(VideoNodeView, { stopEvent });
 	},
@@ -447,6 +541,7 @@ export const VideoExtension = Node.create({
 	addKeyboardShortcuts() {
 		return {
 			Tab: ({ editor }) => focusSelectedVideo(editor, this.type),
+			Enter: ({ editor }) => chooseSelectedVideo(editor, this.type),
 		};
 	},
 });

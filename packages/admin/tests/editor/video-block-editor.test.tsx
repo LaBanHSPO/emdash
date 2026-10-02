@@ -1,7 +1,7 @@
 /**
- * Video block editing through the full editor: inserting from /video, the
- * caption, the Replace and Delete actions, keyboard order, the broken state,
- * the clipboard, plugin video blocks, and conversion.
+ * Video block editing through the full editor: adding an empty block from
+ * /video and filling it, the caption, the Replace and Delete actions, keyboard
+ * order, the broken state, the clipboard, plugin video blocks, and conversion.
  */
 
 import { NodeSelection } from "@tiptap/pm/state";
@@ -48,6 +48,9 @@ vi.mock("../../src/components/MediaPickerModal", async () => {
 								}}
 							>
 								Choose video
+							</button>
+							<button type="button" onClick={() => onOpenChange(false)}>
+								Cancel
 							</button>
 						</div>,
 						document.body,
@@ -207,7 +210,7 @@ function selectedNodeName(editor: Editor): string | null {
 }
 
 describe("Video block editor", () => {
-	it("inserts a video from /video, selected and focused", async () => {
+	it("adds an empty block from /video, then fills it from the picker on Enter", async () => {
 		picker.item = mediaItem("01VIDEO", playableUrl);
 		const { screen, editor, pm, latest } = await renderEditor({ value: [INTRO] });
 
@@ -217,6 +220,17 @@ describe("Video block editor", () => {
 		await vi.waitFor(() =>
 			expect(document.querySelector("[data-slash-command-menu]")).toBeTruthy(),
 		);
+		await userEvent.keyboard("{Enter}");
+
+		await expect
+			.element(screen.getByRole("button", { name: "Upload or choose a video" }))
+			.toBeVisible();
+		await vi.waitFor(() =>
+			expect(videos(latest())).toEqual([{ _type: "video", _key: expect.any(String) }]),
+		);
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+		expect(selectedNodeName(editor)).toBe("videoBlock");
+
 		await userEvent.keyboard("{Enter}");
 		await userEvent.click(screen.getByRole("button", { name: "Choose video" }));
 
@@ -234,6 +248,57 @@ describe("Video block editor", () => {
 		expect(player().getAttribute("src")).toBe(playableUrl);
 		expect(selectedNodeName(editor)).toBe("videoBlock");
 		expect(document.activeElement).toBe(pm);
+	});
+
+	it("opens the picker when an empty block is clicked, and stays empty when it's cancelled", async () => {
+		const empty: Block = { _type: "video", _key: "video1" };
+		const { screen, editor, latest } = await renderEditor({ value: [INTRO, empty] });
+
+		await userEvent.click(screen.getByRole("button", { name: "Upload or choose a video" }));
+		await expect.element(screen.getByRole("dialog", { name: "Select video" })).toBeVisible();
+		await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+		expect(selectedNodeName(editor)).toBe("videoBlock");
+		expect(videos(latest())).toEqual([empty]);
+	});
+
+	it("highlights an empty block under dragged files, without an insertion line", async () => {
+		const { screen } = await renderEditor({ value: [INTRO, { _type: "video", _key: "video1" }] });
+		const placeholder = screen.getByRole("button", { name: "Upload or choose a video" }).element();
+		const dataTransfer = new DataTransfer();
+		dataTransfer.items.add(videoFile("demo.webm"));
+		const rect = placeholder.getBoundingClientRect();
+		const drag = (type: string) =>
+			placeholder.dispatchEvent(
+				new DragEvent(type, {
+					bubbles: true,
+					cancelable: true,
+					dataTransfer,
+					clientX: rect.left + rect.width / 2,
+					clientY: rect.top + rect.height / 2,
+				}),
+			);
+
+		drag("dragenter");
+		drag("dragover");
+
+		await expect.element(screen.getByRole("button", { name: "Drop to upload" })).toBeVisible();
+		expect(document.querySelector(".prosemirror-dropcursor-block")).toBeNull();
+		drag("dragleave");
+		await expect
+			.element(screen.getByRole("button", { name: "Upload or choose a video" }))
+			.toBeVisible();
+	});
+
+	it("shows an empty block as a plain box in a read-only entry", async () => {
+		const { screen } = await renderEditor({
+			value: [{ _type: "video", _key: "video1" }],
+			editable: false,
+		});
+
+		await expect.element(screen.getByText("No video")).toBeVisible();
+		expect(document.querySelector(".ProseMirror figure button")).toBeNull();
 	});
 
 	it("saves a caption and keeps writing below it on Enter", async () => {
@@ -362,20 +427,21 @@ describe("Video block editor", () => {
 		expect(player().getAttribute("src")).toBe("/_emdash/api/media/file/01GONE.mp4");
 	});
 
-	it("keeps its messages out of the direction the editor reads from the text", async () => {
+	it.each([
+		[
+			"This video can't be played.",
+			videoBlock({ asset: { _ref: "01GONE", url: "/_emdash/api/media/file/01GONE.mp4" } }),
+		],
+		["Upload or choose a video", { _type: "video", _key: "video1" }],
+	])("keeps %s out of the direction the editor reads from the text", async (message, block) => {
 		const arabic: Block = {
 			...INTRO,
 			_key: "arabic",
 			children: [{ _type: "span", _key: "arabic-span", text: "مرحبا بالعالم", marks: [] }],
 		};
-		const { screen, pm } = await renderEditor({
-			value: [
-				videoBlock({ asset: { _ref: "01GONE", url: "/_emdash/api/media/file/01GONE.mp4" } }),
-				arabic,
-			],
-		});
+		const { screen, pm } = await renderEditor({ value: [block, arabic] });
 
-		await expect.element(screen.getByText("This video can't be played.")).toBeVisible();
+		await expect.element(screen.getByText(message)).toBeVisible();
 		expect(getComputedStyle(pm).direction).toBe("rtl");
 	});
 
@@ -480,17 +546,25 @@ describe("Video block conversion", () => {
 			asset: { _ref: "uid42", provider: "cloudflare-stream" },
 		});
 		const minimal = videoBlock({ _key: "video2", asset: { _ref: "01VIDEO" } });
+		const empty: Block = { _type: "video", _key: "video3" };
 		const plugin = videoBlock({ _key: "plugin1", autoplay: true });
 		const pluginSize = videoBlock({ _key: "plugin2", width: "100%" });
 
-		const pm = portableTextToProsemirror([native, minimal, plugin, pluginSize]);
+		const pm = portableTextToProsemirror([native, minimal, empty, plugin, pluginSize]);
 
 		expect(pm.content?.map((node) => (node as { type: string }).type)).toEqual([
+			"videoBlock",
 			"videoBlock",
 			"videoBlock",
 			"pluginBlock",
 			"pluginBlock",
 		]);
-		expect(prosemirrorToPortableText(pm)).toStrictEqual([native, minimal, plugin, pluginSize]);
+		expect(prosemirrorToPortableText(pm)).toStrictEqual([
+			native,
+			minimal,
+			empty,
+			plugin,
+			pluginSize,
+		]);
 	});
 });

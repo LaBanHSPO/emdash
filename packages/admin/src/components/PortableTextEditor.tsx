@@ -3107,8 +3107,6 @@ export function PortableTextEditor({
 	// Multi-select media picker state (for gallery insertion)
 	const [galleryPickerOpen, setGalleryPickerOpen] = React.useState(false);
 
-	// Media picker state (for video insertion)
-	const [videoPickerOpen, setVideoPickerOpen] = React.useState(false);
 	const [conversionErrorMarks, setConversionErrorMarks] = React.useState<string[]>([]);
 	const [conversionTableError, setConversionTableError] =
 		React.useState<UnsafePortableTextTableError | null>(null);
@@ -3276,11 +3274,8 @@ export function PortableTextEditor({
 				icon: VideoCamera,
 				aliases: ["movie", "clip", "mp4", "film"],
 				category: msg`Media`,
-				deferInsertion: true,
-				command: ({ editor, range }) => {
-					editor.chain().focus().deleteRange(range).run();
-					setVideoPickerOpen(true);
-				},
+				command: ({ editor, range }) =>
+					insertTopLevelBlock(editor, editor.schema.nodes.videoBlock!.create(), range),
 			});
 		}
 
@@ -3807,26 +3802,6 @@ export function PortableTextEditor({
 		[editor],
 	);
 
-	// Handle video selection from media picker
-	const handleVideoSelect = React.useCallback(
-		(item: MediaItem) => {
-			if (editor) {
-				const video = editor.schema.nodes.videoBlock!.create(mediaItemToVideoAttrs(item));
-				insertTopLevelBlock(
-					editor,
-					video,
-					undefined,
-					pendingBlockInsertPosRef.current ?? undefined,
-				);
-				// The picker held focus, so the ring and Tab need the editor focused again.
-				editor.view.focus();
-			}
-			pendingBlockInsertPosRef.current = null;
-			setVideoPickerOpen(false);
-		},
-		[editor],
-	);
-
 	// Handle gallery insertion from the multi-select media picker
 	const handleGallerySelect = React.useCallback(
 		(items: MediaItem[]) => {
@@ -4194,21 +4169,6 @@ export function PortableTextEditor({
 					mimeTypeFilter="image/"
 					title={t`Select image`}
 					confirmLabel={t`Insert image`}
-				/>
-
-				{/* Media picker for video insertion */}
-				<MediaPickerModal
-					open={videoPickerOpen}
-					onOpenChange={(open) => {
-						setVideoPickerOpen(open);
-						if (!open) pendingBlockInsertPosRef.current = null;
-					}}
-					onSelect={handleVideoSelect}
-					mimeTypeFilter="video/"
-					mediaKind="video"
-					localOnly
-					title={t`Select video`}
-					confirmLabel={t`Insert video`}
 				/>
 
 				{/* Multi-select media picker for gallery insertion */}

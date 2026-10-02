@@ -3,7 +3,7 @@ import { i18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Extension } from "@tiptap/core";
 import type { Node } from "@tiptap/pm/model";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { NodeSelection, Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -11,6 +11,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { createUploadPreviewUrl } from "../../lib/media-utils.js";
 import { matchesMimeAllowlist } from "../../lib/mime-utils.js";
 import { getMutationError } from "../DialogError.js";
+import { isEmptyVideo } from "./VideoNode.js";
 
 export interface ImageUploadOptions {
 	/** Uploads a file and resolves to the attributes of the image or video node to insert. */
@@ -136,6 +137,13 @@ function blockBoundary(doc: Node, pos: number) {
 	return pos <= ($pos.start(1) + $pos.end(1)) / 2 ? $pos.before(1) : $pos.after(1);
 }
 
+/** The range of the empty video block at `pos`, which files dropped or pasted on it replace. */
+function emptyVideoAt(doc: Node, pos: number) {
+	const node = pos >= 0 ? doc.nodeAt(pos) : null;
+	if (node?.type.name !== "videoBlock" || !isEmptyVideo(node.attrs)) return undefined;
+	return { from: pos, to: pos + node.nodeSize };
+}
+
 function hasText(html: string) {
 	return Boolean(new DOMParser().parseFromString(html, "text/html").body.textContent?.trim());
 }
@@ -223,15 +231,29 @@ export const ImageUploadExtension = Extension.create<ImageUploadOptions, ImageUp
 			releasePreview(id);
 		};
 
-		const start = (view: EditorView, files: File[], dropPos: number) => {
-			const pos = blockBoundary(view.state.doc, dropPos);
-			const uploads = files.flatMap((file) => {
+		const start = (
+			view: EditorView,
+			files: File[],
+			dropPos: number,
+			emptyVideo?: { from: number; to: number },
+		) => {
+			const media = files.flatMap((file) => {
 				const kind = kindOf(view, file);
-				if (!kind) return [];
+				return kind ? [{ file, kind }] : [];
+			});
+			const tr = view.state.tr;
+			let pos: number;
+			if (emptyVideo && media.length > 0) {
+				tr.delete(emptyVideo.from, emptyVideo.to);
+				pos = emptyVideo.from;
+			} else {
+				pos = blockBoundary(view.state.doc, dropPos);
+			}
+			const uploads = media.map(({ file, kind }) => {
 				const id = ++nextId;
 				const previewUrl = kind === "image" ? createUploadPreviewUrl(file) : undefined;
 				if (previewUrl) previewUrls.set(id, previewUrl);
-				return [{ file, kind, placeholder: { id, pos, kind, previewUrl } }];
+				return { file, kind, placeholder: { id, pos, kind, previewUrl } };
 			});
 			const placeholders: Placeholder[] = uploads.map(({ placeholder }) => placeholder);
 			if (uploads.length < files.length) {
@@ -243,7 +265,7 @@ export const ImageUploadExtension = Extension.create<ImageUploadOptions, ImageUp
 						: i18n._(msg`Only image files can be uploaded here.`),
 				});
 			}
-			dispatchMeta(view, { add: placeholders });
+			view.dispatch(tr.setMeta(imageUploadKey, { add: placeholders } satisfies PlaceholderMeta));
 
 			void (async () => {
 				for (const { file, kind, placeholder } of uploads) {
@@ -304,7 +326,7 @@ export const ImageUploadExtension = Extension.create<ImageUploadOptions, ImageUp
 						const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
 						if (!coords) return false;
 						event.preventDefault();
-						start(view, files, coords.pos);
+						start(view, files, coords.pos, emptyVideoAt(view.state.doc, coords.inside));
 						return true;
 					},
 					handlePaste(view, event) {
@@ -315,7 +337,12 @@ export const ImageUploadExtension = Extension.create<ImageUploadOptions, ImageUp
 						const html = data.getData("text/html");
 						if (html && hasText(html)) return false;
 						event.preventDefault();
-						start(view, [...data.files], view.state.selection.from);
+						const { selection } = view.state;
+						const emptyVideo =
+							selection instanceof NodeSelection
+								? emptyVideoAt(view.state.doc, selection.from)
+								: undefined;
+						start(view, [...data.files], selection.from, emptyVideo);
 						return true;
 					},
 				},
