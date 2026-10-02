@@ -19,8 +19,12 @@ function review(
 	};
 }
 
-function commit(committedAt: string, parentCount = 1): PullRequestCommit {
-	return { committedAt, parentCount };
+function commit(
+	committedAt: string,
+	parentCount = 1,
+	authoredAt: string = committedAt,
+): PullRequestCommit {
+	return { authoredAt, committedAt, parentCount };
 }
 
 const bot = { login: "emdashbot[bot]", type: "Bot" };
@@ -91,6 +95,31 @@ describe("decideReviewState", () => {
 				commit("2026-09-14T11:00:00Z", 2),
 			]),
 		).toBe("review/approved");
+	});
+
+	test("a rebase with an unchanged net diff and old author dates stays reviewed", () => {
+		const reviews = [review("APPROVED", "2026-09-14T10:00:00Z", maintainer)];
+		const rebased = [commit("2026-09-30T11:00:00Z", 1, "2026-09-14T09:00:00Z")];
+		expect(decideReviewState("contributor", reviews, rebased, "unchanged")).toBe("review/approved");
+	});
+
+	test("a rebase with a changed net diff or an incomparable diff still flips", () => {
+		const reviews = [review("APPROVED", "2026-09-14T10:00:00Z", maintainer)];
+		const rebased = [commit("2026-09-30T11:00:00Z", 1, "2026-09-14T09:00:00Z")];
+		expect(decideReviewState("contributor", reviews, rebased, "changed")).toBe(
+			"review/needs-rereview",
+		);
+		expect(decideReviewState("contributor", reviews, rebased, "incomparable")).toBe(
+			"review/needs-rereview",
+		);
+	});
+
+	test("new work authored after the review keeps the needs-rereview state", () => {
+		const reviews = [review("APPROVED", "2026-09-14T10:00:00Z", maintainer)];
+		const rebasedWithNewWork = [commit("2026-09-30T11:00:00Z", 1, "2026-09-15T09:00:00Z")];
+		expect(decideReviewState("contributor", reviews, rebasedWithNewWork, "unchanged")).toBe(
+			"review/needs-rereview",
+		);
 	});
 
 	test("an approval stands through a later comment, not through requested changes", () => {

@@ -1037,6 +1037,7 @@ export async function listPullRequestReviews(
 }
 
 export interface PullRequestCommit {
+	readonly authoredAt: string | null;
 	readonly committedAt: string | null;
 	readonly parentCount: number;
 }
@@ -1049,10 +1050,156 @@ export async function listPullRequestCommits(
 ): Promise<PullRequestCommit[]> {
 	const commits = await listPullRequestPages<{
 		parents?: unknown[];
-		commit?: { committer?: { date?: string | null } | null };
+		commit?: {
+			author?: { date?: string | null } | null;
+			committer?: { date?: string | null } | null;
+		} | null;
 	}>(token, ctx, prNumber, "commits", signal);
 	return commits.map((commit) => ({
+		authoredAt: commit.commit?.author?.date ?? null,
 		committedAt: commit.commit?.committer?.date ?? null,
 		parentCount: commit.parents?.length ?? 0,
 	}));
+}
+
+export interface FirstForcePushInfo {
+	readonly baseRef: string;
+	readonly currentHead: string;
+	readonly beforeHead: string;
+}
+
+const FORCE_PUSH_TIMELINE_QUERY = `query EmDashForcePushEvents($owner: String!, $repo: String!, $number: Int!) {
+	repository(owner: $owner, name: $repo) {
+		pullRequest(number: $number) {
+			baseRefName
+			headRefOid
+			timelineItems(itemTypes: [HEAD_REF_FORCE_PUSHED_EVENT], first: 100) {
+				nodes {
+					... on HeadRefForcePushedEvent {
+						createdAt
+						beforeCommit { oid }
+						afterCommit { oid }
+					}
+				}
+			}
+		}
+	}
+}`;
+
+export async function getFirstForcePushBeforeHead(
+	token: GitHubToken,
+	ctx: RepoContext,
+	prNumber: number,
+	reviewTime: number,
+	signal?: AbortSignal,
+): Promise<FirstForcePushInfo | null> {
+	const response = await coordinatedFetch(token, `${GITHUB_API}/graphql`, {
+		method: "POST",
+		headers: authHeaders(token, { "content-type": "application/json" }),
+		body: JSON.stringify({
+			query: FORCE_PUSH_TIMELINE_QUERY,
+			variables: { owner: ctx.owner, repo: ctx.repo, number: prNumber },
+		}),
+		signal,
+	});
+	if (!response.ok) throw new Error(`getFirstForcePushBeforeHead failed: ${response.status}`);
+	const payload = await response.json<{
+		data?: {
+			repository?: {
+				pullRequest?: {
+					baseRefName?: string;
+					headRefOid?: string;
+					timelineItems?: {
+						nodes?: Array<{
+							createdAt?: string;
+							beforeCommit?: { oid?: string };
+							afterCommit?: { oid?: string };
+						}>;
+					};
+				};
+			};
+		};
+		errors?: Array<{ message?: string }>;
+	}>();
+	if (payload.errors?.length) throw new Error("getFirstForcePushBeforeHead GraphQL query failed");
+	const pull = payload.data?.repository?.pullRequest;
+	if (!pull?.baseRefName || !pull.headRefOid) return null;
+	for (const event of pull.timelineItems?.nodes ?? []) {
+		const createdAt = event.createdAt ? Date.parse(event.createdAt) : NaN;
+		if (Number.isFinite(createdAt) && createdAt > reviewTime && event.beforeCommit?.oid) {
+			return {
+				baseRef: pull.baseRefName,
+				currentHead: pull.headRefOid,
+				beforeHead: event.beforeCommit.oid,
+			};
+		}
+	}
+	return null;
+}
+
+export type NetDiffComparisonResult = "unchanged" | "changed" | "incomparable";
+
+interface NetDiffFile {
+	filename: string;
+	previous_filename?: string | null;
+	status: string;
+	additions: number;
+	deletions: number;
+	changes: number;
+}
+
+function netDiffKey(file: NetDiffFile): string {
+	if (file.status === "renamed" && file.previous_filename) {
+		return `${file.previous_filename}\0${file.filename}`;
+	}
+	return file.filename;
+}
+
+function normalizeNetDiff(files: NetDiffFile[]): string {
+	const normalized = files.map((file) => ({
+		key: netDiffKey(file),
+		status: file.status,
+		additions: file.additions,
+		deletions: file.deletions,
+		changes: file.changes,
+	}));
+	normalized.sort((left, right) => left.key.localeCompare(right.key));
+	return JSON.stringify(normalized);
+}
+
+async function listCompareFiles(
+	token: GitHubToken,
+	ctx: RepoContext,
+	baseRef: string,
+	head: string,
+	signal?: AbortSignal,
+): Promise<NetDiffFile[] | null> {
+	const files: NetDiffFile[] = [];
+	for (let page = 1; ; page += 1) {
+		const encodedBase = encodeURIComponent(baseRef);
+		const url = `${GITHUB_API}/repos/${ctx.owner}/${ctx.repo}/compare/${encodedBase}...${head}?per_page=100&page=${page}`;
+		const response = await coordinatedFetch(token, url, { headers: authHeaders(token), signal });
+		if (response.status === 404) return null;
+		if (!response.ok) throw new Error(`listCompareFiles failed: ${response.status}`);
+		const json = await response.json<{ files?: NetDiffFile[] }>();
+		const pageFiles = json.files ?? [];
+		files.push(...pageFiles);
+		if (pageFiles.length < 100) return files;
+	}
+}
+
+export async function comparePullRequestNetDiff(
+	token: GitHubToken,
+	ctx: RepoContext,
+	baseRef: string,
+	oldHead: string,
+	newHead: string,
+	signal?: AbortSignal,
+): Promise<NetDiffComparisonResult> {
+	const [oldFiles, newFiles] = await Promise.all([
+		listCompareFiles(token, ctx, baseRef, oldHead, signal),
+		listCompareFiles(token, ctx, baseRef, newHead, signal),
+	]);
+	if (oldFiles === null || newFiles === null) return "incomparable";
+	return normalizeNetDiff(oldFiles) === normalizeNetDiff(newFiles) ? "unchanged" : "changed";
 }

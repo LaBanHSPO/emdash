@@ -6,10 +6,13 @@
 
 import {
 	addLabels,
+	comparePullRequestNetDiff,
+	getFirstForcePushBeforeHead,
 	getIssueLabels,
 	listPullRequestCommits,
 	listPullRequestReviews,
 	removeLabel,
+	type NetDiffComparisonResult,
 	type PullRequestCommit,
 	type PullRequestReview,
 	type RepoContext,
@@ -35,6 +38,21 @@ const COUNTED_REVIEW_STATES: ReadonlySet<string> = new Set([
 
 type SubmittedReview = PullRequestReview & { readonly submittedAt: string };
 
+function qualifyReviews(
+	authorLogin: string,
+	reviews: readonly PullRequestReview[],
+): SubmittedReview[] {
+	return reviews.filter(
+		(review): review is SubmittedReview =>
+			review.submittedAt !== null &&
+			review.authorLogin !== null &&
+			review.authorLogin !== authorLogin &&
+			(REVIEWER_BOTS.has(review.authorLogin) ||
+				REVIEWER_ASSOCIATIONS.has(review.authorAssociation ?? "")) &&
+			COUNTED_REVIEW_STATES.has(review.state),
+	);
+}
+
 function latest(reviews: readonly SubmittedReview[]): SubmittedReview | null {
 	let found: SubmittedReview | null = null;
 	for (const review of reviews) {
@@ -47,16 +65,9 @@ export function decideReviewState(
 	authorLogin: string,
 	reviews: readonly PullRequestReview[],
 	commits: readonly PullRequestCommit[],
+	forcePushDiffResult?: NetDiffComparisonResult | null,
 ): ReviewStateLabel {
-	const counted = reviews.filter(
-		(review): review is SubmittedReview =>
-			review.submittedAt !== null &&
-			review.authorLogin !== null &&
-			review.authorLogin !== authorLogin &&
-			(REVIEWER_BOTS.has(review.authorLogin) ||
-				REVIEWER_ASSOCIATIONS.has(review.authorAssociation ?? "")) &&
-			COUNTED_REVIEW_STATES.has(review.state),
-	);
+	const counted = qualifyReviews(authorLogin, reviews);
 	const lastReview = latest(counted);
 	if (!lastReview) return "review/needs-review";
 
@@ -67,8 +78,19 @@ export function decideReviewState(
 		const committedAt = Date.parse(commit.committedAt);
 		if (lastCommitAt === null || committedAt > lastCommitAt) lastCommitAt = committedAt;
 	}
-	if (lastCommitAt !== null && lastCommitAt > Date.parse(lastReview.submittedAt)) {
-		return "review/needs-rereview";
+	const reviewTime = Date.parse(lastReview.submittedAt);
+	if (lastCommitAt !== null && lastCommitAt > reviewTime) {
+		if (forcePushDiffResult === "unchanged") {
+			// A pure rebase leaves the author dates untouched. A commit authored
+			// after the review is new work that survives even when line counts match.
+			const hasNewAuthorDate = commits.some(
+				(commit) => commit.authoredAt !== null && Date.parse(commit.authoredAt) > reviewTime,
+			);
+			if (hasNewAuthorDate) return "review/needs-rereview";
+			// fall through to the reviewed state below
+		} else {
+			return "review/needs-rereview";
+		}
 	}
 
 	const lastDecision = latest(counted.filter((review) => review.state !== "COMMENTED"));
@@ -94,7 +116,34 @@ export async function syncReviewStateLabel(
 			listPullRequestReviews(token, ctx, number, signal),
 			listPullRequestCommits(token, ctx, number, signal),
 		]);
-		desired = decideReviewState(target.authorLogin, reviews, commits);
+
+		let forcePushDiffResult: NetDiffComparisonResult | null = null;
+		const counted = qualifyReviews(target.authorLogin, reviews);
+		const lastReview = latest(counted);
+		if (lastReview) {
+			const reviewTime = Date.parse(lastReview.submittedAt);
+			const hasNewCommit = commits.some(
+				(commit) =>
+					commit.parentCount <= 1 &&
+					commit.committedAt !== null &&
+					Date.parse(commit.committedAt) > reviewTime,
+			);
+			if (hasNewCommit) {
+				const forcePush = await getFirstForcePushBeforeHead(token, ctx, number, reviewTime, signal);
+				if (forcePush) {
+					forcePushDiffResult = await comparePullRequestNetDiff(
+						token,
+						ctx,
+						forcePush.baseRef,
+						forcePush.beforeHead,
+						forcePush.currentHead,
+						signal,
+					);
+				}
+			}
+		}
+
+		desired = decideReviewState(target.authorLogin, reviews, commits, forcePushDiffResult);
 	}
 	const current = await getIssueLabels(token, ctx, number, signal);
 	if (desired && !current.includes(desired)) await addLabels(token, ctx, number, [desired], signal);
