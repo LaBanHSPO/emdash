@@ -13,10 +13,14 @@ import * as React from "react";
 import { cn } from "../../lib/utils.js";
 import { CaretNext } from "../ArrowIcons.js";
 
+/** The surface of the editor's floating menus and toolbars. */
+export const editorSurfaceClassName =
+	"rounded-[10px] bg-kumo-control shadow-lg ring ring-kumo-line";
+
 export const editorMenuPopupClassName = cn(
 	"min-w-56 max-h-[min(26rem,var(--available-height))] overflow-y-auto overscroll-contain",
-	"rounded-[10px] bg-kumo-control p-1 text-base text-kumo-default outline-none",
-	"shadow-lg ring ring-kumo-line",
+	editorSurfaceClassName,
+	"p-1 text-base text-kumo-default outline-none",
 	"origin-(--transform-origin) transition-[scale,opacity] duration-100 ease-out",
 	"data-starting-style:scale-[0.97] data-starting-style:opacity-0",
 	"data-ending-style:opacity-0 data-ending-style:duration-75",

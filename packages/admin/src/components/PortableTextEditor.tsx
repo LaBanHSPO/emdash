@@ -175,6 +175,7 @@ import {
 	EditorMenuRadioItem,
 	EditorMenuSeparator,
 	editorMenuPopupClassName,
+	editorSurfaceClassName,
 	tabToEditor,
 } from "./editor/EditorMenu.js";
 import { TopBlockDocument } from "./editor/EmbedBlockShell";
@@ -219,6 +220,8 @@ import { createTableResize } from "./editor/TableResize.js";
 import { MediaPickerModal } from "./MediaPickerModal";
 import { NonListFieldValue, isNonListValue } from "./NonListFieldValue.js";
 import { SectionPickerModal } from "./SectionPickerModal";
+
+const bubbleMenuClassName = cn("z-[100] flex items-center gap-0.5 p-1", editorSurfaceClassName);
 
 const INLINE_BUBBLE_MENU_KEY = "emdashInlineBubbleMenu";
 const TABLE_BUBBLE_MENU_KEY = "emdashTableBubbleMenu";
@@ -2410,8 +2413,8 @@ function SlashCommandMenu({
 						className={cn(
 							"flex max-h-[min(21rem,var(--available-height))] flex-col overflow-hidden",
 							state.mode === "table-size" ? "w-auto" : "w-80 max-w-[calc(100vw-1rem)]",
-							"rounded-[10px] bg-kumo-control text-base text-kumo-default",
-							"shadow-lg ring ring-kumo-line",
+							editorSurfaceClassName,
+							"text-base text-kumo-default",
 							"origin-(--transform-origin) transition-[transform,scale,opacity] duration-100 ease-out",
 							"data-starting-style:scale-[0.97] data-starting-style:opacity-0",
 							"data-ending-style:opacity-0 data-ending-style:duration-75 data-instant:duration-0",
@@ -4769,7 +4772,7 @@ function EditorBubbleMenu({
 					);
 				}}
 				data-emdash-inline-bubble-menu
-				className="z-[100] flex items-center gap-0.5 rounded-[10px] bg-kumo-control p-1 shadow-lg ring ring-kumo-line"
+				className={bubbleMenuClassName}
 			>
 				<TooltipProvider delay={400}>
 					{showLinkInput ? (
@@ -4898,7 +4901,7 @@ function LinkBubbleMenu({
 				(view.hasFocus() || element.contains(document.activeElement))
 			}
 			data-emdash-link-bubble-menu
-			className="z-[100] flex max-w-[min(28rem,calc(100vw-1rem))] items-center gap-0.5 rounded-[10px] bg-kumo-control p-1 shadow-lg ring ring-kumo-line"
+			className={cn(bubbleMenuClassName, "max-w-[min(28rem,calc(100vw-1rem))]")}
 		>
 			<TooltipProvider delay={400}>
 				<Globe className="ms-1.5 size-4 flex-none text-kumo-subtle" aria-hidden="true" />
@@ -5164,7 +5167,7 @@ function TableBubbleMenu({
 			data-emdash-table-bubble-menu
 			role="group"
 			aria-label={t`Table controls`}
-			className="z-[100] flex items-center gap-0.5 rounded-[10px] bg-kumo-control p-1 shadow-lg ring ring-kumo-line"
+			className={bubbleMenuClassName}
 		>
 			{controls && (controls.rows > 1 || controls.columns > 1) && (
 				<span className="px-2 text-xs text-kumo-subtle">
@@ -5487,7 +5490,7 @@ function ImageBubbleMenu({
 				role="group"
 				aria-label={t`Image controls`}
 				className={cn(
-					"z-[100] flex items-center gap-0.5 rounded-[10px] bg-kumo-control p-1 shadow-lg ring ring-kumo-line",
+					bubbleMenuClassName,
 					"origin-[var(--transform-origin)]",
 					mode === "controls" && "flex-wrap justify-center",
 				)}
