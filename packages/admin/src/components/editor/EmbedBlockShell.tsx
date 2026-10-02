@@ -20,6 +20,7 @@ import { cn } from "../../lib/utils";
 import { getLocaleDir } from "../../locales/config.js";
 import { enterBlockSelection } from "./BlockCommands.js";
 import type { CodeEditorProps } from "./CodeEditor";
+import { useAttachedKey } from "./useAttachedKey.js";
 
 const CodeEditor = React.lazy(() => import("./CodeEditor"));
 
@@ -298,6 +299,7 @@ export function EmbedBlockCard({
 }) {
 	const { t, i18n } = useLingui();
 	const active = tabs.find((tab) => tab.value === activeTab);
+	const tabsKey = useAttachedKey(focus.cardRef);
 	return (
 		<NodeViewWrapper className={cn(className, "not-prose my-4")} contentEditable={false}>
 			{/* The editor's content takes its direction from the text; the card's
@@ -309,6 +311,7 @@ export function EmbedBlockCard({
 			>
 				<div className="flex items-center gap-2 p-1.5">
 					<Tabs
+						key={tabsKey}
 						variant="segmented"
 						size="sm"
 						activateOnFocus

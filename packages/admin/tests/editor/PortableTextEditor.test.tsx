@@ -1942,6 +1942,22 @@ describe("onChange output shape", () => {
 	});
 });
 
+describe("Code block toolbar", () => {
+	it("takes keyboard focus and arrow keys in a newly inserted block", async () => {
+		const { screen, editor } = await renderAndGetEditor();
+
+		editor.commands.insertContent({ type: "codeBlock", content: [{ type: "text", text: "a" }] });
+
+		const languageButton = screen.getByRole("button", {
+			name: "Set language (current: Plain text)",
+		});
+		await expect.element(languageButton).toHaveAttribute("tabindex", "0");
+		languageButton.element().focus();
+		await userEvent.keyboard("{ArrowRight}");
+		await expect.element(screen.getByRole("button", { name: "Copy code" })).toHaveFocus();
+	});
+});
+
 describe("Code block copy action", () => {
 	it("copies raw code and resets its accessible feedback", async () => {
 		const clipboardWrite = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
