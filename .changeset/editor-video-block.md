@@ -7,7 +7,7 @@ Adds a video block to the rich text editor. Type `/video` to choose a Media Libr
 
 On the site, `Video` from `emdash/ui` renders the `video` block as the browser's own player with its caption. Media Library videos play from your storage's public URL when one is configured, and need the block's `asset.url`: a block without one renders nothing on the site, and the editor shows it as unplayable. A block whose `asset.provider` names a media provider renders from that provider's embed.
 
-Uploads follow `maxUploadSize`, 50 MiB by default. The admin's content security policy now allows `blob:` media (`media-src 'self' blob:`), so it can read a video's size before uploading it. Before, videos uploaded from the admin in production were saved without a width and height.
+Uploads follow `maxUploadSize`, 50 MiB by default. The admin's content security policy now allows media from `blob:` and `https:` URLs (`media-src 'self' blob: https:`), as it already did for images. This lets the admin read a video's size before uploading it, and preview a video block whose `asset.url` is on another site. Before, videos uploaded from the admin in production were saved without a width and height.
 
 #### What should I do?
 

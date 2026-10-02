@@ -28,10 +28,16 @@ describe("buildEmDashCsp", () => {
 		expect(frameSrc).not.toContain("*");
 	});
 
-	it("lets the admin read a video it is about to upload, but not media from other sites", () => {
+	it("lets the admin play a video it is about to upload, and videos on https sites", () => {
 		const csp = buildEmDashCsp();
-		const mediaSrc = csp.split("; ").find((d) => d.startsWith("media-src"));
-		expect(mediaSrc).toBe("media-src 'self' blob:");
+		const mediaSrc = csp
+			.split("; ")
+			.find((d) => d.startsWith("media-src"))
+			?.split(" ");
+		expect(mediaSrc).toContain("blob:");
+		expect(mediaSrc).toContain("https:");
+		expect(mediaSrc).not.toContain("http:");
+		expect(mediaSrc).not.toContain("*");
 	});
 
 	it("keeps connect-src restricted to self", () => {
