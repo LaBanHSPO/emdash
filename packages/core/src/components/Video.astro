@@ -44,10 +44,9 @@ if (providerId) {
 		console.warn(`Failed to get embed for video ${asset._ref}:`, error);
 	}
 } else {
-	const src = buildRenderMediaUrl(Astro.locals.emdash?.getPublicMediaUrl, {
-		url: asset.url,
-		id: asset._ref,
-	});
+	// Only the file URL can play: the file route takes a storage key, not the
+	// media id in `_ref`.
+	const src = buildRenderMediaUrl(Astro.locals.emdash?.getPublicMediaUrl, { url: asset.url });
 	if (src) embed = { type: "video", src, width, height, controls: true, preload: "metadata" };
 }
 

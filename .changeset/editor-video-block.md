@@ -5,7 +5,7 @@
 
 Adds a video block to the rich text editor. Type `/video` to choose a Media Library video or upload one, or drop or paste video files into the text; they upload to the Media Library and appear where you dropped them. The video plays in the editor at the width of the text, with a caption field under it and **Replace video** and **Delete video** in its corner. A video's **Used in** tab in the Media Library lists the entries that use it in a video block.
 
-On the site, `Video` from `emdash/ui` renders the `video` block as the browser's own player with its caption. Media Library videos play from your storage's public URL when one is configured, and need the block's `asset.url`; the editor shows a block without one as unplayable. A block whose `asset.provider` names a media provider renders from that provider's embed.
+On the site, `Video` from `emdash/ui` renders the `video` block as the browser's own player with its caption. Media Library videos play from your storage's public URL when one is configured, and need the block's `asset.url`: a block without one renders nothing on the site, and the editor shows it as unplayable. A block whose `asset.provider` names a media provider renders from that provider's embed.
 
 Uploads follow `maxUploadSize`, 50 MiB by default. The admin's content security policy now allows `blob:` media (`media-src 'self' blob:`), so it can read a video's size before uploading it. Before, videos uploaded from the admin in production were saved without a width and height.
 
