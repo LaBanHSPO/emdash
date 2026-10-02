@@ -54,12 +54,17 @@ if (providerId) {
 if (!embed) {
 	return null;
 }
+
+// Astro leaves `<` and `>` unescaped in attributes. Middleware that finds
+// `</body>` by searching the page's text could then match one in a URL.
+// Browsers percent-encode them in URLs anyway, so this changes no address.
+const url = (value: string | undefined) => value?.replaceAll("<", "%3C").replaceAll(">", "%3E");
 ---
 
 <figure class="emdash-video">
 	<video
-		src={embed.sources?.length ? undefined : embed.src}
-		poster={embed.poster}
+		src={embed.sources?.length ? undefined : url(embed.src)}
+		poster={url(embed.poster)}
 		width={embed.width ?? width}
 		height={embed.height ?? height}
 		controls={embed.controls ?? true}
@@ -70,8 +75,8 @@ if (!embed) {
 		preload={embed.preload ?? "metadata"}
 		crossorigin={embed.crossorigin}
 	>
-		{embed.src && embed.sources?.length ? <source src={embed.src} /> : null}
-		{embed.sources?.map((source) => <source src={source.src} type={source.type} />)}
+		{embed.src && embed.sources?.length ? <source src={url(embed.src)} /> : null}
+		{embed.sources?.map((source) => <source src={url(source.src)} type={source.type} />)}
 	</video>
 	{caption && <figcaption>{caption}</figcaption>}
 </figure>

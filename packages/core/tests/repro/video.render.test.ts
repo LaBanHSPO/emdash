@@ -127,6 +127,20 @@ describe("Video rendering", () => {
 		expect(html).not.toContain("Orphan");
 	});
 
+	it("keeps markup in a video URL inside its attribute", async () => {
+		// Middleware such as the editor toolbar inserts HTML by searching the
+		// page's text for `</body>`.
+		const html = await render({
+			asset: { _ref: "01VIDEO", url: '/clips/x</body><img src=x onerror="alert(1)">.mp4' },
+		});
+
+		expect(html).not.toContain("</body>");
+		expect(html).not.toContain("<img");
+		expect(attribute(tag(html, "video"), "src")).toBe(
+			"/clips/x%3C/body%3E%3Cimg src=x onerror=&quot;alert(1)&quot;%3E.mp4",
+		);
+	});
+
 	it("renders nothing for a video block that belongs to a plugin", async () => {
 		const html = await render({ asset: { _ref: "01VIDEO" }, autoplay: true });
 
