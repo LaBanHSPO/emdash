@@ -483,12 +483,13 @@ div:has(> [role="listbox"] > .emdash-compact-select-option) {
 }
 
 .emdash-document :not(pre) > code {
-	border-radius: 0.25rem;
-	background-color: color-mix(in oklab, var(--text-color-kumo-subtle) 15%, transparent);
-	padding: 0.2em 0.4em;
-	color: var(--text-color-kumo-danger);
+	border: 1px solid var(--color-kumo-hairline);
+	border-radius: 0.375rem;
+	background-color: color-mix(in oklab, var(--text-color-kumo-default) 5%, transparent);
+	padding: 0.125em 0.375em;
+	color: var(--text-color-kumo-default);
 	font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-	font-size: 0.85em;
+	font-size: 0.875em;
 	font-weight: 400;
 }
 
