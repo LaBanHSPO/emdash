@@ -83,7 +83,7 @@ msgid "{0, plural, one {# collection} other {# collections}}"
 msgstr "{0, plural, one {# Sammlung} other {# Sammlungen}}"
 
 #. placeholder {0}: result.comments.imported
-#: packages/admin/src/components/WordPressImport.tsx:2283
+#: packages/admin/src/components/WordPressImport.tsx:2286
 msgid "{0, plural, one {# comment imported} other {# comments imported}}"
 msgstr "{0, plural, one {# Kommentar importiert} other {# Kommentare importiert}}"
 
@@ -98,12 +98,12 @@ msgid "{0, plural, one {# comment} other {# comments}}"
 msgstr "{0, plural, one {# Kommentar} other {# Kommentare}}"
 
 #. placeholder {0}: result.errors.length
-#: packages/admin/src/components/WordPressImport.tsx:2294
+#: packages/admin/src/components/WordPressImport.tsx:2297
 msgid "{0, plural, one {# content error} other {# content errors}}"
 msgstr "{0, plural, one {# Inhaltsfehler} other {# Inhaltsfehler}}"
 
 #. placeholder {0}: result.imported
-#: packages/admin/src/components/WordPressImport.tsx:2235
+#: packages/admin/src/components/WordPressImport.tsx:2238
 msgid "{0, plural, one {# content item imported} other {# content items imported}}"
 msgstr "{0, plural, one {# Inhaltselement importiert} other {# Inhaltselemente importiert}}"
 
@@ -152,22 +152,22 @@ msgid "{0, plural, one {# MCP tool} other {# MCP tools}}"
 msgstr "{0, plural, one {# MCP-Tool} other {# MCP-Tools}}"
 
 #. placeholder {0}: mediaResult.failed.length
-#: packages/admin/src/components/WordPressImport.tsx:2299
+#: packages/admin/src/components/WordPressImport.tsx:2302
 msgid "{0, plural, one {# media error} other {# media errors}}"
 msgstr "{0, plural, one {# Medienfehler} other {# Medienfehler}}"
 
 #. placeholder {0}: mediaResult.imported.length
-#: packages/admin/src/components/WordPressImport.tsx:2251
+#: packages/admin/src/components/WordPressImport.tsx:2254
 msgid "{0, plural, one {# media file imported} other {# media files imported}}"
 msgstr "{0, plural, one {# Mediendatei importiert} other {# Mediendateien importiert}}"
 
 #. placeholder {0}: result.menus.created
-#: packages/admin/src/components/WordPressImport.tsx:2275
+#: packages/admin/src/components/WordPressImport.tsx:2278
 msgid "{0, plural, one {# menu imported} other {# menus imported}}"
 msgstr "{0, plural, one {# Menü importiert} other {# Menüs importiert}}"
 
 #. placeholder {0}: navMenus.length
-#: packages/admin/src/components/WordPressImport.tsx:1923
+#: packages/admin/src/components/WordPressImport.tsx:1926
 msgid "{0, plural, one {# menu will be imported} other {# menus will be imported}}"
 msgstr "{0, plural, one {# Menü wird importiert} other {# Menüs werden importiert}}"
 
@@ -183,7 +183,7 @@ msgid "{0, plural, one {# permission} other {# permissions}}"
 msgstr "{0, plural, one {# Berechtigung} other {# Berechtigungen}}"
 
 #. placeholder {0}: mapping.postCount
-#: packages/admin/src/components/WordPressImport.tsx:2506
+#: packages/admin/src/components/WordPressImport.tsx:2509
 msgid "{0, plural, one {# post} other {# posts}}"
 msgstr "{0, plural, one {# Beitrag} other {# Beiträge}}"
 
@@ -218,17 +218,17 @@ msgid "{0, plural, one {# selected} other {# selected}}"
 msgstr "{0, plural, one {# ausgewählt} other {# ausgewählt}}"
 
 #. placeholder {0}: result.skipped
-#: packages/admin/src/components/WordPressImport.tsx:2243
+#: packages/admin/src/components/WordPressImport.tsx:2246
 msgid "{0, plural, one {# skipped (already exists)} other {# skipped (already exist)}}"
 msgstr "{0, plural, one {# übersprungen (bereits vorhanden)} other {# übersprungen (bereits vorhanden)}}"
 
 #. placeholder {0}: result.taxonomyAssignments
-#: packages/admin/src/components/WordPressImport.tsx:2267
+#: packages/admin/src/components/WordPressImport.tsx:2270
 msgid "{0, plural, one {# taxonomy assignment} other {# taxonomy assignments}}"
 msgstr "{0, plural, one {# Taxonomie-Zuordnung} other {# Taxonomie-Zuordnungen}}"
 
 #. placeholder {0}: result.taxonomiesCreated.length
-#: packages/admin/src/components/WordPressImport.tsx:2259
+#: packages/admin/src/components/WordPressImport.tsx:2262
 msgid "{0, plural, one {# taxonomy created} other {# taxonomies created}}"
 msgstr "{0, plural, one {# Taxonomie erstellt} other {# Taxonomien erstellt}}"
 
@@ -315,7 +315,7 @@ msgid "{0} can't be moved here — its parent has no translation in this locale,
 msgstr "{0} kann nicht hierher verschoben werden — das übergeordnete Element hat keine Übersetzung in dieser Sprache, daher gehört der Begriff eigentlich nicht in diese Liste."
 
 #. placeholder {0}: bestMatch?.detected.siteTitle || "WordPress site"
-#: packages/admin/src/components/WordPressImport.tsx:1323
+#: packages/admin/src/components/WordPressImport.tsx:1326
 msgid "{0} detected"
 msgstr "{0} erkannt"
 
@@ -351,12 +351,12 @@ msgstr "{0} ist jetzt aktiv"
 
 #. placeholder {0}: postType.count
 #. placeholder {1}: postType.suggestedCollection
-#: packages/admin/src/components/WordPressImport.tsx:1993
+#: packages/admin/src/components/WordPressImport.tsx:1996
 msgid "{0} items → {1}"
 msgstr "{0} Elemente → {1}"
 
 #. placeholder {0}: analysis.postTypes .filter((pt) => selections[pt.name]?.enabled) .reduce((sum, pt) => sum + pt.count, 0)
-#: packages/admin/src/components/WordPressImport.tsx:1916
+#: packages/admin/src/components/WordPressImport.tsx:1919
 msgid "{0} items will be imported"
 msgstr "{0} Elemente werden importiert"
 
@@ -469,7 +469,7 @@ msgid "{added} updated · {0} failed"
 msgstr "{added} aktualisiert · {0} fehlgeschlagen"
 
 #. placeholder {0}: allowedHosts.join(", ")
-#: packages/admin/src/lib/api/marketplace.ts:466
+#: packages/admin/src/lib/api/marketplace.ts:474
 msgid "{base} to: {0}"
 msgstr "{base} (erlaubte Hosts: {0})"
 
@@ -495,15 +495,15 @@ msgstr "{completedCount} von {0} abgeschlossen"
 msgid "{completedCount} of {0} uploads complete"
 msgstr "{completedCount} von {0} Uploads abgeschlossen"
 
-#: packages/admin/src/components/WordPressImport.tsx:2092
+#: packages/admin/src/components/WordPressImport.tsx:2095
 msgid "{count, plural, one {# file} other {# files}}"
 msgstr "{count, plural, one {# Datei} other {# Dateien}}"
 
-#: packages/admin/src/components/WordPressImport.tsx:2371
+#: packages/admin/src/components/WordPressImport.tsx:2374
 msgid "{count, plural, one {# item} other {# items}}"
 msgstr "{count, plural, one {# Element} other {# Elemente}}"
 
-#: packages/admin/src/components/WordPressImport.tsx:2163
+#: packages/admin/src/components/WordPressImport.tsx:2166
 msgid "{current} of {total}"
 msgstr "{current} von {total}"
 
@@ -576,11 +576,11 @@ msgstr ""
 msgid "{matchCount, plural, one {# item matching \"{searchQuery}\"} other {# items matching \"{searchQuery}\"}}"
 msgstr "{matchCount, plural, one {# Treffer für „{searchQuery}“} other {# Treffer für „{searchQuery}“}}"
 
-#: packages/admin/src/components/WordPressImport.tsx:2493
+#: packages/admin/src/components/WordPressImport.tsx:2496
 msgid "{matchedCount} of {totalCount} assigned"
 msgstr "{matchedCount} von {totalCount} zugewiesen"
 
-#: packages/admin/src/components/WordPressImport.tsx:2481
+#: packages/admin/src/components/WordPressImport.tsx:2484
 msgid "{matchedCount} of {totalCount} authors matched by email"
 msgstr "{matchedCount} von {totalCount} Autoren anhand der E-Mail zugeordnet"
 
@@ -640,11 +640,11 @@ msgstr "„{name}“ darf höchstens {bound} sein."
 msgid "{name}: this site already has some"
 msgstr "{name}: auf dieser Website bereits vorhanden"
 
-#: packages/admin/src/components/WordPressImport.tsx:1899
+#: packages/admin/src/components/WordPressImport.tsx:1902
 msgid "{needsNewCollections, plural, one {# new collection will be created} other {# new collections will be created}}"
 msgstr "{needsNewCollections, plural, one {# neue Sammlung wird erstellt} other {# neue Sammlungen werden erstellt}}"
 
-#: packages/admin/src/components/WordPressImport.tsx:1908
+#: packages/admin/src/components/WordPressImport.tsx:1911
 msgid "{needsNewFields, plural, one {Fields will be added to # existing collection} other {Fields will be added to # existing collections}}"
 msgstr "{needsNewFields, plural, one {Felder werden zu # bestehender Sammlung hinzugefügt} other {Felder werden zu # bestehenden Sammlungen hinzugefügt}}"
 
@@ -795,21 +795,21 @@ msgstr "/neue-seite oder /artikel/[slug]"
 msgid "/old-page or /blog/[slug]"
 msgstr "/alte-seite oder /blog/[slug]"
 
-#: packages/admin/src/components/WordPressImport.tsx:2113
+#: packages/admin/src/components/WordPressImport.tsx:2116
 msgid "• Files are downloaded from your WordPress site"
 msgstr "• Dateien werden von deiner WordPress-Website heruntergeladen"
 
-#: packages/admin/src/components/WordPressImport.tsx:2114
+#: packages/admin/src/components/WordPressImport.tsx:2117
 msgid "• Uploaded to your EmDash media storage"
 msgstr "• In deine EmDash-Medienbibliothek hochgeladen"
 
-#: packages/admin/src/components/WordPressImport.tsx:2115
+#: packages/admin/src/components/WordPressImport.tsx:2118
 msgid "• URLs in your content are updated automatically"
 msgstr "• URLs in deinen Inhalten werden automatisch aktualisiert"
 
 #: packages/admin/src/components/SetupWizard.tsx:288
 #: packages/admin/src/components/SetupWizard.tsx:339
-#: packages/admin/src/components/WordPressImport.tsx:1621
+#: packages/admin/src/components/WordPressImport.tsx:1624
 msgid "← Back"
 msgstr "← Zurück"
 
@@ -837,11 +837,11 @@ msgstr "1 Beitrag aktualisiert"
 msgid "1 year"
 msgstr "1 Jahr"
 
-#: packages/admin/src/components/WordPressImport.tsx:1542
+#: packages/admin/src/components/WordPressImport.tsx:1545
 msgid "1. Log into your WordPress admin"
 msgstr "1. Melde dich in deinem WordPress-Adminbereich an"
 
-#: packages/admin/src/components/WordPressImport.tsx:1295
+#: packages/admin/src/components/WordPressImport.tsx:1298
 msgid "1. Log into your WordPress admin dashboard"
 msgstr "1. Melde dich in deinem WordPress-Dashboard an"
 
@@ -853,7 +853,7 @@ msgstr "16:9"
 msgid "2. Go to <0>Tools → Export</0>"
 msgstr "2. Gehe zu <0>Werkzeuge → Export</0>"
 
-#: packages/admin/src/components/WordPressImport.tsx:1543
+#: packages/admin/src/components/WordPressImport.tsx:1546
 msgid "2. Go to Users → Profile"
 msgstr "2. Gehe zu Benutzer → Profil"
 
@@ -861,11 +861,11 @@ msgstr "2. Gehe zu Benutzer → Profil"
 msgid "3:2"
 msgstr "3:2"
 
-#: packages/admin/src/components/WordPressImport.tsx:1544
+#: packages/admin/src/components/WordPressImport.tsx:1547
 msgid "3. Scroll to \"Application Passwords\""
 msgstr "3. Scrolle zu „Anwendungspasswörter“"
 
-#: packages/admin/src/components/WordPressImport.tsx:1299
+#: packages/admin/src/components/WordPressImport.tsx:1302
 msgid "3. Select \"All content\""
 msgstr "3. Wähle „Alle Inhalte“"
 
@@ -893,11 +893,11 @@ msgstr "308 Permanent (Strikt)"
 msgid "4:3"
 msgstr "4:3"
 
-#: packages/admin/src/components/WordPressImport.tsx:1300
+#: packages/admin/src/components/WordPressImport.tsx:1303
 msgid "4. Click \"Download Export File\""
 msgstr "4. Klicke auf „Export-Datei herunterladen“"
 
-#: packages/admin/src/components/WordPressImport.tsx:1545
+#: packages/admin/src/components/WordPressImport.tsx:1548
 msgid "4. Enter \"EmDash\" and click \"Add New\""
 msgstr "4. Gib „EmDash“ ein und klicke auf „Neu hinzufügen“"
 
@@ -913,11 +913,11 @@ msgstr "410 Inhalt gelöscht (Gone)"
 msgid "451 Unavailable for legal reasons"
 msgstr "451 Aus rechtlichen Gründen nicht verfügbar"
 
-#: packages/admin/src/components/WordPressImport.tsx:1546
+#: packages/admin/src/components/WordPressImport.tsx:1549
 msgid "5. Copy the generated password"
 msgstr "5. Kopiere das generierte Passwort"
 
-#: packages/admin/src/components/WordPressImport.tsx:1301
+#: packages/admin/src/components/WordPressImport.tsx:1304
 msgid "5. Upload the file here"
 msgstr "5. Lade die Datei hier hoch"
 
@@ -1064,8 +1064,8 @@ msgstr "Zugriff verweigert"
 msgid "Access Denied"
 msgstr "Zugriff verweigert"
 
-#: packages/admin/src/lib/api/marketplace.ts:433
-#: packages/admin/src/lib/api/marketplace.ts:443
+#: packages/admin/src/lib/api/marketplace.ts:434
+#: packages/admin/src/lib/api/marketplace.ts:448
 msgid "Access your media library"
 msgstr "Auf deine Medienbibliothek zugreifen"
 
@@ -1085,7 +1085,7 @@ msgstr "Konto existiert bereits"
 msgid "Account Info"
 msgstr "Kontoinformationen"
 
-#: packages/admin/src/components/WordPressImport.tsx:1180
+#: packages/admin/src/components/WordPressImport.tsx:1183
 msgid "ACF Fields"
 msgstr "ACF-Felder"
 
@@ -1209,7 +1209,7 @@ msgstr "Domain hinzufügen"
 msgid "Add Field"
 msgstr "Feld hinzufügen"
 
-#: packages/admin/src/components/WordPressImport.tsx:2004
+#: packages/admin/src/components/WordPressImport.tsx:2007
 msgid "Add fields"
 msgstr "Felder hinzufügen"
 
@@ -1294,6 +1294,11 @@ msgstr "Zeile darüber einfügen"
 msgid "Add row below"
 msgstr "Zeile darunter einfügen"
 
+#: packages/admin/src/lib/api/marketplace.ts:444
+#: packages/admin/src/lib/api/marketplace.ts:455
+msgid "Add scripts and styles to your site's pages"
+msgstr ""
+
 #: packages/admin/src/components/ContentPickerModal.tsx:390
 msgid "Add selected"
 msgstr "Auswahl hinzufügen"
@@ -1340,7 +1345,7 @@ msgstr "Wird hinzugefügt..."
 msgid "Adding…"
 msgstr "Wird hinzugefügt…"
 
-#: packages/admin/src/components/WordPressImport.tsx:1773
+#: packages/admin/src/components/WordPressImport.tsx:1776
 msgid "Additional data to import."
 msgstr "Zusätzliche Daten, die importiert werden sollen."
 
@@ -1348,7 +1353,7 @@ msgstr "Zusätzliche Daten, die importiert werden sollen."
 msgid "Additional details"
 msgstr "Weitere Angaben"
 
-#: packages/admin/src/components/WordPressImport.tsx:1503
+#: packages/admin/src/components/WordPressImport.tsx:1506
 msgid "admin"
 msgstr "admin"
 
@@ -1448,7 +1453,7 @@ msgstr "Alle Sammlungen"
 msgid "All comments require approval"
 msgstr "Alle Kommentare benötigen eine Freigabe"
 
-#: packages/admin/src/components/WordPressImport.tsx:2538
+#: packages/admin/src/components/WordPressImport.tsx:2541
 msgid "All imported content will be unassigned. You can reassign authors later from the content editor."
 msgstr "Alle importierten Inhalte bleiben ohne Zuordnung. Du kannst die Autoren später im Inhaltseditor neu zuweisen."
 
@@ -1557,7 +1562,7 @@ msgstr "Alt-Text gilt nicht für Ordner"
 msgid "Alt text set"
 msgstr "Alt-Text vorhanden"
 
-#: packages/admin/src/components/WordPressImport.tsx:1415
+#: packages/admin/src/components/WordPressImport.tsx:1418
 msgid "Alternatively, you can export from WordPress (Tools → Export) and upload the file."
 msgstr "Alternativ kannst du den Export in WordPress unter Werkzeuge → Export erstellen und die Exportdatei hochladen."
 
@@ -1642,7 +1647,7 @@ msgstr "Ein unerwarteter Fehler ist aufgetreten."
 msgid "An unknown error occurred"
 msgstr "Ein unbekannter Fehler ist aufgetreten"
 
-#: packages/admin/src/components/WordPressImport.tsx:1595
+#: packages/admin/src/components/WordPressImport.tsx:1598
 msgid "Analyzing export file..."
 msgstr "Exportdatei wird überprüft..."
 
@@ -1682,7 +1687,7 @@ msgstr "API-Tokens"
 msgid "Appears on posts and pages"
 msgstr "Wird in Beiträgen und auf Seiten angezeigt"
 
-#: packages/admin/src/components/WordPressImport.tsx:1510
+#: packages/admin/src/components/WordPressImport.tsx:1513
 msgid "Application Password"
 msgstr "Anwendungspasswort"
 
@@ -1713,7 +1718,7 @@ msgstr "Freigabeanfragen"
 msgid "Approve"
 msgstr "Freigeben"
 
-#: packages/admin/src/lib/api/marketplace.ts:423
+#: packages/admin/src/lib/api/marketplace.ts:424
 msgid "Approve comments and mark them as pending or spam"
 msgstr "Kommentare freigeben und als ausstehend oder Spam markieren"
 
@@ -1786,7 +1791,7 @@ msgstr "Wende dich an einen Administrator, um die Einrichtung abzuschließen."
 msgid "Aspect ratio"
 msgstr "Seitenverhältnis"
 
-#: packages/admin/src/components/WordPressImport.tsx:2476
+#: packages/admin/src/components/WordPressImport.tsx:2479
 msgid "Assign WordPress authors to EmDash users. Posts will be attributed to the selected user."
 msgstr "Ordne WordPress-Autoren EmDash-Benutzern zu. Beiträge werden der ausgewählten Person zugewiesen."
 
@@ -1852,7 +1857,7 @@ msgstr "Die Anmeldung wurde abgebrochen oder hat zu lange gedauert. Bitte versuc
 msgid "Author"
 msgstr "Autor"
 
-#: packages/admin/src/components/WordPressImport.tsx:2491
+#: packages/admin/src/components/WordPressImport.tsx:2494
 msgid "Author Mapping"
 msgstr "Autoren-Zuordnung"
 
@@ -1961,8 +1966,8 @@ msgstr "Avatar"
 #: packages/admin/src/components/MediaDetailPanel.tsx:1805
 #: packages/admin/src/components/MediaLibrary.tsx:811
 #: packages/admin/src/components/MenuEditor.tsx:367
-#: packages/admin/src/components/WordPressImport.tsx:1530
-#: packages/admin/src/components/WordPressImport.tsx:2547
+#: packages/admin/src/components/WordPressImport.tsx:1533
+#: packages/admin/src/components/WordPressImport.tsx:2550
 msgid "Back"
 msgstr "Zurück"
 
@@ -2141,8 +2146,8 @@ msgstr "Durchsuche und installiere Plugins, um deine Website zu erweitern."
 msgid "Browse files"
 msgstr "Dateien durchsuchen"
 
-#: packages/admin/src/components/WordPressImport.tsx:1146
-#: packages/admin/src/components/WordPressImport.tsx:1614
+#: packages/admin/src/components/WordPressImport.tsx:1149
+#: packages/admin/src/components/WordPressImport.tsx:1617
 msgid "Browse Files"
 msgstr "Dateien durchsuchen"
 
@@ -2305,7 +2310,7 @@ msgstr "Kann Inhalte ansehen"
 #: packages/admin/src/components/TaxonomyManager.tsx:1099
 #: packages/admin/src/components/users/InviteUserModal.tsx:198
 #: packages/admin/src/components/Widgets.tsx:451
-#: packages/admin/src/components/WordPressImport.tsx:1937
+#: packages/admin/src/components/WordPressImport.tsx:1940
 #: packages/admin/src/routes/bylines.tsx:852
 msgid "Cancel"
 msgstr "Abbrechen"
@@ -2379,11 +2384,11 @@ msgid "Categories"
 msgstr "Kategorien"
 
 #. placeholder {0}: analysis.categories
-#: packages/admin/src/components/WordPressImport.tsx:1805
+#: packages/admin/src/components/WordPressImport.tsx:1808
 msgid "Categories ({0})"
 msgstr "Kategorien ({0})"
 
-#: packages/admin/src/components/WordPressImport.tsx:1168
+#: packages/admin/src/components/WordPressImport.tsx:1171
 msgid "Categories & Tags"
 msgstr "Kategorien & Schlagwörter"
 
@@ -2443,7 +2448,7 @@ msgstr "Veröffentlichungsdatum ändern: {formattedValue}"
 msgid "Change schedule"
 msgstr "Planung ändern"
 
-#: packages/admin/src/lib/api/marketplace.ts:432
+#: packages/admin/src/lib/api/marketplace.ts:433
 msgid "Change where visitors are sent"
 msgstr "Ändern, wohin Besucher weitergeleitet werden"
 
@@ -2487,7 +2492,7 @@ msgstr "Prüfe registry.policy.minimumReleaseAge in deiner astro.config.mjs und 
 msgid "Check registry.policy.minimumReleaseAgeExclude in astro.config.mjs, then restart EmDash."
 msgstr "Prüfe registry.policy.minimumReleaseAgeExclude in deiner astro.config.mjs und starte EmDash anschließend neu."
 
-#: packages/admin/src/components/WordPressImport.tsx:1117
+#: packages/admin/src/components/WordPressImport.tsx:1120
 msgid "Check Site"
 msgstr "Website prüfen"
 
@@ -2845,7 +2850,7 @@ msgstr "Sammlungen"
 msgid "Collections and fields, all content with drafts, revisions, scheduled posts, and trash, translations, taxonomies, bylines, media files, menus, widgets, sections, redirects, SEO, and site settings."
 msgstr "Sammlungen und Felder, alle Inhalte samt Entwürfen, Revisionen, geplanten Beiträgen und Papierkorb, Übersetzungen, Taxonomien, Autorenangaben, Mediendateien, Menüs, Widgets, Abschnitte, Weiterleitungen, SEO und Website-Einstellungen."
 
-#: packages/admin/src/components/WordPressImport.tsx:2347
+#: packages/admin/src/components/WordPressImport.tsx:2350
 msgid "Collections created:"
 msgstr "Erstellte Sammlungen:"
 
@@ -2951,30 +2956,30 @@ msgid "Confirm with your fingerprint, face, or PIN."
 msgstr "Bestätige per Fingerabdruck, Gesichtserkennung oder PIN."
 
 #: packages/admin/src/components/WordPressImport.tsx:721
-#: packages/admin/src/components/WordPressImport.tsx:1076
+#: packages/admin/src/components/WordPressImport.tsx:1077
 msgid "Connect"
 msgstr "Verbinden"
 
-#: packages/admin/src/components/WordPressImport.tsx:1527
+#: packages/admin/src/components/WordPressImport.tsx:1530
 msgid "Connect & Analyze"
 msgstr "Verbinden & analysieren"
 
 #. placeholder {0}: siteTitle || "WordPress"
-#: packages/admin/src/components/WordPressImport.tsx:1477
+#: packages/admin/src/components/WordPressImport.tsx:1480
 msgid "Connect to {0}"
 msgstr "Mit {0} verbinden"
 
-#: packages/admin/src/lib/api/marketplace.ts:439
-#: packages/admin/src/lib/api/marketplace.ts:447
+#: packages/admin/src/lib/api/marketplace.ts:440
+#: packages/admin/src/lib/api/marketplace.ts:452
 msgid "Connect to any network host and load external plugin admin images (unrestricted)"
 msgstr "Verbindung zu einem beliebigen Host herstellen und externe Bilder des Plugins im Adminbereich laden (unbeschränkt)"
 
-#: packages/admin/src/lib/api/marketplace.ts:438
-#: packages/admin/src/lib/api/marketplace.ts:446
+#: packages/admin/src/lib/api/marketplace.ts:439
+#: packages/admin/src/lib/api/marketplace.ts:451
 msgid "Connect to network hosts and load external plugin admin images"
 msgstr "Verbindung zu Hosts herstellen und externe Bilder des Plugins im Adminbereich laden"
 
-#: packages/admin/src/components/WordPressImport.tsx:1393
+#: packages/admin/src/components/WordPressImport.tsx:1396
 msgid "Connect with WordPress"
 msgstr "Mit WordPress verbinden"
 
@@ -3011,11 +3016,11 @@ msgid "Content digest"
 msgstr "Inhalts-Prüfsumme"
 
 #. placeholder {0}: result.errors.length
-#: packages/admin/src/components/WordPressImport.tsx:2402
+#: packages/admin/src/components/WordPressImport.tsx:2405
 msgid "Content Errors ({0})"
 msgstr "Inhaltsfehler ({0})"
 
-#: packages/admin/src/components/WordPressImport.tsx:1337
+#: packages/admin/src/components/WordPressImport.tsx:1340
 msgid "Content found:"
 msgstr "Inhalte gefunden:"
 
@@ -3072,7 +3077,7 @@ msgstr "Suchergebnisse für Inhalte"
 msgid "Content snapshot:"
 msgstr "Momentaufnahme des Inhalts:"
 
-#: packages/admin/src/components/WordPressImport.tsx:1751
+#: packages/admin/src/components/WordPressImport.tsx:1754
 msgid "Content to Import"
 msgstr "Zu importierender Inhalt"
 
@@ -3094,7 +3099,7 @@ msgstr "Inhaltstypen mit derselben Gruppe teilen sich einen einklappbaren Ordner
 msgid "Content using this media item may show a broken reference."
 msgstr "In Inhalten, die dieses Medienelement verwenden, kann es danach fehlen."
 
-#: packages/admin/src/components/WordPressImport.tsx:2330
+#: packages/admin/src/components/WordPressImport.tsx:2333
 msgid "Content was skipped because it already exists"
 msgstr "Inhalt wurde übersprungen, da er bereits vorhanden ist"
 
@@ -3113,7 +3118,7 @@ msgstr "Fortfahren"
 msgid "Continue →"
 msgstr "Fortfahren →"
 
-#: packages/admin/src/components/WordPressImport.tsx:2549
+#: packages/admin/src/components/WordPressImport.tsx:2552
 msgid "Continue Import"
 msgstr "Import fortsetzen"
 
@@ -3266,7 +3271,7 @@ msgstr "Beiträge konnten nicht geprüft werden"
 msgid "Couldn’t confirm whether the media item or selected folder still exists. Try again."
 msgstr "Ob das Medienelement oder der gewählte Ordner noch existiert, ließ sich nicht feststellen. Versuche es erneut."
 
-#: packages/admin/src/components/WordPressImport.tsx:1284
+#: packages/admin/src/components/WordPressImport.tsx:1287
 msgid "Couldn't detect WordPress"
 msgstr "WordPress wurde nicht erkannt"
 
@@ -3455,7 +3460,7 @@ msgstr "{singularLower} neu anlegen"
 msgid "Create New Token"
 msgstr "Neues Token erstellen"
 
-#: packages/admin/src/components/WordPressImport.tsx:1521
+#: packages/admin/src/components/WordPressImport.tsx:1524
 msgid "Create one in WordPress: Users → Profile → Application Passwords"
 msgstr "Erstelle eines in WordPress: Benutzer → Profil → Anwendungspasswörter"
 
@@ -3495,7 +3500,7 @@ msgstr "Beziehung erstellen"
 msgid "Create Relation"
 msgstr "Beziehung erstellen"
 
-#: packages/admin/src/components/WordPressImport.tsx:1941
+#: packages/admin/src/components/WordPressImport.tsx:1944
 msgid "Create Schema & Import"
 msgstr "Schema erstellen & importieren"
 
@@ -3514,7 +3519,7 @@ msgstr "Erstelle Abschnitte in der Abschnittsbibliothek, um sie hier zu nutzen"
 msgid "Create Taxonomy"
 msgstr "Taxonomie erstellen"
 
-#: packages/admin/src/lib/api/marketplace.ts:429
+#: packages/admin/src/lib/api/marketplace.ts:430
 msgid "Create taxonomy terms and change content classifications"
 msgstr "Taxonomie-Begriffe erstellen und die Klassifizierung von Inhalten ändern"
 
@@ -3547,8 +3552,8 @@ msgstr "Erstelle deinen ersten Eintrag"
 msgid "Create your first reusable content section to get started."
 msgstr "Erstelle deinen ersten wiederverwendbaren Inhaltsabschnitt, um zu beginnen."
 
-#: packages/admin/src/lib/api/marketplace.ts:419
-#: packages/admin/src/lib/api/marketplace.ts:442
+#: packages/admin/src/lib/api/marketplace.ts:420
+#: packages/admin/src/lib/api/marketplace.ts:447
 msgid "Create, update, and delete content"
 msgstr "Inhalte erstellen, aktualisieren und löschen"
 
@@ -3679,7 +3684,7 @@ msgstr "Benutzerdefinierte robots.txt-Datei. Leer lassen, um den Standard zu nut
 msgid "Custom Section"
 msgstr "Benutzerdefinierter Abschnitt"
 
-#: packages/admin/src/components/WordPressImport.tsx:1169
+#: packages/admin/src/components/WordPressImport.tsx:1172
 msgid "Custom Taxonomies"
 msgstr "Benutzerdefinierte Taxonomien"
 
@@ -4023,6 +4028,11 @@ msgstr "Wird gelöscht..."
 msgid "Deleting…"
 msgstr "Wird gelöscht…"
 
+#: packages/admin/src/lib/api/marketplace.ts:443
+#: packages/admin/src/lib/api/marketplace.ts:454
+msgid "Deliver all email your site sends"
+msgstr ""
+
 #: packages/admin/src/components/ThemeMarketplaceBrowse.tsx:254
 #: packages/admin/src/components/ThemeMarketplaceDetail.tsx:147
 msgid "Demo"
@@ -4306,7 +4316,7 @@ msgstr "Nicht zuordnen"
 #: packages/admin/src/components/ContentList.tsx:1133
 #: packages/admin/src/components/MediaUploadDialog.tsx:335
 #: packages/admin/src/components/users/InviteUserModal.tsx:142
-#: packages/admin/src/components/WordPressImport.tsx:2148
+#: packages/admin/src/components/WordPressImport.tsx:2151
 msgid "Done"
 msgstr "Fertig"
 
@@ -4364,7 +4374,7 @@ msgstr "Lade diese Website als einzelne .emdash-Paketdatei herunter, die eine an
 msgid "Downloaded"
 msgstr "Heruntergeladen"
 
-#: packages/admin/src/components/WordPressImport.tsx:2146
+#: packages/admin/src/components/WordPressImport.tsx:2149
 msgid "Downloading"
 msgstr "Wird heruntergeladen"
 
@@ -4396,7 +4406,7 @@ msgstr "Entwurf, veröffentlicht oder archiviert"
 msgid "Drafts"
 msgstr "Entwürfe"
 
-#: packages/admin/src/components/WordPressImport.tsx:1188
+#: packages/admin/src/components/WordPressImport.tsx:1191
 msgid "Drafts & Private"
 msgstr "Entwürfe & private Inhalte"
 
@@ -4404,7 +4414,7 @@ msgstr "Entwürfe & private Inhalte"
 msgid "Drag and drop files here"
 msgstr "Dateien hierher ziehen und ablegen"
 
-#: packages/admin/src/components/WordPressImport.tsx:1141
+#: packages/admin/src/components/WordPressImport.tsx:1144
 msgid "Drag and drop or click to browse (.xml)"
 msgstr "Datei hierher ziehen oder zum Durchsuchen klicken (.xml)"
 
@@ -4460,7 +4470,7 @@ msgstr "Lege jeweils nur ein Bild ab."
 msgid "Drop to add widget"
 msgstr "Loslassen, um Widget hinzuzufügen"
 
-#: packages/admin/src/components/WordPressImport.tsx:1608
+#: packages/admin/src/components/WordPressImport.tsx:1611
 msgid "Drop your WordPress export file here"
 msgstr "Lege deine WordPress-Exportdatei hier ab"
 
@@ -4613,7 +4623,7 @@ msgstr "Link bearbeiten"
 msgid "Edit locking"
 msgstr "Bearbeitungssperre"
 
-#: packages/admin/src/lib/api/marketplace.ts:435
+#: packages/admin/src/lib/api/marketplace.ts:436
 msgid "Edit media alt text, captions, and focal points"
 msgstr "Alt-Text, Bildunterschriften und Fokuspunkte von Medien bearbeiten"
 
@@ -4693,7 +4703,7 @@ msgstr ""
 msgid "Editors can select a second image that the site shows in dark mode."
 msgstr "Redakteure können ein zweites Bild wählen, das die Website im Dark Mode anzeigt."
 
-#: packages/admin/src/components/WordPressImport.tsx:1066
+#: packages/admin/src/components/WordPressImport.tsx:1067
 msgid "em1.…"
 msgstr "em1.…"
 
@@ -4779,7 +4789,7 @@ msgstr "EmDash bewahrt das vorherige Bild nicht auf."
 msgid "EmDash does not keep the uncropped image."
 msgstr "EmDash bewahrt das ursprüngliche Bild nicht auf."
 
-#: packages/admin/src/components/WordPressImport.tsx:1327
+#: packages/admin/src/components/WordPressImport.tsx:1330
 msgid "EmDash Exporter plugin detected! You can import directly."
 msgstr "EmDash-Exporter-Plugin erkannt! Du kannst direkt importieren."
 
@@ -4869,7 +4879,7 @@ msgstr "Gib eine URL (https://…) oder einen relativen Pfad (/…) ein"
 msgid "Enter a valid URL (e.g. https://example.com)"
 msgstr "Gib eine gültige URL ein (z. B. https://beispiel.de)"
 
-#: packages/admin/src/components/WordPressImport.tsx:1400
+#: packages/admin/src/components/WordPressImport.tsx:1403
 msgid "Enter credentials manually"
 msgstr "Anmeldedaten manuell eingeben"
 
@@ -4902,11 +4912,12 @@ msgstr "URL eingeben..."
 msgid "Enter your handle to sign in."
 msgstr "Gib dein Handle ein, um dich anzumelden."
 
-#: packages/admin/src/components/WordPressImport.tsx:1479
+#: packages/admin/src/components/WordPressImport.tsx:1482
 msgid "Enter your WordPress credentials to import content directly."
 msgstr "Gib deine WordPress-Anmeldedaten ein, um Inhalte direkt zu importieren."
 
-#: packages/admin/src/components/WordPressImport.tsx:1104
+#: packages/admin/src/components/WordPressImport.tsx:1105
+#: packages/admin/src/components/WordPressImport.tsx:1117
 msgid "Enter your WordPress site URL"
 msgstr "Gib die URL deiner WordPress-Website ein"
 
@@ -4998,7 +5009,7 @@ msgstr "Bestehende {pluralLower} bleiben erhalten."
 msgid "Existing content is indexed. New changes are tracked automatically."
 msgstr "Die bestehenden Inhalte sind indexiert. Neue Änderungen werden automatisch erfasst."
 
-#: packages/admin/src/components/WordPressImport.tsx:2030
+#: packages/admin/src/components/WordPressImport.tsx:2033
 msgid "Exists"
 msgstr "Vorhanden"
 
@@ -5037,7 +5048,7 @@ msgstr "Ablaufdatum"
 msgid "Export"
 msgstr "Export"
 
-#: packages/admin/src/components/WordPressImport.tsx:1293
+#: packages/admin/src/components/WordPressImport.tsx:1296
 msgid "Export from WordPress manually"
 msgstr "Manueller Export von WordPress"
 
@@ -5053,7 +5064,7 @@ msgstr "Export angefordert von {requester}"
 msgid "Export site"
 msgstr "Website exportieren"
 
-#: packages/admin/src/components/WordPressImport.tsx:1417
+#: packages/admin/src/components/WordPressImport.tsx:1420
 msgid "Export your content from WordPress to import everything including drafts."
 msgstr "Exportiere deine Inhalte aus WordPress, um alles einschließlich der Entwürfe zu importieren."
 
@@ -5087,7 +5098,7 @@ msgstr "Nicht bestanden"
 
 #: packages/admin/src/components/BulkTagDialog.tsx:70
 #: packages/admin/src/components/settings/transfer/ExportSection.tsx:306
-#: packages/admin/src/components/WordPressImport.tsx:2150
+#: packages/admin/src/components/WordPressImport.tsx:2153
 msgid "Failed"
 msgstr "Fehlgeschlagen"
 
@@ -5169,7 +5180,7 @@ msgstr "Erstellen des Medienordners fehlgeschlagen"
 msgid "Failed to create section"
 msgstr "Erstellen des Abschnitts fehlgeschlagen"
 
-#: packages/admin/src/components/WordPressImport.tsx:1734
+#: packages/admin/src/components/WordPressImport.tsx:1737
 msgid "Failed to create some collections"
 msgstr "Erstellen einiger Sammlungen fehlgeschlagen"
 
@@ -5835,11 +5846,11 @@ msgstr "FAQ"
 msgid "Favicon"
 msgstr "Favicon"
 
-#: packages/admin/src/components/WordPressImport.tsx:1202
+#: packages/admin/src/components/WordPressImport.tsx:1205
 msgid "Feature"
 msgstr "Funktion"
 
-#: packages/admin/src/components/WordPressImport.tsx:1170
+#: packages/admin/src/components/WordPressImport.tsx:1173
 msgid "Featured Images"
 msgstr "Beitragsbilder"
 
@@ -5886,7 +5897,7 @@ msgstr "Feld aktualisiert"
 msgid "Fields"
 msgstr "Felder"
 
-#: packages/admin/src/components/WordPressImport.tsx:2353
+#: packages/admin/src/components/WordPressImport.tsx:2356
 msgid "Fields created:"
 msgstr "Erstellte Felder:"
 
@@ -5895,7 +5906,7 @@ msgid "File"
 msgstr "Datei"
 
 #. placeholder {0}: progress.current
-#: packages/admin/src/components/WordPressImport.tsx:2178
+#: packages/admin/src/components/WordPressImport.tsx:2181
 msgid "File {0}"
 msgstr "Datei {0}"
 
@@ -6055,7 +6066,7 @@ msgstr "Ordnernavigation"
 msgid "Fonts"
 msgstr "Schriftarten"
 
-#: packages/admin/src/components/WordPressImport.tsx:1418
+#: packages/admin/src/components/WordPressImport.tsx:1421
 msgid "For a complete import including drafts and all content, export from WordPress."
 msgstr "Für einen vollständigen Import einschließlich der Entwürfe exportiere deine Inhalte aus WordPress."
 
@@ -6093,7 +6104,7 @@ msgid "From URL"
 msgstr "Von URL"
 
 #: packages/admin/src/components/editor/ImageDetailPanel.tsx:279
-#: packages/admin/src/components/WordPressImport.tsx:1177
+#: packages/admin/src/components/WordPressImport.tsx:1180
 msgid "Full"
 msgstr "Volle Breite"
 
@@ -6155,7 +6166,7 @@ msgstr "Go"
 msgid "Go live {countdown}"
 msgstr ""
 
-#: packages/admin/src/components/WordPressImport.tsx:2438
+#: packages/admin/src/components/WordPressImport.tsx:2441
 #: packages/admin/src/router.tsx:3168
 msgid "Go to Dashboard"
 msgstr "Zum Dashboard"
@@ -6366,7 +6377,7 @@ msgstr "Wie wird der Slug erzeugt?"
 msgid "How many"
 msgstr "Anzahl"
 
-#: packages/admin/src/components/WordPressImport.tsx:1540
+#: packages/admin/src/components/WordPressImport.tsx:1543
 msgid "How to create an Application Password"
 msgstr "So erstellst du ein Anwendungspasswort"
 
@@ -6409,7 +6420,7 @@ msgstr "https://example.com/blog/mein-beitrag"
 msgid "https://example.com/image.jpg"
 msgstr "https://beispiel.de/bild.jpg"
 
-#: packages/admin/src/components/WordPressImport.tsx:1111
+#: packages/admin/src/components/WordPressImport.tsx:1113
 msgid "https://yoursite.com"
 msgstr "https://deine-website.de"
 
@@ -6532,7 +6543,7 @@ msgid "Import"
 msgstr "Import"
 
 #. placeholder {0}: postType.name
-#: packages/admin/src/components/WordPressImport.tsx:1978
+#: packages/admin/src/components/WordPressImport.tsx:1981
 msgid "Import {0}"
 msgstr "{0} importieren"
 
@@ -6544,7 +6555,7 @@ msgstr "Website-Paket importieren"
 msgid "Import a site package into this site while it is empty, overwriting its initial setup. Admin includes this; choose it instead of Admin to give an agent narrower access."
 msgstr "Ein Website-Paket in diese Website importieren, solange sie leer ist, und dabei ihre Ersteinrichtung überschreiben. In „Admin“ enthalten; wähle diesen Bereich statt „Admin“, um einem Agenten eingeschränkteren Zugriff zu geben."
 
-#: packages/admin/src/components/WordPressImport.tsx:1386
+#: packages/admin/src/components/WordPressImport.tsx:1389
 msgid "Import all content directly including drafts, custom post types, ACF fields, and SEO data. No file download needed."
 msgstr "Importiere alle Inhalte direkt, einschließlich Entwürfen, benutzerdefinierten Inhaltstypen, ACF-Feldern und SEO-Daten. Es ist kein Dateidownload erforderlich."
 
@@ -6552,11 +6563,11 @@ msgstr "Importiere alle Inhalte direkt, einschließlich Entwürfen, benutzerdefi
 msgid "Import an existing EmDash site"
 msgstr "Bestehende EmDash-Website importieren"
 
-#: packages/admin/src/components/WordPressImport.tsx:2436
+#: packages/admin/src/components/WordPressImport.tsx:2439
 msgid "Import Another File"
 msgstr "Weitere Datei importieren"
 
-#: packages/admin/src/components/WordPressImport.tsx:1196
+#: packages/admin/src/components/WordPressImport.tsx:1199
 msgid "Import Capabilities"
 msgstr "Importfunktionen"
 
@@ -6565,15 +6576,15 @@ msgstr "Importfunktionen"
 msgid "Import complete"
 msgstr "Import abgeschlossen"
 
-#: packages/admin/src/components/WordPressImport.tsx:2324
+#: packages/admin/src/components/WordPressImport.tsx:2327
 msgid "Import Complete"
 msgstr "Import abgeschlossen"
 
-#: packages/admin/src/components/WordPressImport.tsx:2325
+#: packages/admin/src/components/WordPressImport.tsx:2328
 msgid "Import Completed with Errors"
 msgstr "Import mit Fehlern abgeschlossen"
 
-#: packages/admin/src/components/WordPressImport.tsx:1719
+#: packages/admin/src/components/WordPressImport.tsx:1722
 msgid "Import failed"
 msgstr "Importieren fehlgeschlagen"
 
@@ -6581,11 +6592,11 @@ msgstr "Importieren fehlgeschlagen"
 msgid "Import from WordPress"
 msgstr "Von WordPress importieren"
 
-#: packages/admin/src/components/WordPressImport.tsx:2127
+#: packages/admin/src/components/WordPressImport.tsx:2130
 msgid "Import Media"
 msgstr "Medien importieren"
 
-#: packages/admin/src/components/WordPressImport.tsx:2080
+#: packages/admin/src/components/WordPressImport.tsx:2083
 msgid "Import Media Files"
 msgstr "Mediendateien importieren"
 
@@ -6597,7 +6608,7 @@ msgstr "Importiere Beiträge, Seiten und benutzerdefinierte Inhaltstypen von Wor
 msgid "Import requested by {requester}"
 msgstr "Import angefordert von {requester}"
 
-#: packages/admin/src/components/WordPressImport.tsx:1834
+#: packages/admin/src/components/WordPressImport.tsx:1837
 msgid "Import site configuration from WordPress."
 msgstr "Importiere Website-Konfiguration von WordPress."
 
@@ -6605,7 +6616,7 @@ msgstr "Importiere Website-Konfiguration von WordPress."
 msgid "Import this package?"
 msgstr "Dieses Paket importieren?"
 
-#: packages/admin/src/components/WordPressImport.tsx:1384
+#: packages/admin/src/components/WordPressImport.tsx:1387
 msgid "Import via EmDash Exporter"
 msgstr "Importiere über den EmDash-Exporter"
 
@@ -6613,7 +6624,7 @@ msgstr "Importiere über den EmDash-Exporter"
 msgid "Imported"
 msgstr "Importiert"
 
-#: packages/admin/src/components/WordPressImport.tsx:2364
+#: packages/admin/src/components/WordPressImport.tsx:2367
 msgid "Imported by Collection"
 msgstr "Nach Sammlung importiert"
 
@@ -6644,7 +6655,7 @@ msgstr "Inhalte werden importiert... {0}"
 msgid "Importing content... {0} of {totalSelectedPosts}"
 msgstr "Inhalte werden importiert... {0} von {totalSelectedPosts}"
 
-#: packages/admin/src/components/WordPressImport.tsx:2159
+#: packages/admin/src/components/WordPressImport.tsx:2162
 msgid "Importing Media"
 msgstr "Medien werden importiert"
 
@@ -6685,7 +6696,7 @@ msgstr "Kommentare einschließen"
 msgid "Include inferred bylines"
 msgstr "Abgeleitete Autorenangaben einbeziehen"
 
-#: packages/admin/src/components/WordPressImport.tsx:2000
+#: packages/admin/src/components/WordPressImport.tsx:2003
 msgid "Incompatible"
 msgstr "Inkompatibel"
 
@@ -7133,7 +7144,7 @@ msgstr "In der <0>Dokumentation<1/></0> erfährst du, wie du Plugins installiers
 msgid "Learn more"
 msgstr "Mehr erfahren"
 
-#: packages/admin/src/components/WordPressImport.tsx:2517
+#: packages/admin/src/components/WordPressImport.tsx:2520
 msgid "Leave unassigned"
 msgstr "Nicht zugewiesen"
 
@@ -7502,7 +7513,7 @@ msgstr "Abmelden"
 msgid "Logo"
 msgstr "Logo"
 
-#: packages/admin/src/components/WordPressImport.tsx:1852
+#: packages/admin/src/components/WordPressImport.tsx:1855
 msgid "Logo & favicon"
 msgstr "Logo & Favicon"
 
@@ -7591,12 +7602,12 @@ msgstr "Verwaltet von einem externen Medienanbieter"
 msgid "Manual"
 msgstr "Manuell"
 
-#: packages/admin/src/components/WordPressImport.tsx:2474
+#: packages/admin/src/components/WordPressImport.tsx:2477
 msgid "Map Authors"
 msgstr "Autoren zuordnen"
 
 #. placeholder {0}: mapping.wpLogin
-#: packages/admin/src/components/WordPressImport.tsx:2522
+#: packages/admin/src/components/WordPressImport.tsx:2525
 msgid "Map WordPress user {0} to EmDash user"
 msgstr "WordPress-Benutzer {0} einem EmDash-Benutzer zuordnen"
 
@@ -7673,8 +7684,8 @@ msgstr "MDX"
 #: packages/admin/src/components/settings/transfer/labels.ts:84
 #: packages/admin/src/components/Sidebar.tsx:410
 #: packages/admin/src/components/WordPressImport.tsx:772
-#: packages/admin/src/components/WordPressImport.tsx:1167
-#: packages/admin/src/components/WordPressImport.tsx:1354
+#: packages/admin/src/components/WordPressImport.tsx:1170
+#: packages/admin/src/components/WordPressImport.tsx:1357
 msgid "Media"
 msgstr "Medien"
 
@@ -7683,7 +7694,7 @@ msgid "Media details"
 msgstr "Mediendetails"
 
 #. placeholder {0}: mediaResult.failed.length
-#: packages/admin/src/components/WordPressImport.tsx:2420
+#: packages/admin/src/components/WordPressImport.tsx:2423
 msgid "Media Errors ({0})"
 msgstr "Medienfehler ({0})"
 
@@ -7692,15 +7703,15 @@ msgstr "Medienfehler ({0})"
 msgid "Media folders"
 msgstr "Medienordner"
 
-#: packages/admin/src/components/WordPressImport.tsx:2382
+#: packages/admin/src/components/WordPressImport.tsx:2385
 msgid "Media Import"
 msgstr "Medienimport"
 
-#: packages/admin/src/components/WordPressImport.tsx:2323
+#: packages/admin/src/components/WordPressImport.tsx:2326
 msgid "Media Import Complete"
 msgstr "Medienimport abgeschlossen"
 
-#: packages/admin/src/components/WordPressImport.tsx:2334
+#: packages/admin/src/components/WordPressImport.tsx:2337
 msgid "Media import was skipped"
 msgstr "Medienimport wurde übersprungen"
 
@@ -7817,12 +7828,12 @@ msgstr "Die Reihenfolge der Menüpunkte wurde aktualisiert."
 #: packages/admin/src/components/MenuList.tsx:101
 #: packages/admin/src/components/settings/transfer/labels.ts:28
 #: packages/admin/src/components/Sidebar.tsx:424
-#: packages/admin/src/components/WordPressImport.tsx:1171
+#: packages/admin/src/components/WordPressImport.tsx:1174
 msgid "Menus"
 msgstr "Menüs"
 
 #. placeholder {0}: navMenus.length
-#: packages/admin/src/components/WordPressImport.tsx:1787
+#: packages/admin/src/components/WordPressImport.tsx:1790
 msgid "Menus ({0})"
 msgstr "Menüs ({0})"
 
@@ -7847,7 +7858,7 @@ msgstr "Inhalt des Meta-Tags für die Verifizierung in den Bing Webmaster Tools"
 msgid "Meta tag content for Google Search Console verification"
 msgstr "Inhalt des Meta-Tags für die Verifizierung in der Google Search Console"
 
-#: packages/admin/src/components/WordPressImport.tsx:1865
+#: packages/admin/src/components/WordPressImport.tsx:1868
 msgid "Meta titles, descriptions, and social images"
 msgstr "Meta-Titel, Beschreibungen und Bilder für soziale Medien"
 
@@ -7855,7 +7866,7 @@ msgstr "Meta-Titel, Beschreibungen und Bilder für soziale Medien"
 msgid "Migration guide"
 msgstr "Migrationsleitfaden"
 
-#: packages/admin/src/components/WordPressImport.tsx:1073
+#: packages/admin/src/components/WordPressImport.tsx:1074
 msgid "Migration key"
 msgstr "Migrationsschlüssel"
 
@@ -8194,7 +8205,7 @@ msgstr "Neue Autorenangabe"
 msgid "New byline field"
 msgstr "Neues Autorenangaben-Feld"
 
-#: packages/admin/src/components/WordPressImport.tsx:2002
+#: packages/admin/src/components/WordPressImport.tsx:2005
 msgid "New collection"
 msgstr "Neue Sammlung"
 
@@ -8434,7 +8445,7 @@ msgstr "Kein E-Mail-Anbieter konfiguriert"
 msgid "No email provider configured. Share this link manually."
 msgstr "Kein E-Mail-Anbieter konfiguriert. Teile diesen Link eigenhändig."
 
-#: packages/admin/src/components/WordPressImport.tsx:2536
+#: packages/admin/src/components/WordPressImport.tsx:2539
 msgid "No EmDash users found"
 msgstr "Keine EmDash-Benutzer gefunden"
 
@@ -8896,7 +8907,7 @@ msgstr "Dashboard öffnen"
 msgid "Open Windows settings"
 msgstr "Windows-Einstellungen öffnen"
 
-#: packages/admin/src/components/WordPressImport.tsx:1554
+#: packages/admin/src/components/WordPressImport.tsx:1557
 msgid "Open WordPress Profile"
 msgstr "WordPress-Profil öffnen"
 
@@ -8944,11 +8955,11 @@ msgstr "Optionen (eine pro Zeile)"
 msgid "Or browse files from your computer"
 msgstr "Oder wähle Dateien auf deinem Computer aus"
 
-#: packages/admin/src/components/WordPressImport.tsx:1610
+#: packages/admin/src/components/WordPressImport.tsx:1613
 msgid "Or click to browse. Accepts .xml files exported from WordPress."
 msgstr "Oder wähle per Klick eine Datei aus. Unterstützt .xml-Dateien aus einem WordPress-Export."
 
-#: packages/admin/src/components/WordPressImport.tsx:1093
+#: packages/admin/src/components/WordPressImport.tsx:1094
 msgid "or connect by URL"
 msgstr "oder per URL verbinden"
 
@@ -8958,11 +8969,11 @@ msgstr "oder per URL verbinden"
 msgid "Or continue with"
 msgstr "Oder fortfahren mit"
 
-#: packages/admin/src/components/WordPressImport.tsx:1411
+#: packages/admin/src/components/WordPressImport.tsx:1414
 msgid "Or upload an export file"
 msgstr "Oder lade eine Exportdatei hoch"
 
-#: packages/admin/src/components/WordPressImport.tsx:1129
+#: packages/admin/src/components/WordPressImport.tsx:1132
 msgid "or upload directly"
 msgstr "oder direkt hochladen"
 
@@ -9047,7 +9058,7 @@ msgid "Page size"
 msgstr "Einträge pro Seite"
 
 #: packages/admin/src/components/PluginManager.tsx:472
-#: packages/admin/src/components/WordPressImport.tsx:1348
+#: packages/admin/src/components/WordPressImport.tsx:1351
 msgid "Pages"
 msgstr "Seiten"
 
@@ -9073,7 +9084,7 @@ msgstr "Übergeordnetes Element"
 msgid "Part of a redirect loop"
 msgstr "Teil einer Weiterleitungsschleife"
 
-#: packages/admin/src/components/WordPressImport.tsx:1175
+#: packages/admin/src/components/WordPressImport.tsx:1178
 msgid "Partial"
 msgstr "Teilweise"
 
@@ -9268,7 +9279,7 @@ msgstr "Gib eine gültige E-Mail-Adresse an"
 msgid "Please enter a valid URL"
 msgstr "Bitte gib eine gültige URL an"
 
-#: packages/admin/src/components/WordPressImport.tsx:1204
+#: packages/admin/src/components/WordPressImport.tsx:1207
 msgid "Plugin"
 msgstr "Plugin"
 
@@ -9430,11 +9441,11 @@ msgstr "Beitrags-URLs (eine pro Zeile)"
 
 #: packages/admin/src/components/ContentTypeEditor.tsx:474
 #: packages/admin/src/components/RelationForm.tsx:301
-#: packages/admin/src/components/WordPressImport.tsx:1342
+#: packages/admin/src/components/WordPressImport.tsx:1345
 msgid "Posts"
 msgstr "Beiträge"
 
-#: packages/admin/src/components/WordPressImport.tsx:1166
+#: packages/admin/src/components/WordPressImport.tsx:1169
 msgid "Posts & Pages"
 msgstr "Beiträge & Seiten"
 
@@ -9458,7 +9469,7 @@ msgstr "Registrierung wird vorbereitet..."
 msgid "Preparing this site"
 msgstr "Diese Website wird vorbereitet"
 
-#: packages/admin/src/components/WordPressImport.tsx:2199
+#: packages/admin/src/components/WordPressImport.tsx:2202
 msgid "Preparing to download files from WordPress..."
 msgstr "Herunterladen der Dateien aus WordPress wird vorbereitet..."
 
@@ -9550,7 +9561,7 @@ msgstr "Fortschritt"
 msgid "Progress stopped"
 msgstr "Vorgang unterbrochen"
 
-#: packages/admin/src/lib/api/marketplace.ts:426
+#: packages/admin/src/lib/api/marketplace.ts:427
 msgid "Propose unsaved changes to selected editor fields for your review"
 msgstr "Ungespeicherte Änderungen an ausgewählten Feldern im Editor zur Prüfung vorschlagen"
 
@@ -9614,7 +9625,7 @@ msgstr "Jetzt veröffentlichen"
 msgid "Publish now?"
 msgstr "Jetzt veröffentlichen?"
 
-#: packages/admin/src/lib/api/marketplace.ts:420
+#: packages/admin/src/lib/api/marketplace.ts:421
 msgid "Publish, unpublish, schedule, and unschedule content"
 msgstr "Inhalte veröffentlichen und zurückziehen, planen und die Planung aufheben"
 
@@ -9708,15 +9719,20 @@ msgstr "Bei der automatischen Erstellung wird die Beziehung nach diesem Feld und
 msgid "Quote"
 msgstr "Zitat"
 
-#: packages/admin/src/components/WordPressImport.tsx:1184
+#: packages/admin/src/components/WordPressImport.tsx:1187
 msgid "Raw meta"
 msgstr "Rohe Metadaten"
 
-#: packages/admin/src/lib/api/marketplace.ts:421
+#: packages/admin/src/lib/api/marketplace.ts:442
+#: packages/admin/src/lib/api/marketplace.ts:453
+msgid "Read and change email your site sends"
+msgstr ""
+
+#: packages/admin/src/lib/api/marketplace.ts:422
 msgid "Read and restore trashed content"
 msgstr "Inhalte im Papierkorb lesen und wiederherstellen"
 
-#: packages/admin/src/lib/api/marketplace.ts:424
+#: packages/admin/src/lib/api/marketplace.ts:425
 msgid "Read collection and field definitions"
 msgstr "Sammlungs- und Felddefinitionen lesen"
 
@@ -9724,7 +9740,7 @@ msgstr "Sammlungs- und Felddefinitionen lesen"
 msgid "Read collection schemas"
 msgstr "Sammlungsschemata lesen"
 
-#: packages/admin/src/lib/api/marketplace.ts:422
+#: packages/admin/src/lib/api/marketplace.ts:423
 msgid "Read comment bodies, author email addresses, pseudonymous IP hashes, user agents, and moderation metadata"
 msgstr "Kommentartexte, E-Mail-Adressen der Verfasser, pseudonymisierte IP-Hashes, User-Agents und Moderationsmetadaten lesen"
 
@@ -9732,7 +9748,7 @@ msgstr "Kommentartexte, E-Mail-Adressen der Verfasser, pseudonymisierte IP-Hashe
 msgid "Read content entries"
 msgstr "Inhaltseinträge lesen"
 
-#: packages/admin/src/lib/api/marketplace.ts:434
+#: packages/admin/src/lib/api/marketplace.ts:435
 msgid "Read media file contents"
 msgstr "Inhalte von Mediendateien lesen"
 
@@ -9740,19 +9756,19 @@ msgstr "Inhalte von Mediendateien lesen"
 msgid "Read media files"
 msgstr "Mediendateien lesen"
 
-#: packages/admin/src/lib/api/marketplace.ts:430
+#: packages/admin/src/lib/api/marketplace.ts:431
 msgid "Read public byline profiles and content credits"
 msgstr "Öffentliche Autorenangaben und ihre Zuordnungen zu Inhalten lesen"
 
-#: packages/admin/src/lib/api/marketplace.ts:431
+#: packages/admin/src/lib/api/marketplace.ts:432
 msgid "Read redirect rules"
 msgstr "Weiterleitungsregeln lesen"
 
-#: packages/admin/src/lib/api/marketplace.ts:418
+#: packages/admin/src/lib/api/marketplace.ts:419
 msgid "Read retained content revision history"
 msgstr "Aufbewahrte Revisionen von Inhalten lesen"
 
-#: packages/admin/src/lib/api/marketplace.ts:425
+#: packages/admin/src/lib/api/marketplace.ts:426
 msgid "Read selected unsaved editor content after you explicitly invoke the plugin"
 msgstr "Ausgewählte ungespeicherte Inhalte aus dem Editor lesen, wenn du das Plugin selbst ausführst"
 
@@ -9760,17 +9776,17 @@ msgstr "Ausgewählte ungespeicherte Inhalte aus dem Editor lesen, wenn du das Pl
 msgid "Read site settings"
 msgstr "Website-Einstellungen lesen"
 
-#: packages/admin/src/lib/api/marketplace.ts:437
-#: packages/admin/src/lib/api/marketplace.ts:445
+#: packages/admin/src/lib/api/marketplace.ts:438
+#: packages/admin/src/lib/api/marketplace.ts:450
 msgid "Read user accounts"
 msgstr "Benutzerkonten lesen"
 
-#: packages/admin/src/lib/api/marketplace.ts:417
-#: packages/admin/src/lib/api/marketplace.ts:441
+#: packages/admin/src/lib/api/marketplace.ts:418
+#: packages/admin/src/lib/api/marketplace.ts:446
 msgid "Read your content"
 msgstr "Deine Inhalte lesen"
 
-#: packages/admin/src/lib/api/marketplace.ts:428
+#: packages/admin/src/lib/api/marketplace.ts:429
 msgid "Read your taxonomies and terms"
 msgstr "Deine Taxonomien und Begriffe lesen"
 
@@ -9794,7 +9810,7 @@ msgstr "Paket wird gelesen"
 #: packages/admin/src/components/settings/MediaUsageSettings.tsx:481
 #: packages/admin/src/components/settings/MediaUsageSettings.tsx:492
 #: packages/admin/src/components/settings/transfer/ExportSection.tsx:301
-#: packages/admin/src/components/WordPressImport.tsx:2006
+#: packages/admin/src/components/WordPressImport.tsx:2009
 msgid "Ready"
 msgstr "Bereit"
 
@@ -10245,7 +10261,7 @@ msgstr "Slug erforderlich, bevor Inhalte veröffentlicht werden können"
 msgid "Required"
 msgstr "Erforderlich"
 
-#: packages/admin/src/components/WordPressImport.tsx:2019
+#: packages/admin/src/components/WordPressImport.tsx:2022
 msgid "Required fields:"
 msgstr "Erforderliche Felder:"
 
@@ -10455,7 +10471,7 @@ msgstr "Zur veröffentlichten Version zurückgesetzt"
 msgid "Review"
 msgstr "Überprüfen"
 
-#: packages/admin/src/lib/api/marketplace.ts:427
+#: packages/admin/src/lib/api/marketplace.ts:428
 msgid "Review and block publishing, scheduling, and unpublishing content"
 msgstr "Das Veröffentlichen, Planen und Zurückziehen von Inhalten prüfen und blockieren"
 
@@ -10799,11 +10815,11 @@ msgstr "Geplante Veröffentlichung"
 msgid "Scheduled publishing needs attention"
 msgstr "Die geplante Veröffentlichung erfordert Aufmerksamkeit"
 
-#: packages/admin/src/components/WordPressImport.tsx:2342
+#: packages/admin/src/components/WordPressImport.tsx:2345
 msgid "Schema Changes"
 msgstr "Schema-Änderungen"
 
-#: packages/admin/src/components/WordPressImport.tsx:1719
+#: packages/admin/src/components/WordPressImport.tsx:1722
 msgid "Schema preparation failed"
 msgstr "Vorbereiten des Schemas fehlgeschlagen"
 
@@ -11274,7 +11290,7 @@ msgstr "Tabelle auswählen"
 msgid "Select up to 50 posts at a time."
 msgstr "Wähle bis zu 50 Beiträge auf einmal aus."
 
-#: packages/admin/src/components/WordPressImport.tsx:1752
+#: packages/admin/src/components/WordPressImport.tsx:1755
 msgid "Select which content types to import."
 msgstr "Wähle aus, welche Inhaltstypen importiert werden sollen."
 
@@ -11323,6 +11339,10 @@ msgstr "Sende eine Test-E-Mail über die gesamte Pipeline, um deine E-Mail-Konfi
 msgid "Send an invitation email to a new team member."
 msgstr "Sende eine Einladung per E-Mail an ein neues Teammitglied."
 
+#: packages/admin/src/lib/api/marketplace.ts:441
+msgid "Send email through your site"
+msgstr ""
+
 #: packages/admin/src/components/users/InviteUserModal.tsx:201
 msgid "Send Invite"
 msgstr "Einladung senden"
@@ -11368,7 +11388,7 @@ msgstr "SEO-Einstellungen"
 msgid "SEO Settings"
 msgstr "SEO-Einstellungen"
 
-#: packages/admin/src/components/WordPressImport.tsx:1863
+#: packages/admin/src/components/WordPressImport.tsx:1866
 msgid "SEO settings (Yoast)"
 msgstr "SEO-Einstellungen (Yoast)"
 
@@ -11439,7 +11459,7 @@ msgstr "Wird eingerichtet..."
 #: packages/admin/src/components/PluginManager.tsx:530
 #: packages/admin/src/components/Settings.tsx:46
 #: packages/admin/src/components/Sidebar.tsx:489
-#: packages/admin/src/components/WordPressImport.tsx:1831
+#: packages/admin/src/components/WordPressImport.tsx:1834
 msgid "Settings"
 msgstr "Einstellungen"
 
@@ -11611,7 +11631,7 @@ msgstr "Website-Identität"
 msgid "Site Identity"
 msgstr "Website-Identität"
 
-#: packages/admin/src/components/WordPressImport.tsx:2290
+#: packages/admin/src/components/WordPressImport.tsx:2293
 msgid "site identity applied (title, tagline, logo)"
 msgstr "Website-Identität übernommen (Titel, Slogan, Logo)"
 
@@ -11634,7 +11654,7 @@ msgstr "Website-Einstellungen"
 
 #: packages/admin/src/components/MediaUsedIn.tsx:298
 #: packages/admin/src/components/SetupWizard.tsx:405
-#: packages/admin/src/components/WordPressImport.tsx:1173
+#: packages/admin/src/components/WordPressImport.tsx:1176
 msgid "Site Settings"
 msgstr "Website-Einstellungen"
 
@@ -11647,7 +11667,7 @@ msgstr "Website-Titel"
 msgid "Site Title"
 msgstr "Website-Titel"
 
-#: packages/admin/src/components/WordPressImport.tsx:1843
+#: packages/admin/src/components/WordPressImport.tsx:1846
 msgid "Site title & tagline"
 msgstr "Website-Titel & Slogan"
 
@@ -11680,11 +11700,11 @@ msgstr "Größe gilt nicht für Ordner"
 msgid "Size:"
 msgstr "Größe:"
 
-#: packages/admin/src/components/WordPressImport.tsx:2124
+#: packages/admin/src/components/WordPressImport.tsx:2127
 msgid "Skip Media Import"
 msgstr "Medienimport überspringen"
 
-#: packages/admin/src/components/WordPressImport.tsx:2149
+#: packages/admin/src/components/WordPressImport.tsx:2152
 msgid "Skipped"
 msgstr "Übersprungen"
 
@@ -11757,7 +11777,7 @@ msgstr "Einige Inhalte enthalten Links zu Mediendateien, die auf der Quell-Websi
 msgid "Some content may not appear here yet."
 msgstr "Einige Inhalte werden hier möglicherweise noch nicht angezeigt."
 
-#: packages/admin/src/components/WordPressImport.tsx:1880
+#: packages/admin/src/components/WordPressImport.tsx:1883
 msgid "Some content types cannot be imported"
 msgstr "Einige Inhaltstypen können nicht importiert werden"
 
@@ -11860,7 +11880,7 @@ msgstr "Neuen Import starten"
 msgid "Start import"
 msgstr "Import starten"
 
-#: packages/admin/src/components/WordPressImport.tsx:1942
+#: packages/admin/src/components/WordPressImport.tsx:1945
 msgid "Start Import"
 msgstr "Import starten"
 
@@ -11944,11 +11964,11 @@ msgstr "Je Sprache gespeichert — jede Übersetzung einer Autorenangabe erhält
 msgid "Strikethrough"
 msgstr "Durchgestrichen"
 
-#: packages/admin/src/components/WordPressImport.tsx:1772
+#: packages/admin/src/components/WordPressImport.tsx:1775
 msgid "Structure"
 msgstr "Struktur"
 
-#: packages/admin/src/components/WordPressImport.tsx:1186
+#: packages/admin/src/components/WordPressImport.tsx:1189
 msgid "Structured"
 msgstr "Strukturiert"
 
@@ -12044,7 +12064,7 @@ msgid "Tags"
 msgstr "Schlagwörter"
 
 #. placeholder {0}: analysis.tags
-#: packages/admin/src/components/WordPressImport.tsx:1817
+#: packages/admin/src/components/WordPressImport.tsx:1820
 msgid "Tags ({0})"
 msgstr "Schlagwörter ({0})"
 
@@ -12232,7 +12252,7 @@ msgstr "Dem Gerät wird kein Zugriff gewährt."
 msgid "The download stopped"
 msgstr "Der Download wurde unterbrochen"
 
-#: packages/admin/src/components/WordPressImport.tsx:1882
+#: packages/admin/src/components/WordPressImport.tsx:1885
 msgid "The existing collection has fields with incompatible types."
 msgstr "Die vorhandene Sammlung enthält Felder mit inkompatiblen Typen."
 
@@ -12625,7 +12645,7 @@ msgstr ""
 msgid "This device is requesting permission to use:"
 msgstr "Dieses Gerät fordert Berechtigungen für Folgendes an:"
 
-#: packages/admin/src/components/WordPressImport.tsx:1081
+#: packages/admin/src/components/WordPressImport.tsx:1082
 msgid "This doesn't look like a valid migration key. Generate a new one in the plugin and paste the full string starting with \"em1.\"."
 msgstr "Das sieht nicht nach einem gültigen Migrationsschlüssel aus. Erzeuge im Plugin einen neuen und füge die vollständige Zeichenkette beginnend mit „em1.“ ein."
 
@@ -12738,7 +12758,7 @@ msgstr "Dieser Import wurde bereits gestartet"
 msgid "This is a custom section."
 msgstr "Das ist ein benutzerdefinierter Abschnitt."
 
-#: packages/admin/src/components/WordPressImport.tsx:1328
+#: packages/admin/src/components/WordPressImport.tsx:1331
 msgid "This is a WordPress site."
 msgstr "Das ist eine WordPress-Website."
 
@@ -13183,7 +13203,7 @@ msgstr "Versuche deine Suche oder die Filter anzupassen."
 msgid "Try again"
 msgstr "Versuche es erneut"
 
-#: packages/admin/src/components/WordPressImport.tsx:1602
+#: packages/admin/src/components/WordPressImport.tsx:1605
 msgid "Try Again"
 msgstr "Versuche es erneut"
 
@@ -13208,8 +13228,8 @@ msgstr "Versuche es mit einem anderen Dateinamen oder setze deine Suche zurück.
 msgid "Try another filename, or clear your search and filters."
 msgstr "Versuche es mit einem anderen Dateinamen oder setze Suche und Filter zurück."
 
-#: packages/admin/src/components/WordPressImport.tsx:1306
-#: packages/admin/src/components/WordPressImport.tsx:1428
+#: packages/admin/src/components/WordPressImport.tsx:1309
+#: packages/admin/src/components/WordPressImport.tsx:1431
 msgid "Try Another URL"
 msgstr "Versuche es mit einer anderen URL"
 
@@ -13263,7 +13283,7 @@ msgid "Type caption for image (optional)"
 msgstr ""
 
 #. placeholder {0}: status.existingType
-#: packages/admin/src/components/WordPressImport.tsx:2038
+#: packages/admin/src/components/WordPressImport.tsx:2041
 msgid "Type mismatch ({0})"
 msgstr "Typkonflikt ({0})"
 
@@ -13489,7 +13509,7 @@ msgstr "Hochladen"
 msgid "Upload a file to get started"
 msgstr "Lade eine Datei hoch, um zu beginnen"
 
-#: packages/admin/src/components/WordPressImport.tsx:1411
+#: packages/admin/src/components/WordPressImport.tsx:1414
 msgid "Upload an export file"
 msgstr "Lade eine Exportdatei hoch"
 
@@ -13501,13 +13521,13 @@ msgstr "Lade ein Bild hoch, um zu beginnen"
 msgid "Upload and delete media"
 msgstr "Mediendateien hochladen und löschen"
 
-#: packages/admin/src/lib/api/marketplace.ts:436
-#: packages/admin/src/lib/api/marketplace.ts:444
+#: packages/admin/src/lib/api/marketplace.ts:437
+#: packages/admin/src/lib/api/marketplace.ts:449
 msgid "Upload and manage media"
 msgstr "Medien hochladen und verwalten"
 
-#: packages/admin/src/components/WordPressImport.tsx:1304
-#: packages/admin/src/components/WordPressImport.tsx:1425
+#: packages/admin/src/components/WordPressImport.tsx:1307
+#: packages/admin/src/components/WordPressImport.tsx:1428
 msgid "Upload Export File"
 msgstr "Exportdatei hochladen"
 
@@ -13555,7 +13575,7 @@ msgstr "Zu {0} hochladen"
 msgid "Upload to {providerName}"
 msgstr "Hochladen: {providerName}"
 
-#: packages/admin/src/components/WordPressImport.tsx:1140
+#: packages/admin/src/components/WordPressImport.tsx:1143
 msgid "Upload WordPress export file"
 msgstr "Lade deine WordPress-Exportdatei hoch"
 
@@ -13569,7 +13589,7 @@ msgstr "Hochgeladen:"
 
 #: packages/admin/src/components/media/MediaBrowserItems.tsx:209
 #: packages/admin/src/components/MediaUploadDialog.tsx:60
-#: packages/admin/src/components/WordPressImport.tsx:2147
+#: packages/admin/src/components/WordPressImport.tsx:2150
 msgid "Uploading"
 msgstr "Wird hochgeladen"
 
@@ -13919,11 +13939,11 @@ msgid "We checked before opening the browser's passkey prompt so you can choose 
 msgstr "Das haben wir geprüft, bevor der Browser seinen Passkey-Dialog öffnet. So kannst du selbst entscheiden, wie es weitergeht."
 
 #. placeholder {0}: result.url
-#: packages/admin/src/components/WordPressImport.tsx:1286
+#: packages/admin/src/components/WordPressImport.tsx:1289
 msgid "We couldn't connect to a WordPress site at {0}. This could mean the site isn't WordPress, the REST API is disabled, or the site isn't accessible."
 msgstr "Wir konnten keine Verbindung zu einer WordPress-Website unter {0} herstellen. Dies könnte bedeuten, dass es sich nicht um eine WordPress-Website handelt, dass die REST-API deaktiviert ist oder dass die Website nicht erreichbar ist."
 
-#: packages/admin/src/components/WordPressImport.tsx:1106
+#: packages/admin/src/components/WordPressImport.tsx:1107
 msgid "We'll check what import options are available for your site."
 msgstr "Wir prüfen, welche Importoptionen für deine Website verfügbar sind."
 
@@ -13970,7 +13990,7 @@ msgstr "Die Namen der beiden Seiten. Sie bezeichnen die Felder, die an diese Bez
 msgid "What happens next?"
 msgstr "Wie geht es weiter?"
 
-#: packages/admin/src/components/WordPressImport.tsx:2111
+#: packages/admin/src/components/WordPressImport.tsx:2114
 msgid "What happens when you import:"
 msgstr "Was bei einem Import passiert:"
 
@@ -13994,7 +14014,7 @@ msgstr "Was das Paket enthält"
 msgid "What will be imported"
 msgstr "Was importiert wird"
 
-#: packages/admin/src/components/WordPressImport.tsx:1894
+#: packages/admin/src/components/WordPressImport.tsx:1897
 msgid "What will happen when you import"
 msgstr "Was beim Importieren passieren wird:"
 
@@ -14114,7 +14134,7 @@ msgstr "Widget aktualisiert"
 #: packages/admin/src/components/settings/transfer/labels.ts:91
 #: packages/admin/src/components/Sidebar.tsx:431
 #: packages/admin/src/components/Widgets.tsx:388
-#: packages/admin/src/components/WordPressImport.tsx:1179
+#: packages/admin/src/components/WordPressImport.tsx:1182
 msgid "Widgets"
 msgstr "Widgets"
 
@@ -14131,7 +14151,7 @@ msgstr "Spaltenbreiten"
 msgid "Will be cleared on save"
 msgstr "Wird beim Speichern gelöscht"
 
-#: packages/admin/src/components/WordPressImport.tsx:2034
+#: packages/admin/src/components/WordPressImport.tsx:2037
 msgid "Will create"
 msgstr "Wird erstellt"
 
@@ -14155,7 +14175,7 @@ msgstr "Ohne E-Mail-Anbieter müssen Einladungslinks manuell geteilt werden."
 msgid "WordPress authorization was rejected"
 msgstr "WordPress-Autorisierung wurde abgelehnt"
 
-#: packages/admin/src/components/WordPressImport.tsx:1496
+#: packages/admin/src/components/WordPressImport.tsx:1499
 msgid "WordPress Username"
 msgstr "WordPress-Benutzername"
 
@@ -14191,7 +14211,7 @@ msgstr "Widget-Inhalt eingeben..."
 msgid "Writing the file index"
 msgstr "Dateiindex wird geschrieben"
 
-#: packages/admin/src/components/WordPressImport.tsx:1203
+#: packages/admin/src/components/WordPressImport.tsx:1206
 msgid "WXR File"
 msgstr "WXR-Datei"
 
@@ -14199,7 +14219,7 @@ msgstr "WXR-Datei"
 msgid "XML"
 msgstr "XML"
 
-#: packages/admin/src/components/WordPressImport.tsx:1517
+#: packages/admin/src/components/WordPressImport.tsx:1520
 msgid "xxxx xxxx xxxx xxxx xxxx xxxx"
 msgstr "xxxx xxxx xxxx xxxx xxxx xxxx"
 
@@ -14218,7 +14238,7 @@ msgstr "Jährlich"
 msgid "Yes"
 msgstr "Ja"
 
-#: packages/admin/src/components/WordPressImport.tsx:1182
+#: packages/admin/src/components/WordPressImport.tsx:1185
 msgid "Yoast/RankMath"
 msgstr "Yoast/RankMath"
 
@@ -14305,7 +14325,7 @@ msgstr "Du trittst als <0>{0}</0> bei"
 msgid "You'll be prompted to use your device's biometric authentication, security key, or PIN."
 msgstr "Du wirst aufgefordert, die biometrische Authentifizierung, den Sicherheitsschlüssel oder die PIN deines Geräts zu verwenden."
 
-#: packages/admin/src/components/WordPressImport.tsx:1389
+#: packages/admin/src/components/WordPressImport.tsx:1392
 msgid "You'll be redirected to WordPress to authorize the connection."
 msgstr "Du wirst zu WordPress weitergeleitet, um die Verbindung zu autorisieren."
 
@@ -14430,7 +14450,7 @@ msgid "Your unsaved media changes will be lost."
 msgstr "Deine ungespeicherten Medienänderungen gehen verloren."
 
 #. placeholder {0}: attachments.count
-#: packages/admin/src/components/WordPressImport.tsx:2082
+#: packages/admin/src/components/WordPressImport.tsx:2085
 msgid "Your WordPress export contains {0} media files."
 msgstr "Dein WordPress-Export enthält {0} Mediendateien."
 
