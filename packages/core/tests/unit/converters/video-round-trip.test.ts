@@ -37,6 +37,15 @@ describe("video block round-trip (core converters)", () => {
 		expect(prosemirrorToPortableText(pm)).toStrictEqual([block]);
 	});
 
+	it("keeps an empty video block empty", () => {
+		const block: PortableTextVideoBlock = { _type: "video", _key: "video1" };
+
+		const pm = portableTextToProsemirror([block], { preserveIdentity: true });
+
+		expect(pm.content[0]).toMatchObject({ type: "videoBlock", attrs: { mediaId: null } });
+		expect(prosemirrorToPortableText(pm)).toStrictEqual([block]);
+	});
+
 	it("writes only the fields that are set", () => {
 		const pt = prosemirrorToPortableText({
 			type: "doc",

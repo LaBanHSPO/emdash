@@ -41,20 +41,15 @@ const VIDEO_FIELDS = new Map<string, FieldCheck>([
  * fields, or values of other types, belongs to a plugin.
  */
 export function isPortableTextVideoBlock(block: unknown): block is PortableTextVideoBlock {
-	return (
-		isRecord(block) &&
-		block._type === "video" &&
-		isAsset(block.asset) &&
-		hasOnly(block, VIDEO_FIELDS)
-	);
+	return isRecord(block) && block._type === "video" && hasOnly(block, VIDEO_FIELDS);
 }
 
 /** ProseMirror attributes of a `videoBlock` node. */
 export function videoNodeAttrs(block: PortableTextVideoBlock): Record<string, unknown> {
 	return {
-		src: block.asset.url ?? "",
-		mediaId: block.asset._ref,
-		provider: block.asset.provider,
+		src: block.asset?.url ?? "",
+		mediaId: block.asset?._ref ?? null,
+		provider: block.asset?.provider,
 		caption: block.caption ?? "",
 		width: block.width,
 		height: block.height,
@@ -66,13 +61,15 @@ export function videoBlockFields(
 	attrs: Record<string, unknown>,
 ): Omit<PortableTextVideoBlock, "_type" | "_key"> {
 	const { src, mediaId, provider, caption, width, height } = attrs;
-	const asset: PortableTextVideoBlock["asset"] = {
+	const asset: NonNullable<PortableTextVideoBlock["asset"]> = {
 		_ref: typeof mediaId === "string" ? mediaId : "",
 	};
 	if (typeof src === "string" && src) asset.url = src;
 	if (typeof provider === "string" && provider && provider !== "local") asset.provider = provider;
+	// An empty block has no media id, file or provider.
+	const empty = typeof mediaId !== "string" && !asset.url && !asset.provider;
 	return {
-		asset,
+		...(empty ? {} : { asset }),
 		...(typeof caption === "string" && caption ? { caption } : {}),
 		...(isDimension(width) ? { width } : {}),
 		...(isDimension(height) ? { height } : {}),

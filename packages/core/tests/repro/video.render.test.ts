@@ -148,8 +148,11 @@ describe("Video rendering", () => {
 		expect(html).not.toContain("emdash-video");
 	});
 
-	it("renders nothing for a Media Library video saved without its file URL", async () => {
-		const html = await render({ asset: { _ref: "01VIDEO" }, caption: "Missing" });
+	it.each([
+		["a Media Library video saved without its file URL", { asset: { _ref: "01VIDEO" } }],
+		["an empty video block", {}],
+	])("renders nothing for %s", async (_, fields) => {
+		const html = await render({ ...fields, caption: "Missing" });
 
 		expect(html).not.toContain("emdash-video");
 		expect(html).not.toContain("Missing");

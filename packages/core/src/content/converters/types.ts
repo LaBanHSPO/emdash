@@ -186,7 +186,8 @@ export interface PortableTextIframeBlock {
 export interface PortableTextVideoBlock {
 	_type: "video";
 	_key: string;
-	asset: {
+	/** Absent while the block is empty, before an editor adds a video to it. */
+	asset?: {
 		/** Media Library id, or the provider's asset id */
 		_ref: string;
 		/** File URL of a Media Library video, which needs it to play */

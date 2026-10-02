@@ -3,8 +3,8 @@
  * Portable Text video block component
  *
  * Plays a Media Library video in the browser's own player, or a media
- * provider's video from the provider's embed. A `video` block of another shape
- * belongs to a plugin and renders nothing.
+ * provider's video from the provider's embed. An empty block, and a `video`
+ * block of another shape, which belongs to a plugin, render nothing.
  */
 import { isPortableTextVideoBlock } from "../content/converters/video.js";
 import { getMediaProvider } from "../media/provider-loader.js";
@@ -15,7 +15,7 @@ export interface Props {
 	node: {
 		_type: "video";
 		_key: string;
-		asset: { _ref: string; url?: string; provider?: string };
+		asset?: { _ref: string; url?: string; provider?: string };
 		caption?: string;
 		width?: number;
 		height?: number;
@@ -24,11 +24,12 @@ export interface Props {
 
 const { node } = Astro.props;
 
-if (!isPortableTextVideoBlock(node)) {
+const asset = isPortableTextVideoBlock(node) ? node.asset : undefined;
+if (!asset) {
 	return null;
 }
 
-const { asset, caption, width, height } = node;
+const { caption, width, height } = node;
 const providerId = asset.provider && asset.provider !== "local" ? asset.provider : undefined;
 
 let embed: VideoEmbed | undefined;
