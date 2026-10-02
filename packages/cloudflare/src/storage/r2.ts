@@ -35,13 +35,11 @@ function isInvalidRangeError(error: unknown): boolean {
 	return error instanceof Error && error.message.includes(`(${R2_INVALID_RANGE})`);
 }
 
-/** The bytes a ranged read returned, from the range R2 reports */
-function servedRange({ range, size }: R2Object): { offset: number; length: number } {
-	const {
-		offset = 0,
-		length,
-		suffix,
-	}: { offset?: number; length?: number; suffix?: number } = range ?? {};
+/** The bytes of an object of `size` bytes that an R2 range covers */
+function servedRange(
+	{ offset = 0, length, suffix }: { offset?: number; length?: number; suffix?: number },
+	size: number,
+): { offset: number; length: number } {
 	if (suffix !== undefined) {
 		const tail = Math.min(suffix, size);
 		return { offset: size - tail, length: tail };
@@ -91,8 +89,9 @@ export class R2Storage implements Storage {
 	}
 
 	async download(key: string, options: DownloadOptions = {}): Promise<DownloadResult> {
+		const { range } = options;
 		try {
-			const ranged = options.range ? await this.getRange(key, options.range) : undefined;
+			const ranged = range ? await this.getRange(key, range) : undefined;
 			const object = ranged === undefined ? await this.bucket.get(key) : ranged;
 
 			if (!object) {
@@ -108,7 +107,8 @@ export class R2Storage implements Storage {
 				body: object.body,
 				contentType: object.httpMetadata?.contentType || "application/octet-stream",
 				size: object.size,
-				...(ranged && { range: servedRange(ranged) }),
+				// R2 may not report the range it read, which is the requested one clamped to the object
+				...(range && ranged && { range: servedRange(ranged.range ?? range, ranged.size) }),
 			};
 		} catch (error) {
 			if (error instanceof EmDashStorageError) throw error;
