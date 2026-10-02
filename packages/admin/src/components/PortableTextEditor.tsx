@@ -85,6 +85,7 @@ import {
 	CodeBlock,
 	Stack,
 	Table as TableIcon,
+	VideoCamera,
 	Plus,
 	Trash,
 	RowsPlusBottom,
@@ -182,6 +183,13 @@ import {
 	selectionTouchesTable,
 } from "./editor/TableExtensions.js";
 import { createTableResize } from "./editor/TableResize.js";
+import {
+	VideoExtension,
+	isVideoBlock,
+	mediaItemToVideoAttrs,
+	videoBlockFields,
+	videoNodeAttrs,
+} from "./editor/VideoNode";
 import { MediaPickerModal } from "./MediaPickerModal";
 import { NonListFieldValue, isNonListValue } from "./NonListFieldValue.js";
 import { SectionPickerModal } from "./SectionPickerModal";
@@ -532,6 +540,7 @@ const PortableTextIdentityExtension = Extension.create({
 					"htmlBlock",
 					"iframeBlock",
 					"image",
+					"videoBlock",
 					"horizontalRule",
 					"gallery",
 					"table",
@@ -883,6 +892,13 @@ function convertPMNode(
 				_type: "iframe",
 				_key: portableTextKeyFromAttrs(node.attrs) ?? generateKey(),
 				...iframeEmbedFromAttrs(node.attrs ?? {}),
+			};
+
+		case "videoBlock":
+			return {
+				_type: "video",
+				_key: portableTextKeyFromAttrs(node.attrs) ?? generateKey(),
+				...videoBlockFields(node.attrs ?? {}),
 			};
 
 		case "image": {
@@ -1481,6 +1497,14 @@ function convertPTBlock(
 				? {
 						type: "iframeBlock",
 						attrs: attrsWithPortableTextKey({ ...iframeEmbedFromAttrs(block) }, block._key),
+					}
+				: convertCustomBlock(block);
+
+		case "video":
+			return isVideoBlock(block) && !pluginTypes.has("video")
+				? {
+						type: "videoBlock",
+						attrs: attrsWithPortableTextKey(videoNodeAttrs(block), block._key),
 					}
 				: convertCustomBlock(block);
 
@@ -3082,6 +3106,9 @@ export function PortableTextEditor({
 
 	// Multi-select media picker state (for gallery insertion)
 	const [galleryPickerOpen, setGalleryPickerOpen] = React.useState(false);
+
+	// Media picker state (for video insertion)
+	const [videoPickerOpen, setVideoPickerOpen] = React.useState(false);
 	const [conversionErrorMarks, setConversionErrorMarks] = React.useState<string[]>([]);
 	const [conversionTableError, setConversionTableError] =
 		React.useState<UnsafePortableTextTableError | null>(null);
@@ -3237,6 +3264,23 @@ export function PortableTextEditor({
 			},
 		});
 
+		// A plugin's own video block replaces the built-in one.
+		if (!pluginBlockTypes.has("video")) {
+			cmds.push({
+				id: "video",
+				title: msg`Video`,
+				description: msg`Upload or choose a video`,
+				icon: VideoCamera,
+				aliases: ["movie", "clip", "mp4", "film"],
+				category: msg`Media`,
+				deferInsertion: true,
+				command: ({ editor, range }) => {
+					editor.chain().focus().deleteRange(range).run();
+					setVideoPickerOpen(true);
+				},
+			});
+		}
+
 		// Add section command
 		cmds.push({
 			id: "section",
@@ -3368,6 +3412,7 @@ export function PortableTextEditor({
 			CodeBlockExtension,
 			HtmlBlockExtension,
 			IframeBlockExtension,
+			VideoExtension,
 			GalleryExtension,
 			ImageExtension,
 			ImageUploadExtension.configure({
@@ -3757,6 +3802,26 @@ export function PortableTextEditor({
 		[editor],
 	);
 
+	// Handle video selection from media picker
+	const handleVideoSelect = React.useCallback(
+		(item: MediaItem) => {
+			if (editor) {
+				const video = editor.schema.nodes.videoBlock!.create(mediaItemToVideoAttrs(item));
+				insertTopLevelBlock(
+					editor,
+					video,
+					undefined,
+					pendingBlockInsertPosRef.current ?? undefined,
+				);
+				// The picker held focus, so the ring and Tab need the editor focused again.
+				editor.view.focus();
+			}
+			pendingBlockInsertPosRef.current = null;
+			setVideoPickerOpen(false);
+		},
+		[editor],
+	);
+
 	// Handle gallery insertion from the multi-select media picker
 	const handleGallerySelect = React.useCallback(
 		(items: MediaItem[]) => {
@@ -4124,6 +4189,21 @@ export function PortableTextEditor({
 					mimeTypeFilter="image/"
 					title={t`Select image`}
 					confirmLabel={t`Insert image`}
+				/>
+
+				{/* Media picker for video insertion */}
+				<MediaPickerModal
+					open={videoPickerOpen}
+					onOpenChange={(open) => {
+						setVideoPickerOpen(open);
+						if (!open) pendingBlockInsertPosRef.current = null;
+					}}
+					onSelect={handleVideoSelect}
+					mimeTypeFilter="video/"
+					mediaKind="video"
+					localOnly
+					title={t`Select video`}
+					confirmLabel={t`Insert video`}
 				/>
 
 				{/* Multi-select media picker for gallery insertion */}

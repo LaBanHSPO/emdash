@@ -28,6 +28,12 @@ describe("buildEmDashCsp", () => {
 		expect(frameSrc).not.toContain("*");
 	});
 
+	it("lets the admin read a video it is about to upload, but not media from other sites", () => {
+		const csp = buildEmDashCsp();
+		const mediaSrc = csp.split("; ").find((d) => d.startsWith("media-src"));
+		expect(mediaSrc).toBe("media-src 'self' blob:");
+	});
+
 	it("keeps connect-src restricted to self", () => {
 		const csp = buildEmDashCsp();
 		const connectSrc = csp.split("; ").find((d) => d.startsWith("connect-src"));

@@ -1,0 +1,436 @@
+/**
+ * Video block editing through the full editor: inserting from /video, the
+ * caption, the Replace and Delete actions, keyboard order, the broken state,
+ * the clipboard, plugin video blocks, and conversion.
+ */
+
+import { NodeSelection } from "@tiptap/pm/state";
+import type { Editor } from "@tiptap/react";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
+
+import {
+	PortableTextEditor,
+	_portableTextToProsemirror as portableTextToProsemirror,
+	_prosemirrorToPortableText as prosemirrorToPortableText,
+	type PortableTextEditorProps,
+} from "../../src/components/PortableTextEditor";
+import { fetchMediaItem, type MediaItem } from "../../src/lib/api/media.js";
+import { render } from "../utils/render";
+
+import "../../src/styles.css";
+
+const picker = vi.hoisted(() => ({ item: null as unknown }));
+
+vi.mock("../../src/components/MediaPickerModal", async () => {
+	const { createPortal } = await import("react-dom");
+	return {
+		MediaPickerModal: ({
+			open,
+			title,
+			onSelect,
+			onOpenChange,
+		}: {
+			open: boolean;
+			title?: string;
+			onSelect: (item: unknown) => void;
+			onOpenChange: (open: boolean) => void;
+		}) =>
+			open
+				? createPortal(
+						<div role="dialog" aria-label={title}>
+							<input aria-label="Search media" />
+							<button
+								type="button"
+								onClick={() => {
+									onSelect(picker.item);
+									onOpenChange(false);
+								}}
+							>
+								Choose video
+							</button>
+						</div>,
+						document.body,
+					)
+				: null,
+	};
+});
+vi.mock("../../src/components/SectionPickerModal", () => ({ SectionPickerModal: () => null }));
+vi.mock("../../src/components/editor/DragHandleWrapper", () => ({ DragHandleWrapper: () => null }));
+vi.mock("../../src/lib/api/media.js", async () => {
+	const actual = await vi.importActual<typeof import("../../src/lib/api/media.js")>(
+		"../../src/lib/api/media.js",
+	);
+	return { ...actual, fetchMediaItem: vi.fn() };
+});
+
+type Block = { _type: string; _key: string; [key: string]: unknown };
+
+const INTRO: Block = {
+	_type: "block",
+	_key: "intro",
+	style: "normal",
+	markDefs: [],
+	children: [{ _type: "span", _key: "intro-span", text: "Intro", marks: [] }],
+};
+
+let playableUrl = "";
+
+/** Record a short clip the browser can play, so no test waits on a missing file. */
+async function recordClip(): Promise<string> {
+	const canvas = document.createElement("canvas");
+	canvas.width = 32;
+	canvas.height = 18;
+	const context = canvas.getContext("2d")!;
+	const recorder = new MediaRecorder(canvas.captureStream(10), { mimeType: "video/webm" });
+	const chunks: Blob[] = [];
+	recorder.ondataavailable = (event) => chunks.push(event.data);
+	recorder.start();
+	for (let frame = 0; frame < 4; frame++) {
+		context.fillStyle = frame % 2 ? "#f60" : "#06f";
+		context.fillRect(0, 0, 32, 18);
+		await new Promise((resolve) => setTimeout(resolve, 50));
+	}
+	const stopped = new Promise((resolve) => {
+		recorder.onstop = resolve;
+	});
+	recorder.stop();
+	await stopped;
+	return URL.createObjectURL(new Blob(chunks, { type: "video/webm" }));
+}
+
+function mediaItem(id: string, url: string): MediaItem {
+	return {
+		id,
+		filename: `${id}.webm`,
+		mimeType: "video/webm",
+		url,
+		storageKey: `${id}.webm`,
+		size: 1024,
+		width: 1920,
+		height: 1080,
+		createdAt: "2026-10-02T00:00:00.000Z",
+	};
+}
+
+function videoBlock(fields: Partial<Block> = {}): Block {
+	return {
+		_type: "video",
+		_key: "video1",
+		asset: { _ref: "01VIDEO", url: playableUrl },
+		width: 1920,
+		height: 1080,
+		...fields,
+	};
+}
+
+beforeAll(async () => {
+	playableUrl = await recordClip();
+});
+
+afterEach(() => {
+	vi.mocked(fetchMediaItem).mockReset();
+});
+
+async function renderEditor(props: Partial<PortableTextEditorProps> = {}) {
+	if (!vi.mocked(fetchMediaItem).getMockImplementation()) {
+		vi.mocked(fetchMediaItem).mockRejectedValue(new Error("Not in this test"));
+	}
+	let editor: Editor | null = null;
+	const changes: Block[][] = [];
+	const screen = await render(
+		<PortableTextEditor
+			onEditorReady={(instance) => {
+				editor = instance;
+			}}
+			onChange={(value) => changes.push(value as Block[])}
+			{...props}
+		/>,
+	);
+	await vi.waitFor(() => expect(editor).toBeTruthy());
+	const pm = document.querySelector<HTMLElement>(".ProseMirror")!;
+	const latest = (): Block[] => changes.at(-1) ?? ((props.value ?? []) as Block[]);
+	return { screen, editor: editor!, pm, latest };
+}
+
+function videos(value: Block[]): Block[] {
+	return value.filter((block) => block._type === "video");
+}
+
+function player(): HTMLVideoElement {
+	const element = document.querySelector<HTMLVideoElement>(".ProseMirror video");
+	if (!element) throw new Error("No video player in the editor");
+	return element;
+}
+
+function caption(): HTMLTextAreaElement {
+	return document.querySelector<HTMLTextAreaElement>(".ProseMirror figure textarea")!;
+}
+
+function videoPosition(editor: Editor): number {
+	let position = -1;
+	editor.state.doc.forEach((node, offset) => {
+		if (node.type.name === "videoBlock" && position === -1) position = offset;
+	});
+	return position;
+}
+
+/** Select the video block with the editor focused, as clicking its gutter handle does. */
+function selectVideo(editor: Editor) {
+	editor.view.focus();
+	editor.commands.setNodeSelection(videoPosition(editor));
+}
+
+function selectedNodeName(editor: Editor): string | null {
+	const { selection } = editor.state;
+	return selection instanceof NodeSelection ? selection.node.type.name : null;
+}
+
+describe("Video block editor", () => {
+	it("inserts a video from /video, selected and focused", async () => {
+		picker.item = mediaItem("01VIDEO", playableUrl);
+		const { screen, editor, pm, latest } = await renderEditor({ value: [INTRO] });
+
+		editor.view.focus();
+		editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+		await userEvent.keyboard("{Enter}/video");
+		await vi.waitFor(() =>
+			expect(document.querySelector("[data-slash-command-menu]")).toBeTruthy(),
+		);
+		await userEvent.keyboard("{Enter}");
+		await userEvent.click(screen.getByRole("button", { name: "Choose video" }));
+
+		await vi.waitFor(() =>
+			expect(videos(latest())).toEqual([
+				{
+					_type: "video",
+					_key: expect.any(String),
+					asset: { _ref: "01VIDEO", url: playableUrl },
+					width: 1920,
+					height: 1080,
+				},
+			]),
+		);
+		expect(player().getAttribute("src")).toBe(playableUrl);
+		expect(selectedNodeName(editor)).toBe("videoBlock");
+		expect(document.activeElement).toBe(pm);
+	});
+
+	it("saves a caption and keeps writing below it on Enter", async () => {
+		const { editor, latest } = await renderEditor({ value: [videoBlock()] });
+
+		await userEvent.click(caption());
+		await userEvent.keyboard("Launch day");
+		await vi.waitFor(() => expect(videos(latest())[0]?.caption).toBe("Launch day"));
+
+		await userEvent.keyboard("{Enter}");
+		await vi.waitFor(() => expect(document.activeElement).toBe(editor.view.dom));
+		await userEvent.keyboard("Next");
+		const below = editor.state.doc.child(1);
+		expect(below.type.name).toBe("paragraph");
+		expect(below.textContent).toBe("Next");
+		expect(videos(latest())[0]?.caption).toBe("Launch day");
+	});
+
+	it("replaces the video and keeps its caption", async () => {
+		picker.item = {
+			...mediaItem("02VIDEO", `${playableUrl}#replacement`),
+			width: 720,
+			height: 1280,
+		};
+		const { screen, editor, latest } = await renderEditor({
+			value: [videoBlock({ caption: "Launch day" })],
+		});
+
+		selectVideo(editor);
+		await userEvent.click(screen.getByRole("button", { name: "Replace video" }));
+		await userEvent.click(screen.getByRole("button", { name: "Choose video" }));
+
+		await vi.waitFor(() =>
+			expect(videos(latest())).toEqual([
+				{
+					_type: "video",
+					_key: "video1",
+					asset: { _ref: "02VIDEO", url: `${playableUrl}#replacement` },
+					caption: "Launch day",
+					width: 720,
+					height: 1280,
+				},
+			]),
+		);
+	});
+
+	it("selects the block when Replace is pressed, so the picker can return focus to it", async () => {
+		const { screen, editor } = await renderEditor({ value: [INTRO, videoBlock()] });
+
+		await userEvent.hover(document.querySelector(".ProseMirror figure")!);
+		await userEvent.click(screen.getByRole("button", { name: "Replace video" }));
+
+		expect(selectedNodeName(editor)).toBe("videoBlock");
+		await expect.element(screen.getByRole("button", { name: "Replace video" })).toBeVisible();
+	});
+
+	it("leaves the video alone once the entry is read-only", async () => {
+		const { screen, editor } = await renderEditor({ value: [INTRO, videoBlock()] });
+		selectVideo(editor);
+		const remove = screen.getByRole("button", { name: "Delete video" }).element();
+
+		editor.setEditable(false);
+		(remove as HTMLButtonElement).click();
+
+		expect(editor.state.doc.child(1).type.name).toBe("videoBlock");
+	});
+
+	it("deletes the video from its actions", async () => {
+		const { screen, editor, latest } = await renderEditor({ value: [INTRO, videoBlock()] });
+
+		selectVideo(editor);
+		await userEvent.click(screen.getByRole("button", { name: "Delete video" }));
+
+		await vi.waitFor(() => expect(videos(latest())).toEqual([]));
+		expect(document.querySelector(".ProseMirror figure")).toBeNull();
+	});
+
+	it("moves through the player, caption and actions with Tab, and back to the block", async () => {
+		const { editor, pm, screen } = await renderEditor({ value: [INTRO, videoBlock()] });
+		const replace = screen.getByRole("button", { name: "Replace video" }).element();
+		const remove = screen.getByRole("button", { name: "Delete video" }).element();
+
+		selectVideo(editor);
+		await userEvent.keyboard("{Tab}");
+		expect(document.activeElement).toBe(player());
+		await userEvent.keyboard("{Tab}");
+		expect(document.activeElement).toBe(caption());
+		await userEvent.keyboard("{Tab}");
+		expect(document.activeElement).toBe(replace);
+		await userEvent.keyboard("{Tab}");
+		expect(document.activeElement).toBe(remove);
+
+		await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+		expect(document.activeElement).toBe(replace);
+		await userEvent.keyboard("{Escape}");
+		expect(document.activeElement).toBe(pm);
+		expect(selectedNodeName(editor)).toBe("videoBlock");
+
+		await userEvent.keyboard("{Tab}");
+		await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+		expect(document.activeElement).toBe(pm);
+		expect(selectedNodeName(editor)).toBe("videoBlock");
+	});
+
+	it("leaves keys in the Replace picker to the picker", async () => {
+		const { screen, editor } = await renderEditor({ value: [videoBlock()] });
+
+		selectVideo(editor);
+		await userEvent.click(screen.getByRole("button", { name: "Replace video" }));
+		const search = screen.getByRole("textbox", { name: "Search media" });
+		await userEvent.click(search);
+		const selection = editor.state.selection;
+		await userEvent.keyboard("{Escape}{Tab}");
+
+		expect(editor.state.selection.eq(selection)).toBe(true);
+		expect(document.activeElement).not.toBe(caption());
+		expect(document.querySelector('[role="dialog"]')?.contains(document.activeElement)).toBe(true);
+	});
+
+	it("says when a video can't be played", async () => {
+		const { screen } = await renderEditor({
+			value: [videoBlock({ asset: { _ref: "01GONE", url: "/_emdash/api/media/file/01GONE.mp4" } })],
+		});
+
+		await expect.element(screen.getByText("This video can't be played.")).toBeVisible();
+		expect(player().getAttribute("src")).toBe("/_emdash/api/media/file/01GONE.mp4");
+	});
+
+	it("doesn't call a video broken while it looks up its file", async () => {
+		vi.mocked(fetchMediaItem).mockReturnValue(new Promise(() => {}));
+		const { screen } = await renderEditor({
+			value: [videoBlock({ asset: { _ref: "01VIDEO" }, width: undefined, height: undefined })],
+		});
+
+		await expect.element(screen.getByRole("button", { name: "Replace video" })).toBeInTheDocument();
+		expect(document.body.textContent).not.toContain("This video can't be played.");
+	});
+
+	it("plays a block saved with only its media ID from the item's storage key", async () => {
+		const saved = videoBlock({ asset: { _ref: "01VIDEO" }, width: undefined, height: undefined });
+		const { url: _url, ...item } = mediaItem("01VIDEO", "");
+		vi.mocked(fetchMediaItem).mockResolvedValue({
+			...item,
+			storageKey: "01VIDEO.webm",
+		} as Awaited<ReturnType<typeof fetchMediaItem>>);
+		const { latest } = await renderEditor({ value: [saved] });
+
+		await vi.waitFor(() =>
+			expect(player().getAttribute("src")).toBe("/_emdash/api/media/file/01VIDEO.webm"),
+		);
+		expect(latest()).toEqual([saved]);
+	});
+
+	it("keeps a video through copy and paste", async () => {
+		const { editor, latest } = await renderEditor({
+			value: [videoBlock({ caption: "Launch day" }), INTRO],
+		});
+
+		selectVideo(editor);
+		const { dom } = editor.view.serializeForClipboard(editor.state.selection.content());
+		editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+		const clipboardData = new DataTransfer();
+		clipboardData.setData("text/html", dom.innerHTML);
+		editor.view.dom.dispatchEvent(
+			new ClipboardEvent("paste", { clipboardData, bubbles: true, cancelable: true }),
+		);
+
+		await vi.waitFor(() => expect(videos(latest())).toHaveLength(2));
+		const [, pasted] = videos(latest());
+		expect(pasted).toEqual({ ...videoBlock({ caption: "Launch day" }), _key: expect.any(String) });
+	});
+});
+
+describe("Video block with a plugin's video block", () => {
+	it("keeps the plugin's block and leaves out the built-in command", async () => {
+		const saved = videoBlock();
+		const { editor, latest } = await renderEditor({
+			value: [INTRO, saved],
+			pluginBlocks: [{ type: "video", pluginId: "acme", label: "Acme video" }],
+		});
+
+		await vi.waitFor(() => expect(document.querySelector(".plugin-block")).toBeTruthy());
+		expect(document.querySelector(".ProseMirror video")).toBeNull();
+
+		editor.view.focus();
+		editor.commands.setTextSelection(1);
+		await userEvent.keyboard("{Enter}/video");
+		const menu = await vi.waitFor(() => {
+			const element = document.querySelector("[data-slash-command-menu]");
+			expect(element).toBeTruthy();
+			return element!;
+		});
+		expect(menu.textContent).toContain("Acme video");
+		expect(menu.textContent).not.toContain("Upload or choose a video");
+		await userEvent.keyboard("{Escape}");
+		expect(videos(latest())).toEqual([saved]);
+	});
+});
+
+describe("Video block conversion", () => {
+	it("round-trips every field and leaves a plugin's video block alone", () => {
+		const native = videoBlock({
+			caption: "Launch day",
+			asset: { _ref: "uid42", provider: "cloudflare-stream" },
+		});
+		const minimal = videoBlock({ _key: "video2", asset: { _ref: "01VIDEO" } });
+		const plugin = videoBlock({ _key: "plugin1", autoplay: true });
+		const pluginSize = videoBlock({ _key: "plugin2", width: "100%" });
+
+		const pm = portableTextToProsemirror([native, minimal, plugin, pluginSize]);
+
+		expect(pm.content?.map((node) => (node as { type: string }).type)).toEqual([
+			"videoBlock",
+			"videoBlock",
+			"pluginBlock",
+			"pluginBlock",
+		]);
+		expect(prosemirrorToPortableText(pm)).toStrictEqual([native, minimal, plugin, pluginSize]);
+	});
+});
