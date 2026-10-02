@@ -386,6 +386,20 @@ export const BlockSelection = Extension.create<BlockSelectionOptions>({
 						return false;
 					},
 					handleDOMEvents: {
+						// As in Notion, a click between two blocks that hold no text, such as
+						// embeds, leaves the caret where it was instead of putting a gap cursor there.
+						mousedown: (view, event) => {
+							if (event.button !== 0 || event.shiftKey || event.target !== view.dom) return false;
+							const pos = view.posAtCoords({ left: event.clientX, top: event.clientY });
+							if (!pos || pos.inside > -1) return false;
+							const $pos = view.state.doc.resolve(pos.pos);
+							const selection = view.someProp("createSelectionBetween", (create) =>
+								create(view, $pos, $pos),
+							);
+							if (!(selection instanceof GapCursor)) return false;
+							event.preventDefault();
+							return true;
+						},
 						// Dictation, emoji pickers, and autocorrect insert text without a key press.
 						beforeinput: (view, event) => {
 							if (!isSelectedBlockProtected(view.state) || !TEXT_INPUT_TYPES.has(event.inputType)) {

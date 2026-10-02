@@ -204,6 +204,25 @@ describe("Block selection", () => {
 		expect(editor.state.selection.$from.parentOffset).toBe(1);
 	});
 
+	it("leaves the caret where it was on a click between two dividers", async () => {
+		create("<p>one</p><hr><hr><p>two</p>");
+		editor.view.focus();
+		caretIn("one");
+		const before = editor.state.selection.from;
+		const [first, second] = editor.view.dom.querySelectorAll("hr");
+		const top = first!.getBoundingClientRect().bottom;
+		const bottom = second!.getBoundingClientRect().top;
+		const box = editor.view.dom.getBoundingClientRect();
+		expect(bottom - top).toBeGreaterThan(2);
+
+		await userEvent.click(editor.view.dom, {
+			position: { x: 20, y: (top + bottom) / 2 - box.top },
+		});
+
+		expect(editor.state.selection).not.toBeInstanceOf(GapCursor);
+		expect(editor.state.selection.from).toBe(before);
+	});
+
 	it("goes back to writing at the end of the block on Enter", () => {
 		create("<p>one</p><p>two</p>");
 		caretIn("two");
