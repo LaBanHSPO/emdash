@@ -1008,6 +1008,31 @@ describe("Bubble Menu", () => {
 		expect(editor.getText()).toBe("Click here");
 	});
 
+	it("keeps the caret and the link preview when a link is clicked", async () => {
+		const { editor } = await renderEditor({
+			value: [
+				{
+					_type: "block" as const,
+					_key: "1",
+					style: "normal" as const,
+					children: [{ _type: "span" as const, _key: "s1", text: "Click here", marks: ["link1"] }],
+					markDefs: [{ _type: "link", _key: "link1", href: "https://example.com" }],
+				},
+			],
+		});
+
+		// A press as long as a person's, so the caret lands before the button is released.
+		await userEvent.click(document.querySelector<HTMLElement>(".ProseMirror a")!, { delay: 120 });
+
+		await vi.waitFor(() =>
+			expect(document.querySelector("[data-emdash-link-bubble-menu]")).toBeTruthy(),
+		);
+		expect(editor.state.selection.empty).toBe(true);
+		expect(document.querySelector("[data-emdash-inline-bubble-menu]")?.checkVisibility()).not.toBe(
+			true,
+		);
+	});
+
 	it("shows a linked table cell's link preview instead of the table controls", async () => {
 		const { editor, pm } = await renderEditor({ value: tableValue });
 		await focusTableCell(editor, pm);

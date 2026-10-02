@@ -3736,7 +3736,6 @@ export function PortableTextEditor({
 				link: {
 					shouldAutoLink: (url) => URL_SCHEME_REGEX.test(url) || WWW_PREFIX_REGEX.test(url),
 					openOnClick: false,
-					enableClickSelection: true,
 					HTMLAttributes: {
 						class: "text-kumo-link underline",
 					},
