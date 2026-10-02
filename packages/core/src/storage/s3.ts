@@ -22,6 +22,8 @@ import type {
 	Storage,
 	S3StorageConfig,
 	UploadResult,
+	ByteRange,
+	DownloadOptions,
 	DownloadResult,
 	ListResult,
 	ListOptions,
@@ -112,10 +114,26 @@ export function resolveS3Config(partial: Record<string, unknown>): S3StorageConf
 }
 
 const TRAILING_SLASH_PATTERN = /\/$/;
+const CONTENT_RANGE_PATTERN = /^bytes (\d+)-(\d+)\/(\d+)$/;
 
 /** Type guard for AWS SDK errors (have a `name` property) */
 function hasErrorName(error: unknown): error is Error & { name: string } {
 	return error instanceof Error && typeof error.name === "string";
+}
+
+function formatRangeHeader(range: ByteRange): string {
+	if ("suffix" in range) return `bytes=-${range.suffix}`;
+	const end = range.length === undefined ? "" : range.offset + range.length - 1;
+	return `bytes=${range.offset}-${end}`;
+}
+
+function parseContentRange(
+	header: string,
+): { offset: number; length: number; size: number } | undefined {
+	const match = CONTENT_RANGE_PATTERN.exec(header);
+	if (!match) return undefined;
+	const offset = Number(match[1]);
+	return { offset, length: Number(match[2]) - offset + 1, size: Number(match[3]) };
 }
 
 /**
@@ -195,14 +213,9 @@ export class S3Storage implements Storage {
 		}
 	}
 
-	async download(key: string): Promise<DownloadResult> {
+	async download(key: string, options: DownloadOptions = {}): Promise<DownloadResult> {
 		try {
-			const response = await this.client.send(
-				new GetObjectCommand({
-					Bucket: this.bucket,
-					Key: key,
-				}),
-			);
+			const { response, ranged } = await this.getObject(key, options.range);
 
 			if (!response.Body) {
 				throw new EmDashStorageError(`File not found: ${key}`, "NOT_FOUND");
@@ -210,10 +223,26 @@ export class S3Storage implements Storage {
 
 			// Convert SDK stream to web ReadableStream
 			const body = response.Body.transformToWebStream();
+			const contentType = response.ContentType || "application/octet-stream";
+
+			// A service that ignores `Range` sends the whole object without `Content-Range`.
+			if (ranged && response.ContentRange) {
+				const served = parseContentRange(response.ContentRange);
+				if (!served) {
+					await body.cancel();
+					throw new Error(`Unexpected Content-Range: ${response.ContentRange}`);
+				}
+				return {
+					body,
+					contentType,
+					size: served.size,
+					range: { offset: served.offset, length: served.length },
+				};
+			}
 
 			return {
 				body,
-				contentType: response.ContentType || "application/octet-stream",
+				contentType,
 				size: response.ContentLength || 0,
 			};
 		} catch (error) {
@@ -224,6 +253,19 @@ export class S3Storage implements Storage {
 				throw new EmDashStorageError(`File not found: ${key}`, "NOT_FOUND", error);
 			}
 			throw new EmDashStorageError(`Failed to download file: ${key}`, "DOWNLOAD_FAILED", error);
+		}
+	}
+
+	/** Get the object, or all of it when the service can't satisfy `range` */
+	private async getObject(key: string, range: ByteRange | undefined) {
+		const get = (rangeHeader?: string) =>
+			this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key, Range: rangeHeader }));
+		if (!range) return { response: await get(), ranged: false };
+		try {
+			return { response: await get(formatRangeHeader(range)), ranged: true };
+		} catch (error) {
+			if (!hasErrorName(error) || error.name !== "InvalidRange") throw error;
+			return { response: await get(), ranged: false };
 		}
 	}
 

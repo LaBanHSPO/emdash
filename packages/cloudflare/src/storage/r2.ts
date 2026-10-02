@@ -15,6 +15,8 @@ import { env } from "cloudflare:workers";
 import type {
 	Storage,
 	UploadResult,
+	ByteRange,
+	DownloadOptions,
 	DownloadResult,
 	ListResult,
 	ListOptions,
@@ -25,6 +27,27 @@ import { EmDashStorageError } from "emdash";
 
 /** Regex to remove trailing slashes from URLs */
 const TRAILING_SLASH_REGEX = /\/$/;
+
+/** R2's error code for a range that starts at or past the end of the object */
+const R2_INVALID_RANGE = 10039;
+
+function isInvalidRangeError(error: unknown): boolean {
+	return error instanceof Error && error.message.includes(`(${R2_INVALID_RANGE})`);
+}
+
+/** The bytes a ranged read returned, from the range R2 reports */
+function servedRange({ range, size }: R2Object): { offset: number; length: number } {
+	const {
+		offset = 0,
+		length,
+		suffix,
+	}: { offset?: number; length?: number; suffix?: number } = range ?? {};
+	if (suffix !== undefined) {
+		const tail = Math.min(suffix, size);
+		return { offset: size - tail, length: tail };
+	}
+	return { offset, length: Math.min(length ?? size, size - offset) };
+}
 
 /**
  * R2 Storage implementation using native bindings
@@ -67,9 +90,10 @@ export class R2Storage implements Storage {
 		}
 	}
 
-	async download(key: string): Promise<DownloadResult> {
+	async download(key: string, options: DownloadOptions = {}): Promise<DownloadResult> {
 		try {
-			const object = await this.bucket.get(key);
+			const ranged = options.range ? await this.getRange(key, options.range) : undefined;
+			const object = ranged === undefined ? await this.bucket.get(key) : ranged;
 
 			if (!object) {
 				throw new EmDashStorageError(`File not found: ${key}`, "NOT_FOUND");
@@ -84,10 +108,21 @@ export class R2Storage implements Storage {
 				body: object.body,
 				contentType: object.httpMetadata?.contentType || "application/octet-stream",
 				size: object.size,
+				...(ranged && { range: servedRange(ranged) }),
 			};
 		} catch (error) {
 			if (error instanceof EmDashStorageError) throw error;
 			throw new EmDashStorageError(`Failed to download file: ${key}`, "DOWNLOAD_FAILED", error);
+		}
+	}
+
+	/** Resolves to undefined when R2 can't satisfy the range */
+	private async getRange(key: string, range: ByteRange): Promise<R2ObjectBody | null | undefined> {
+		try {
+			return await this.bucket.get(key, { range });
+		} catch (error) {
+			if (isInvalidRangeError(error)) return undefined;
+			throw error;
 		}
 	}
 
