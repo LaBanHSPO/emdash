@@ -435,13 +435,12 @@ describe("Bubble Menu", () => {
 		editor
 			.chain()
 			.focus()
-			.setTextSelection({ from: lineEnd, to: lineEnd + 2 })
+			.setTextSelection({ from: lineEnd - 5, to: lineEnd + 2 })
 			.run();
-		await new Promise((resolve) => setTimeout(resolve, 300));
-		expect(getBubbleMenu()).toBeNull();
-
-		editor.commands.setTextSelection({ from: lineEnd - 5, to: lineEnd + 2 });
 		await waitForBubbleMenu();
+
+		editor.commands.setTextSelection({ from: lineEnd, to: lineEnd + 2 });
+		await vi.waitFor(() => expect(getBubbleMenu()).toBeNull());
 	});
 
 	it("scrolls inside its own rounded surface, so no wrapper clips its corners", async () => {
