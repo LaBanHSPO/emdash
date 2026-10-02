@@ -44,6 +44,10 @@ function extractCustomBlockText(block: PortableTextBlock): string {
 		return parts.join(" ");
 	}
 
+	if (block._type === "video" && "caption" in block && typeof block.caption === "string") {
+		return block.caption;
+	}
+
 	return "";
 }
 
@@ -51,7 +55,7 @@ function extractCustomBlockText(block: PortableTextBlock): string {
  * Extract plain text from Portable Text blocks
  *
  * Uses @portabletext/toolkit's toPlainText for standard blocks,
- * plus extracts text from custom block types (code, images with alt/caption).
+ * plus extracts text from custom block types (code, images with alt/caption, video captions).
  *
  * @param blocks - Array of Portable Text blocks (or a JSON string)
  * @returns Plain text content

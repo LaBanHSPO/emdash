@@ -181,6 +181,26 @@ export interface PortableTextIframeBlock {
 }
 
 /**
+ * Video block (a Media Library video, or a media provider's)
+ */
+export interface PortableTextVideoBlock {
+	_type: "video";
+	_key: string;
+	asset: {
+		/** Media Library id, or the provider's asset id */
+		_ref: string;
+		/** File URL of a Media Library video */
+		url?: string;
+		/** Provider ID for external media (e.g., "cloudflare-stream"); omitted for the Media Library */
+		provider?: string;
+	};
+	caption?: string;
+	/** Size in pixels, in whole numbers. Gives the player its aspect ratio before the video loads. */
+	width?: number;
+	height?: number;
+}
+
+/**
  * Unknown/custom block (preserved for plugin compatibility)
  */
 export interface PortableTextUnknownBlock {
@@ -199,6 +219,7 @@ export type PortableTextBlock =
 	| PortableTextCodeBlock
 	| PortableTextHtmlBlock
 	| PortableTextIframeBlock
+	| PortableTextVideoBlock
 	| PortableTextTableBlock
 	| PortableTextUnknownBlock;
 
