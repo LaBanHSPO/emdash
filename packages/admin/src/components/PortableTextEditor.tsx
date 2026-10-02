@@ -1813,6 +1813,12 @@ function insertIframeBlock(editor: Editor, range?: Range, position?: number) {
 	insertTopLevelBlock(editor, editor.schema.nodes.iframeBlock!.create(), range, position);
 }
 
+// An empty video block takes no focus itself; the editor keeps it, so Enter can open the picker.
+function insertVideoBlock(editor: Editor, range?: Range, position?: number) {
+	insertTopLevelBlock(editor, editor.schema.nodes.videoBlock!.create(), range, position);
+	editor.view.focus();
+}
+
 function insertHtmlBlock(editor: Editor, range?: Range, position?: number) {
 	insertTopLevelBlock(
 		editor,
@@ -3219,20 +3225,21 @@ export function PortableTextEditor({
 		const builtIns = defaultSlashCommands.filter(
 			(item) => item.id !== "iframe" || !pluginBlockTypes.has("iframe"),
 		);
+		// From the gutter, insert at its position in the same undo step.
+		const insertAtGutter = (
+			insert: typeof insertHtmlBlock,
+		): Pick<SlashCommandItem, "deferInsertion" | "command"> => ({
+			deferInsertion: true,
+			command: ({ editor, range }) => {
+				const position = pendingBlockInsertPosRef.current;
+				pendingBlockInsertPosRef.current = null;
+				if (position === null) insert(editor, range);
+				else insert(editor, undefined, position);
+			},
+		});
 		const cmds: SlashCommandItem[] = builtIns.map((item) => {
 			const insert = topLevelInserts[item.id];
-			if (!insert) return item;
-			return {
-				...item,
-				// From the gutter, insert at its position in the same undo step.
-				deferInsertion: true,
-				command: ({ editor, range }) => {
-					const position = pendingBlockInsertPosRef.current;
-					pendingBlockInsertPosRef.current = null;
-					if (position === null) insert(editor, range);
-					else insert(editor, undefined, position);
-				},
-			};
+			return insert ? { ...item, ...insertAtGutter(insert) } : item;
 		});
 
 		// Add image command
@@ -3274,8 +3281,7 @@ export function PortableTextEditor({
 				icon: VideoCamera,
 				aliases: ["movie", "clip", "mp4", "film"],
 				category: msg`Media`,
-				command: ({ editor, range }) =>
-					insertTopLevelBlock(editor, editor.schema.nodes.videoBlock!.create(), range),
+				...insertAtGutter(insertVideoBlock),
 			});
 		}
 

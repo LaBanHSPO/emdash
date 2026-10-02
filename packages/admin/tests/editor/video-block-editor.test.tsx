@@ -59,7 +59,19 @@ vi.mock("../../src/components/MediaPickerModal", async () => {
 	};
 });
 vi.mock("../../src/components/SectionPickerModal", () => ({ SectionPickerModal: () => null }));
-vi.mock("../../src/components/editor/DragHandleWrapper", () => ({ DragHandleWrapper: () => null }));
+vi.mock("../../src/components/editor/DragHandleWrapper", () => ({
+	DragHandleWrapper: ({
+		editor,
+		onInsertBlock,
+	}: {
+		editor: Editor;
+		onInsertBlock?: (position: number) => void;
+	}) => (
+		<button type="button" onClick={() => onInsertBlock?.(editor.state.doc.content.size)}>
+			Test gutter insert
+		</button>
+	),
+}));
 vi.mock("../../src/lib/api/media.js", async () => {
 	const actual = await vi.importActual<typeof import("../../src/lib/api/media.js")>(
 		"../../src/lib/api/media.js",
@@ -261,6 +273,29 @@ describe("Video block editor", () => {
 		expect(document.querySelector('[role="dialog"]')).toBeNull();
 		expect(selectedNodeName(editor)).toBe("videoBlock");
 		expect(videos(latest())).toEqual([empty]);
+	});
+
+	it("undoes an empty block added from the gutter in one step", async () => {
+		const { screen, editor } = await renderEditor({ value: [INTRO] });
+		const before = editor.getJSON();
+
+		await screen.getByRole("button", { name: "Test gutter insert" }).click();
+		const menu = await vi.waitFor(() => {
+			const element = document.querySelector<HTMLElement>("[data-slash-command-menu]");
+			expect(element).toBeTruthy();
+			return element!;
+		});
+		const item = [...menu.querySelectorAll("button")].find(
+			(button) => button.querySelector(".font-medium")?.textContent === "Video",
+		);
+		item!.click();
+		await expect
+			.element(screen.getByRole("button", { name: "Upload or choose a video" }))
+			.toBeVisible();
+		expect(document.activeElement).toBe(editor.view.dom);
+		await userEvent.keyboard("{ControlOrMeta>}z{/ControlOrMeta}");
+
+		expect(editor.getJSON()).toEqual(before);
 	});
 
 	it("highlights an empty block under dragged files, without an insertion line", async () => {
