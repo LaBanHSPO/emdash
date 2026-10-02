@@ -94,9 +94,21 @@ async function createPost(
 
 function monitorErrors(page: Page) {
 	const errors: string[] = [];
-	page.on("pageerror", (error) => errors.push(error.message));
+	// WebKit reports a same-origin fetch that a navigation cancels as failing
+	// access control checks, which a same-origin request can't really fail.
+	const isCancelledFetch = (text: string) => {
+		const { host } = new URL(page.url());
+		return (
+			host !== "" && text.includes(`${host}/`) && text.endsWith("due to access control checks.")
+		);
+	};
+	page.on("pageerror", (error) => {
+		if (!isCancelledFetch(error.message)) errors.push(error.message);
+	});
 	page.on("console", (message) => {
-		if (message.type() === "error") errors.push(`${message.text()} (${message.location().url})`);
+		if (message.type() === "error" && !isCancelledFetch(message.text())) {
+			errors.push(`${message.text()} (${message.location().url})`);
+		}
 	});
 	return () => expect(errors).toEqual([]);
 }
