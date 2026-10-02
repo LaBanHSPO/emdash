@@ -13,7 +13,7 @@ const CLIP = "0123456789";
 function serve(
 	storage: Pick<Storage, "download">,
 	headers: Record<string, string> = {},
-	cache?: { set: (input: false) => void },
+	cache?: { enabled: boolean; set: (input: false) => void },
 ) {
 	return GET({
 		params: { key: "clip.mp4" },
@@ -71,8 +71,8 @@ describe("public media file route byte ranges", () => {
 	});
 
 	it("keeps range responses out of the route cache", async () => {
-		const ranged = { set: vi.fn() };
-		const whole = { set: vi.fn() };
+		const ranged = { enabled: true, set: vi.fn() };
+		const whole = { enabled: true, set: vi.fn() };
 
 		await (await serve(storage, { Range: "bytes=0-1" }, ranged)).body?.cancel();
 		await (await serve(storage, {}, whole)).body?.cancel();

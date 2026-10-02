@@ -83,7 +83,7 @@ export const GET: APIRoute = async ({ params, locals, request, cache }) => {
 			: parseRangeHeader(request.headers.get("Range"));
 		// The route cache keys entries by URL alone, so a cached partial
 		// response would be served to requests for the whole file.
-		if (range) cache?.set(false);
+		if (range && cache?.enabled) cache.set(false);
 		const result = range
 			? await emdash.storage.download(key, { range })
 			: await emdash.storage.download(key);
