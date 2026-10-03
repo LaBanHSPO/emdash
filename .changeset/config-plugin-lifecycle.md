@@ -2,14 +2,8 @@
 "emdash": patch
 ---
 
-Run `plugin:install` and `plugin:activate` lifecycle hooks for native plugins registered in `astro.config.mjs`.
+Fixes `plugin:install` and `plugin:activate` never running for plugins registered in the `plugins` array of `astro.config.mjs`, so setup such as `ctx.cron.schedule()` in `plugin:activate` now takes effect.
 
-Previously, config-registered plugins were added to the hook pipeline but their lifecycle hooks never ran, because the boot path only created a `_plugin_state` row (and ran the hooks) from the admin install/enable/update routes. One-time setup such as `ctx.cron.schedule()` in `plugin:activate` was silently skipped, so cron tasks were never created.
+Each plugin's hooks run once, when the site first starts with that plugin. On existing sites, this happens on the first start after upgrading for every plugin in `plugins` that you have never enabled, disabled, or changed MCP access for in the admin. A `plugin:install` hook that is not safe to run on a site where the plugin is already in use will run then, so check your plugins before upgrading.
 
-On the first boot after this change, any configured native plugin with no existing `_plugin_state` row gets:
-
-1. A persisted `_plugin_state` row with `source: "config"` and `status: "active"`.
-2. `plugin:install` invoked once.
-3. `plugin:activate` invoked, with full plugin context (including `ctx.cron`).
-
-Built-in plugins and runtime-installed marketplace/registry plugins are unaffected.
+If either hook throws, EmDash logs the error and disables the plugin instead of retrying on every start. Re-enable it from the Plugins page after fixing the problem; this runs `plugin:activate` again.

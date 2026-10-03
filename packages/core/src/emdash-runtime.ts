@@ -257,7 +257,7 @@ import {
 } from "./index.js";
 import { getDb } from "./loader.js";
 import { isRecord } from "./plugin-utils.js";
-import { CronExecutor, type InvokeCronHookFn } from "./plugins/cron.js";
+import { CronExecutor, setCronTasksEnabled, type InvokeCronHookFn } from "./plugins/cron.js";
 import { definePlugin } from "./plugins/define-plugin.js";
 import { DEV_CONSOLE_EMAIL_PLUGIN_ID, devConsoleEmailDeliver } from "./plugins/email-console.js";
 import { EmailPipeline } from "./plugins/email.js";
@@ -1096,43 +1096,63 @@ export class EmDashRuntime {
 	}
 
 	/**
-	 * Run install → activate for native plugins that are registered in the
-	 * integration config and have no persisted `_plugin_state` row.
+	 * Run install → activate once for each native plugin registered in the
+	 * integration config that has no `_plugin_state` row.
 	 *
-	 * Config plugins are active by default, but before this the host boot path
-	 * never created their state row or invoked their lifecycle hooks, so
-	 * one-time setup such as `ctx.cron.schedule()` was silently skipped.
-	 * Running it here brings config-registered plugins in line with admin-
-	 * installed plugins.
-	 *
-	 * Built-in plugins are not passed in `configPlugins`, and marketplace/
-	 * registry plugins already go through their own install finalization, so
-	 * neither group is affected.
+	 * Only the isolate whose insert creates the row runs the hooks. A plugin
+	 * whose hooks fail is recorded as inactive rather than retried on later
+	 * boots; re-enabling it from the admin runs `plugin:activate`.
 	 */
-	private static async installConfigPluginsOnBoot(
-		db: Kysely<Database>,
+	private async installUnrecordedConfigPlugins(
 		configPlugins: ResolvedPlugin[],
-		initialStates: ReadonlyMap<string, string>,
-		pluginStates: Map<string, string>,
-		pipeline: HookPipeline,
+		recordedStates: ReadonlyMap<string, string>,
 	): Promise<void> {
-		const stateRepo = new PluginStateRepository(db);
+		const stateRepo = new PluginStateRepository(this.db);
+		const failed: ResolvedPlugin[] = [];
+		const recordFailure = (plugin: ResolvedPlugin, hook: string, error: Error | undefined) => {
+			console.error(
+				`EmDash: ${hook} failed for config plugin "${plugin.id}"; disabling it:`,
+				error,
+			);
+			failed.push(plugin);
+		};
 
 		for (const plugin of configPlugins) {
-			const status = initialStates.get(plugin.id);
-			// A row already exists (active or inactive) -> lifecycle was or will
-			// be handled through admin flows; don't run it again at boot.
-			if (status !== undefined) continue;
+			if (recordedStates.has(plugin.id)) continue;
 
 			try {
-				await stateRepo.upsert(plugin.id, plugin.version, "active", { source: "config" });
-				pluginStates.set(plugin.id, "active");
-				await pipeline.runPluginInstall(plugin.id);
-				await pipeline.runPluginActivate(plugin.id);
+				if (!(await stateRepo.createActiveIfAbsent(plugin.id, plugin.version, "config"))) continue;
+				this.pluginStates.set(plugin.id, "active");
+
+				const install = await this._hooks.runPluginInstall(plugin.id);
+				const installFailure = install.find((result) => !result.success);
+				if (installFailure) {
+					recordFailure(plugin, "plugin:install", installFailure.error);
+					continue;
+				}
+
+				const activate = await this._hooks.runPluginActivate(plugin.id);
+				const activateFailure = activate.find((result) => !result.success);
+				if (activateFailure) {
+					recordFailure(plugin, "plugin:activate", activateFailure.error);
+				}
 			} catch (error) {
 				console.error(`EmDash: Config plugin "${plugin.id}" install/activate failed:`, error);
 			}
 		}
+
+		if (failed.length === 0) return;
+		for (const plugin of failed) {
+			try {
+				await stateRepo.disable(plugin.id, plugin.version);
+				await setCronTasksEnabled(this.db, plugin.id, false);
+			} catch (error) {
+				console.error(`EmDash: Failed to record config plugin "${plugin.id}" as disabled:`, error);
+			}
+			this.pluginStates.set(plugin.id, "inactive");
+			this.enabledPlugins.delete(plugin.id);
+		}
+		await this.rebuildHookPipeline();
 	}
 
 	/**
@@ -1574,6 +1594,7 @@ export class EmDashRuntime {
 		const storage = EmDashRuntime.getStorage(deps);
 
 		let pluginStates: Map<string, string> = new Map();
+		let pluginStatesRead = false;
 		const configuredLocales: string[] =
 			virtualConfig?.i18n?.locales ?? getI18nConfig()?.locales ?? [];
 		const localeCasingRepairVersion = getLocaleCasingRepairVersion(configuredLocales);
@@ -1672,6 +1693,7 @@ export class EmDashRuntime {
 						.select(["plugin_id", "status"])
 						.execute();
 					pluginStates = new Map(states.map((s) => [s.plugin_id, s.status]));
+					pluginStatesRead = true;
 				} catch (error) {
 					captureMissingManualSchema(error);
 					// _plugin_state may not exist yet on a pre-migration db.
@@ -2259,20 +2281,11 @@ export class EmDashRuntime {
 		);
 		sandboxRunner?.setContentActions?.(contentActions);
 
-		// Native config plugins are active by default, but the boot path used to
-		// skip their install/activate lifecycle entirely. Run it once for any
-		// configured plugin that has no persisted state, so one-time setup
-		// (cron schedules, etc.) happens the same way it does for admin-installed
-		// plugins.
-		await phase("rt.lifecycle", "Config plugin install/activate", () =>
-			EmDashRuntime.installConfigPluginsOnBoot(
-				db,
-				deps.plugins,
-				pluginStates,
-				pluginStates,
-				pipeline,
-			),
-		);
+		if (ownsConfiguredDb && pluginStatesRead) {
+			await phase("rt.lifecycle", "Config plugin install/activate", () =>
+				runtime.installUnrecordedConfigPlugins(deps.plugins, new Map(pluginStates)),
+			);
+		}
 
 		return runtime;
 	}
