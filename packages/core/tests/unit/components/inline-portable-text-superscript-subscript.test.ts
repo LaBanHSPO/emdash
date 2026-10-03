@@ -219,9 +219,19 @@ describe("inline Portable Text editor superscript/subscript marks", () => {
 			});
 		});
 
-		await blur(editable);
+		const saveStates: unknown[] = [];
+		const onSave = (event: Event) => {
+			if (event instanceof CustomEvent) saveStates.push(event.detail?.state);
+		};
+		document.addEventListener("emdash:save", onSave);
+		try {
+			await blur(editable);
+		} finally {
+			document.removeEventListener("emdash:save", onSave);
+		}
 
 		expect(puts).toHaveLength(0);
+		expect(saveStates).toEqual(["error"]);
 		const error = container.querySelector(".emdash-inline-editor-error");
 		expect(error).not.toBeNull();
 		expect(error!.textContent).toContain("highlight");

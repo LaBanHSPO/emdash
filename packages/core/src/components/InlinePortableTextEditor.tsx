@@ -43,14 +43,7 @@ import {
 	normalizeListStart,
 	readOrderedListMetadata,
 } from "../content/converters/numbered-list.js";
-import type {
-	PortableTextBlock,
-	PortableTextSpan,
-	PortableTextMarkDef,
-	PortableTextTextBlock,
-	PortableTextTableBlock,
-	ProseMirrorDocument,
-} from "../content/converters/types.js";
+import type { ProseMirrorDocument } from "../content/converters/types.js";
 import { computeThumbnailSize } from "../media/thumbnail.js";
 import { CodeMarkExtension } from "./code-mark.js";
 import { InlineCodeBlockExtension } from "./inline-code-block.js";
@@ -58,14 +51,34 @@ import { EmDashOrderedList } from "./ordered-list.js";
 
 // ── Portable Text types ────────────────────────────────────────────
 
-// Local aliases for the canonical converter types so the inline editor stays
-// self-contained but can delegate to shared mark-safety checks without casts.
-type PTSpan = PortableTextSpan;
-type PTMarkDef = PortableTextMarkDef;
-type PTTextBlock = PortableTextTextBlock;
-type PTTableBlock = PortableTextTableBlock;
-type PTBlock = PortableTextBlock;
+interface PTSpan {
+	_type: "span";
+	_key: string;
+	text: string;
+	marks?: string[];
+}
 
+interface PTMarkDef {
+	_type: string;
+	_key: string;
+	[key: string]: unknown;
+}
+
+interface PTTextBlock {
+	_type: "block";
+	_key: string;
+	style?: "normal" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "blockquote";
+	listItem?: "bullet" | "number";
+	level?: number;
+	listId?: string;
+	listStart?: number;
+	children: PTSpan[];
+	markDefs?: PTMarkDef[];
+	textAlign?: "left" | "center" | "right" | "justify";
+}
+
+type PTTableBlock = { _type: "table"; [key: string]: unknown };
+type PTBlock = PTTextBlock | PTTableBlock | { _type: string; _key: string; [key: string]: unknown };
 const TABLE_BLOCK_PLACEHOLDER_HTML = /<[^>]+\bdata-emdash-table-block(?:\s|=|>)/i;
 
 /** Type guard for PTTextBlock */
@@ -572,12 +585,12 @@ function convertPTBlock(block: PTBlock): PMNode | null {
 		};
 	}
 	if (block._type === "code") {
-		const language =
-			typeof block.language === "string" && block.language.length > 0 ? block.language : null;
+		const cb = block as PTBlock & { code?: string; language?: string };
+		const language = typeof cb.language === "string" && cb.language.length > 0 ? cb.language : null;
 		return {
 			type: "codeBlock",
 			attrs: { language },
-			content: block.code ? [{ type: "text", text: block.code }] : undefined,
+			content: cb.code ? [{ type: "text", text: cb.code }] : undefined,
 		};
 	}
 	if (block._type === "break") {
@@ -590,38 +603,60 @@ function convertPTBlock(block: PTBlock): PMNode | null {
 		};
 	}
 	if (block._type === "image") {
-		const meta = block.asset?.meta;
-		const { asset, alt, width, height } = resolveImageMedia(block);
+		const ib = block as PTBlock & {
+			asset?: {
+				_ref?: string;
+				url?: string;
+				provider?: string;
+				meta?: Record<string, unknown>;
+			};
+			url?: string;
+			alt?: string;
+			caption?: string;
+			title?: string;
+			width?: number;
+			height?: number;
+			/** LQIP — first-class field (legacy snapshots keep it in `asset.meta`). */
+			blurhash?: string;
+			dominantColor?: string;
+			displayWidth?: number;
+			displayHeight?: number;
+			alignment?: unknown;
+			/** `{ href, blank? }`, or a bare string on WordPress-imported content */
+			link?: unknown;
+		};
+		const meta = ib.asset?.meta;
+		const { asset, alt, width, height } = resolveImageMedia(ib);
 		// Prefer first-class LQIP fields; fall back to `asset.meta` for legacy.
 		const blurhash =
-			typeof block.blurhash === "string"
-				? block.blurhash
+			typeof ib.blurhash === "string"
+				? ib.blurhash
 				: typeof meta?.blurhash === "string"
 					? meta.blurhash
 					: null;
 		const dominantColor =
-			typeof block.dominantColor === "string"
-				? block.dominantColor
+			typeof ib.dominantColor === "string"
+				? ib.dominantColor
 				: typeof meta?.dominantColor === "string"
 					? meta.dominantColor
 					: null;
 		return {
 			type: "image",
 			attrs: {
-				src: asset.url || block.url || (asset._ref ? `/_emdash/api/media/file/${asset._ref}` : ""),
+				src: asset.url || ib.url || (asset._ref ? `/_emdash/api/media/file/${asset._ref}` : ""),
 				alt: alt || "",
-				title: block.title || "",
-				caption: Object.hasOwn(block, "caption") ? block.caption || "" : block.title || "",
+				title: ib.title || "",
+				caption: Object.hasOwn(ib, "caption") ? ib.caption || "" : ib.title || "",
 				mediaId: asset._ref || undefined,
 				provider: canonicalMediaProviderId(asset.provider),
 				width,
 				height,
 				blurhash,
 				dominantColor,
-				displayWidth: block.displayWidth,
-				displayHeight: block.displayHeight,
-				alignment: imageAlignment(block.alignment) ?? null,
-				link: normalizeImageLink(block.link),
+				displayWidth: ib.displayWidth,
+				displayHeight: ib.displayHeight,
+				alignment: imageAlignment(ib.alignment) ?? null,
+				link: normalizeImageLink(ib.link),
 			},
 		};
 	}
