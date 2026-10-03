@@ -215,6 +215,17 @@ describe("parseInlineContent", () => {
 			expect(result.children).toHaveLength(depth);
 			expect(result.children.every((span) => span.marks?.join() === "em")).toBe(true);
 		});
+
+		it("gives each span one link mark when distinct links wrap every level", () => {
+			const html = Array.from(
+				{ length: depth },
+				(_, i) => `<a href="https://example.com/${i}"><object>x`,
+			).join("");
+			const result = parseInlineContent(html, generateKey);
+
+			expect(result.children).toHaveLength(depth);
+			expect(result.children.every((span) => span.marks?.length === 1)).toBe(true);
+		});
 	});
 
 	describe("links", () => {
@@ -234,6 +245,20 @@ describe("parseInlineContent", () => {
 				c.marks?.includes(result.markDefs[0]?._key ?? ""),
 			);
 			expect(linkSpan?.text).toBe("our site");
+		});
+
+		it("marks text inside nested links with the innermost link only", () => {
+			const result = parseInlineContent(
+				'<a href="https://outer.example">a<svg><a href="https://inner.example">b</a></svg></a>',
+				generateKey,
+			);
+
+			const outerKey = result.markDefs.find((d) => d.href === "https://outer.example")?._key;
+			const innerKey = result.markDefs.find((d) => d.href === "https://inner.example")?._key;
+			expect(result.children).toMatchObject([
+				{ text: "a", marks: [outerKey] },
+				{ text: "b", marks: [innerKey] },
+			]);
 		});
 
 		it("handles links with target=_blank", () => {

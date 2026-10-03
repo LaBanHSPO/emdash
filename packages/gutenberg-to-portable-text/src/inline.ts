@@ -113,9 +113,9 @@ function walkNodes(
 	generateKey: () => string,
 ): void {
 	const pending: PendingNode[] = [];
-	pushChildren(pending, nodes, []);
+	pushChildren(pending, nodes, [], undefined);
 	for (let entry = pending.pop(); entry; entry = pending.pop()) {
-		const { node, marks: currentMarks } = entry;
+		const { node, marks: currentMarks, link: currentLink } = entry;
 		if (isTextNode(node)) {
 			const text = node.value;
 			if (text) {
@@ -174,12 +174,19 @@ function walkNodes(
 
 			// Get mark for this element
 			const markResult = getMarkForElement(node, markDefs, markDefMap, generateKey);
-			const newMarks =
-				markResult && !currentMarks.includes(markResult)
-					? [...currentMarks, markResult]
-					: currentMarks;
+			let newMarks = currentMarks;
+			let newLink = currentLink;
+			if (markResult && !currentMarks.includes(markResult)) {
+				if (tagName === "a") {
+					// A span keeps only its innermost link
+					newMarks = [...currentMarks.filter((mark) => mark !== currentLink), markResult];
+					newLink = markResult;
+				} else {
+					newMarks = [...currentMarks, markResult];
+				}
+			}
 
-			pushChildren(pending, node.childNodes, newMarks);
+			pushChildren(pending, node.childNodes, newMarks, newLink);
 		}
 	}
 }
@@ -187,14 +194,20 @@ function walkNodes(
 interface PendingNode {
 	node: Node;
 	marks: string[];
+	link: string | undefined;
 }
 
 /**
  * Queue nodes so that popping them yields document order
  */
-function pushChildren(pending: PendingNode[], nodes: Node[], marks: string[]): void {
+function pushChildren(
+	pending: PendingNode[],
+	nodes: Node[],
+	marks: string[],
+	link: string | undefined,
+): void {
 	for (let i = nodes.length - 1; i >= 0; i--) {
-		pending.push({ node: nodes[i]!, marks });
+		pending.push({ node: nodes[i]!, marks, link });
 	}
 }
 
