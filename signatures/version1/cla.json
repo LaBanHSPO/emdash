@@ -1879,6 +1879,14 @@
       "created_at": "2026-10-02T23:10:18Z",
       "repoId": 1198246700,
       "pullRequestNo": 3790
+    },
+    {
+      "name": "ryofukutani",
+      "id": 157475860,
+      "comment_id": 5966371656,
+      "created_at": "2026-10-03T06:29:46Z",
+      "repoId": 1198246700,
+      "pullRequestNo": 3737
     }
   ]
 }
