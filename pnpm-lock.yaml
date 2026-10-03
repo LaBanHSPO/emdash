@@ -2305,6 +2305,9 @@ importers:
       '@types/react':
         specifier: 'catalog:'
         version: 19.2.14
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.14)
       '@types/sanitize-html':
         specifier: ^2.16.0
         version: 2.16.0

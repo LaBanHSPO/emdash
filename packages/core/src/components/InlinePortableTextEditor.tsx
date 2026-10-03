@@ -2373,20 +2373,17 @@ export function InlinePortableTextEditor({
 			if (!editor) return;
 			const src =
 				item.url || item.previewUrl || `/_emdash/api/media/file/${item.storageKey || item.id}`;
-			editor
-				.chain()
-				.focus()
-				.setImage({
-					src,
-					alt: item.alt || item.filename || "",
-					mediaId: item.id,
-					provider: canonicalMediaProviderId(item.provider) || "local",
-					width: item.width,
-					height: item.height,
-					blurhash: item.blurhash,
-					dominantColor: item.dominantColor,
-				})
-				.run();
+			const attrs = {
+				src,
+				alt: item.alt || item.filename || "",
+				mediaId: item.id,
+				provider: canonicalMediaProviderId(item.provider) || "local",
+				width: item.width,
+				height: item.height,
+				blurhash: item.blurhash,
+				dominantColor: item.dominantColor,
+			};
+			editor.chain().focus().setImage(attrs).run();
 			setMediaPickerOpen(false);
 			void save();
 		},
