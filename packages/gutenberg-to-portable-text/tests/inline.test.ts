@@ -185,6 +185,36 @@ describe("parseInlineContent", () => {
 			);
 			expect(boldItalic?.text).toBe("bold-italic");
 		});
+
+		it("applies a mark once when the same formatting is nested", () => {
+			const result = parseInlineContent("<strong><b>bold</b></strong>", generateKey);
+
+			expect(result.children[0]?.marks).toEqual(["strong"]);
+		});
+	});
+
+	describe("deeply nested markup", () => {
+		const depth = 20_000;
+
+		it("converts formatting nested thousands of levels deep", () => {
+			const result = parseInlineContent("<b>".repeat(depth) + "deep", generateKey);
+
+			expect(result.children).toMatchObject([{ text: "deep", marks: ["strong"] }]);
+		});
+
+		it("converts unknown elements nested thousands of levels deep", () => {
+			const result = parseInlineContent("<span>".repeat(depth) + "deep", generateKey);
+
+			expect(result.children).toMatchObject([{ text: "deep" }]);
+			expect(result.children[0]?.marks).toBeUndefined();
+		});
+
+		it("gives each span one mark when the same formatting wraps every level", () => {
+			const result = parseInlineContent("<em>x".repeat(depth), generateKey);
+
+			expect(result.children).toHaveLength(depth);
+			expect(result.children.every((span) => span.marks?.join() === "em")).toBe(true);
+		});
 	});
 
 	describe("links", () => {
@@ -351,6 +381,14 @@ describe("extractText", () => {
 
 	it("handles empty string", () => {
 		expect(extractText("")).toBe("");
+	});
+
+	it("extracts text nested thousands of levels deep", () => {
+		expect(extractText("<b>".repeat(20_000) + "deep")).toBe("deep");
+	});
+
+	it("extracts text from every level of deep nesting", () => {
+		expect(extractText("<b>x".repeat(20_000))).toBe("x".repeat(20_000));
 	});
 });
 
