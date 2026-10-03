@@ -3112,7 +3112,6 @@ export function PortableTextEditor({
 
 	// Multi-select media picker state (for gallery insertion)
 	const [galleryPickerOpen, setGalleryPickerOpen] = React.useState(false);
-
 	const [conversionErrorMarks, setConversionErrorMarks] = React.useState<string[]>([]);
 	const [conversionTableError, setConversionTableError] =
 		React.useState<UnsafePortableTextTableError | null>(null);
