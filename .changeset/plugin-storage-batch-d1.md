@@ -1,5 +1,6 @@
 ---
 "emdash": patch
+"@emdash-cms/cloudflare": patch
 ---
 
-Fixes `PluginStorageRepository.getMany` and `deleteMany` to stay within D1's 100 bound-parameter limit by chunking large `IN (...)` lists. Plugin retention purges and other batch storage operations now work regardless of how many ids are passed.
+Fixes plugin `ctx.storage.<collection>.getMany()` and `deleteMany()` failing on D1 with `too many SQL variables` when passed more than 98 ids. Both now accept any number of ids, in trusted and sandboxed plugins alike.
