@@ -334,6 +334,8 @@ export interface ContentEditorProps {
 	autosaveRejectionToken?: number;
 	/** Whether the server refused the last save because it was based on a stale read. */
 	hasSaveConflict?: boolean;
+	/** Called when the dirty state of the editor form changes. */
+	onDirtyChange?: (isDirty: boolean) => void;
 	onPublish?: (payload: {
 		data: Record<string, unknown>;
 		slug?: string;
@@ -455,6 +457,7 @@ export function ContentEditor({
 	autosaveCompletionToken,
 	autosaveRejectionToken,
 	hasSaveConflict,
+	onDirtyChange,
 	onPublish,
 	onUnpublish,
 	onDiscardDraft,
@@ -751,6 +754,11 @@ export function ContentEditor({
 	);
 	const isDirty =
 		isNew || hasAppliedEditorDraftPatch || currentData !== lastSavedData || referencesDirty;
+	const onDirtyChangeRef = React.useRef(onDirtyChange);
+	onDirtyChangeRef.current = onDirtyChange;
+	React.useEffect(() => {
+		onDirtyChangeRef.current?.(isDirty);
+	}, [isDirty]);
 	const saveFeedbackActive = isSaveFeedbackActive ?? isSaving;
 	const autosaveFeedbackActive = isAutosaveFeedbackActive ?? isAutosaving;
 	// Read at call time, not captured: a control that has not re-rendered since the
