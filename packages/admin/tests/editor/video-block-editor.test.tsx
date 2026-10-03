@@ -298,9 +298,14 @@ describe("Video block editor", () => {
 		expect(editor.getJSON()).toEqual(before);
 	});
 
-	it("deletes an empty block with Backspace while its placeholder has focus", async () => {
+	it("deletes only the empty block when Backspace is pressed on its placeholder", async () => {
+		const outro: Block = {
+			...INTRO,
+			_key: "outro",
+			children: [{ _type: "span", _key: "outro-span", text: "Outro", marks: [] }],
+		};
 		const { screen, editor, latest } = await renderEditor({
-			value: [INTRO, { _type: "video", _key: "video1" }],
+			value: [INTRO, { _type: "video", _key: "video1" }, outro],
 		});
 
 		selectVideo(editor);
@@ -311,6 +316,9 @@ describe("Video block editor", () => {
 		await userEvent.keyboard("{Backspace}");
 
 		await vi.waitFor(() => expect(videos(latest())).toEqual([]));
+		const texts: string[] = [];
+		editor.state.doc.forEach((block) => texts.push(block.textContent));
+		expect(texts).toEqual(["Intro", "Outro"]);
 	});
 
 	it("highlights an empty block under dragged files, without an insertion line", async () => {
