@@ -202,6 +202,20 @@ function VideoNodeView({
 	const empty = isEmptyVideo(attrs);
 	const [dropping, setDropping] = React.useState(false);
 	const dragDepth = React.useRef(0);
+	const figureRef = React.useRef<HTMLElement>(null);
+
+	// ProseMirror leaves keys on the player and buttons to the browser, whose own editing
+	// would change the text around the block: typing replaces it, and Backspace joins the
+	// paragraphs on either side.
+	React.useEffect(() => {
+		const figure = figureRef.current;
+		if (!figure) return;
+		const keepEditsOut = (event: InputEvent) => {
+			if (event.target !== captionRef.current) event.preventDefault();
+		};
+		figure.addEventListener("beforeinput", keepEditsOut);
+		return () => figure.removeEventListener("beforeinput", keepEditsOut);
+	}, []);
 
 	// ProseMirror would take text dragged over or dropped on the caption into the document.
 	React.useEffect(() => {
@@ -309,6 +323,7 @@ function VideoNodeView({
 	return (
 		<NodeViewWrapper className="relative my-4">
 			<figure
+				ref={figureRef}
 				className="group/video relative my-0!"
 				onKeyDownCapture={handleEscape}
 				onKeyDown={handleTab}

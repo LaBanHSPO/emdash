@@ -89,6 +89,12 @@ const INTRO: Block = {
 	children: [{ _type: "span", _key: "intro-span", text: "Intro", marks: [] }],
 };
 
+const OUTRO: Block = {
+	...INTRO,
+	_key: "outro",
+	children: [{ _type: "span", _key: "outro-span", text: "Outro", marks: [] }],
+};
+
 let playableUrl = "";
 
 /** Record a short clip the browser can play, so no test waits on a missing file. */
@@ -216,6 +222,22 @@ function selectVideo(editor: Editor) {
 	editor.commands.setNodeSelection(videoPosition(editor));
 }
 
+/** Each top-level block's text, or the node's name for a block without text, like a video. */
+function blockTexts(editor: Editor): string[] {
+	const texts: string[] = [];
+	editor.state.doc.forEach((block) =>
+		texts.push(block.isAtom ? block.type.name : block.textContent),
+	);
+	return texts;
+}
+
+/** Wait out anything a key press started, so a test can tell that nothing happened. */
+async function settle() {
+	for (let frame = 0; frame < 2; frame++) {
+		await new Promise((resolve) => requestAnimationFrame(resolve));
+	}
+}
+
 function selectedNodeName(editor: Editor): string | null {
 	const { selection } = editor.state;
 	return selection instanceof NodeSelection ? selection.node.type.name : null;
@@ -299,13 +321,8 @@ describe("Video block editor", () => {
 	});
 
 	it("deletes only the empty block when Backspace is pressed on its placeholder", async () => {
-		const outro: Block = {
-			...INTRO,
-			_key: "outro",
-			children: [{ _type: "span", _key: "outro-span", text: "Outro", marks: [] }],
-		};
 		const { screen, editor, latest } = await renderEditor({
-			value: [INTRO, { _type: "video", _key: "video1" }, outro],
+			value: [INTRO, { _type: "video", _key: "video1" }, OUTRO],
 		});
 
 		selectVideo(editor);
@@ -316,9 +333,43 @@ describe("Video block editor", () => {
 		await userEvent.keyboard("{Backspace}");
 
 		await vi.waitFor(() => expect(videos(latest())).toEqual([]));
-		const texts: string[] = [];
-		editor.state.doc.forEach((block) => texts.push(block.textContent));
-		expect(texts).toEqual(["Intro", "Outro"]);
+		expect(blockTexts(editor)).toEqual(["Intro", "Outro"]);
+	});
+
+	it.each([
+		["a letter on the player", "x", "VIDEO", () => videoBlock()],
+		["Backspace on the player", "{Backspace}", "VIDEO", () => videoBlock()],
+		[
+			"a letter on an empty block",
+			"x",
+			"BUTTON",
+			(): Block => ({ _type: "video", _key: "video1" }),
+		],
+	])("leaves the text around the block alone for %s", async (_, key, focused, block) => {
+		const { editor } = await renderEditor({ value: [INTRO, block(), OUTRO] });
+
+		selectVideo(editor);
+		await userEvent.keyboard("{Tab}");
+		expect(document.activeElement?.tagName).toBe(focused);
+		await userEvent.keyboard(key);
+		await settle();
+
+		expect(blockTexts(editor)).toEqual(["Intro", "videoBlock", "Outro"]);
+	});
+
+	it("still plays the focused player with Space", async () => {
+		const { editor } = await renderEditor({ value: [INTRO, videoBlock(), OUTRO] });
+		await vi.waitFor(() => expect(player().readyState).toBeGreaterThan(0));
+		const played = new Promise((resolve) =>
+			player().addEventListener("play", resolve, { once: true }),
+		);
+
+		selectVideo(editor);
+		await userEvent.keyboard("{Tab}");
+		await userEvent.keyboard(" ");
+
+		await played;
+		expect(blockTexts(editor)).toEqual(["Intro", "videoBlock", "Outro"]);
 	});
 
 	it("highlights an empty block under dragged files, without an insertion line", async () => {
