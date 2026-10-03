@@ -7,7 +7,7 @@
 import { NodeSelection } from "@tiptap/pm/state";
 import type { Editor } from "@tiptap/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { cdp, userEvent } from "vitest/browser";
 
 import {
 	PortableTextEditor,
@@ -336,22 +336,25 @@ describe("Video block editor", () => {
 		expect(blockTexts(editor)).toEqual(["Intro", "Outro"]);
 	});
 
+	const press = (keys: string) => () => userEvent.keyboard(keys);
+	const compose = async () => {
+		await cdp().send("Input.imeSetComposition", { text: "k", selectionStart: 1, selectionEnd: 1 });
+		await cdp().send("Input.insertText", { text: "か" });
+	};
+	const empty = (): Block => ({ _type: "video", _key: "video1" });
+
 	it.each([
-		["a letter on the player", "x", "VIDEO", () => videoBlock()],
-		["Backspace on the player", "{Backspace}", "VIDEO", () => videoBlock()],
-		[
-			"a letter on an empty block",
-			"x",
-			"BUTTON",
-			(): Block => ({ _type: "video", _key: "video1" }),
-		],
-	])("leaves the text around the block alone for %s", async (_, key, focused, block) => {
+		["a letter on the player", press("x"), "VIDEO", () => videoBlock()],
+		["Backspace on the player", press("{Backspace}"), "VIDEO", () => videoBlock()],
+		["input method text on the player", compose, "VIDEO", () => videoBlock()],
+		["a letter on an empty block", press("x"), "BUTTON", empty],
+	])("leaves the text around the block alone for %s", async (_, input, focused, block) => {
 		const { editor } = await renderEditor({ value: [INTRO, block(), OUTRO] });
 
 		selectVideo(editor);
 		await userEvent.keyboard("{Tab}");
 		expect(document.activeElement?.tagName).toBe(focused);
-		await userEvent.keyboard(key);
+		await input();
 		await settle();
 
 		expect(blockTexts(editor)).toEqual(["Intro", "videoBlock", "Outro"]);

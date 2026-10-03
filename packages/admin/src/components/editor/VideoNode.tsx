@@ -206,15 +206,25 @@ function VideoNodeView({
 
 	// ProseMirror leaves keys on the player and buttons to the browser, whose own editing
 	// would change the text around the block: typing replaces it, and Backspace joins the
-	// paragraphs on either side.
+	// paragraphs on either side. Input method text can't be cancelled, so it gets no
+	// selection to go to.
 	React.useEffect(() => {
 		const figure = figureRef.current;
 		if (!figure) return;
 		const keepEditsOut = (event: InputEvent) => {
 			if (event.target !== captionRef.current) event.preventDefault();
 		};
+		const keepCompositionOut = (event: CompositionEvent) => {
+			if (event.target !== captionRef.current) {
+				figure.ownerDocument.getSelection()?.removeAllRanges();
+			}
+		};
 		figure.addEventListener("beforeinput", keepEditsOut);
-		return () => figure.removeEventListener("beforeinput", keepEditsOut);
+		figure.addEventListener("compositionstart", keepCompositionOut);
+		return () => {
+			figure.removeEventListener("beforeinput", keepEditsOut);
+			figure.removeEventListener("compositionstart", keepCompositionOut);
+		};
 	}, []);
 
 	// ProseMirror would take text dragged over or dropped on the caption into the document.
