@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-	formatPublishedDate,
-	getThumbnailImage,
+	createPublishedDateFormatter,
+	isThumbnailImage,
 	toPublishedDate,
 } from "../../../src/widgets/recent-posts.js";
 
@@ -12,7 +12,7 @@ describe("toPublishedDate", () => {
 		expect(toPublishedDate(date)).toEqual(date);
 	});
 
-	it("still accepts ISO date strings", () => {
+	it("accepts ISO date strings", () => {
 		expect(toPublishedDate("2026-10-01T12:00:00.000Z")).toEqual(
 			new Date("2026-10-01T12:00:00.000Z"),
 		);
@@ -28,70 +28,57 @@ describe("toPublishedDate", () => {
 	});
 });
 
-describe("formatPublishedDate", () => {
-	it("shifts the displayed date by the configured timezone", () => {
-		const date = new Date("2026-10-01T02:00:00.000Z");
+describe("createPublishedDateFormatter", () => {
+	const lateSeptember30Utc = new Date("2026-09-30T20:00:00.000Z");
+	const earlyOctober1Utc = new Date("2026-10-01T02:00:00.000Z");
 
-		const ahead = formatPublishedDate(date, { timezone: "Asia/Tokyo" });
-		const behind = formatPublishedDate(date, { timezone: "Pacific/Pago_Pago" });
+	it("formats the date in the configured timezone", () => {
+		const tokyo = createPublishedDateFormatter({ timezone: "Asia/Tokyo" });
+		const pagoPago = createPublishedDateFormatter({ timezone: "Pacific/Pago_Pago" });
 
-		// Tokyo is UTC+9, so 02:00 UTC is already 11:00 on Oct 1.
-		expect(ahead.display).toMatch(/October\s+1/);
-		// Pacific/Pago_Pago is UTC-11, so 02:00 UTC is 15:00 on Sep 30.
-		expect(behind.display).toMatch(/September\s+30/);
+		expect(tokyo.format(lateSeptember30Utc)).toBe("October 1, 2026");
+		expect(pagoPago.format(earlyOctober1Utc)).toBe("September 30, 2026");
 	});
 
-	it("uses the configured dateFormat as Intl.DateTimeFormat options", () => {
-		const date = new Date("2026-10-01T12:00:00.000Z");
-		const result = formatPublishedDate(date, {
-			timezone: "UTC",
-			dateFormat: JSON.stringify({ year: "2-digit", month: "2-digit", day: "2-digit" }),
-		});
+	it("uses UTC when no timezone is configured", () => {
+		const formatter = createPublishedDateFormatter();
 
-		expect(result.display).toBe("10/01/26");
+		expect(formatter.format(lateSeptember30Utc)).toBe("September 30, 2026");
 	});
 
-	it("falls back to a default long format when dateFormat is missing or invalid", () => {
-		const date = new Date("2026-10-01T12:00:00.000Z");
+	it("falls back to UTC when the timezone is not recognized", () => {
+		const formatter = createPublishedDateFormatter({ timezone: "Mars/Olympus_Mons" });
 
-		const noFormat = formatPublishedDate(date, { timezone: "UTC" });
-		const badFormat = formatPublishedDate(date, { timezone: "UTC", dateFormat: "not-json" });
-
-		expect(noFormat.display).toBe("October 1, 2026");
-		expect(badFormat.display).toBe("October 1, 2026");
+		expect(formatter.format(lateSeptember30Utc)).toBe("September 30, 2026");
 	});
 
-	it("returns a full ISO datetime attribute and respects timezone", () => {
+	it("formats the date for the given locale", () => {
 		const date = new Date("2026-10-01T12:00:00.000Z");
-		const result = formatPublishedDate(date, { timezone: "UTC" });
 
-		expect(result.datetime).toBe("2026-10-01T12:00:00.000Z");
+		expect(createPublishedDateFormatter({ locale: "fr" }).format(date)).toBe("1 octobre 2026");
+		expect(createPublishedDateFormatter({ locale: "en-GB" }).format(date)).toBe("1 October 2026");
+	});
+
+	it("falls back to English when the locale is not a valid language tag", () => {
+		const date = new Date("2026-10-01T12:00:00.000Z");
+
+		expect(createPublishedDateFormatter({ locale: "en_US" }).format(date)).toBe("October 1, 2026");
 	});
 });
 
-describe("getThumbnailImage", () => {
-	it("returns media object values as-is so EmDashImage can render them", () => {
-		const media = {
-			id: "01J8K",
-			provider: "local" as const,
-			meta: { storageKey: "featured.jpg" },
-			alt: "Featured",
-		};
-		expect(getThumbnailImage(media)).toBe(media);
+describe("isThumbnailImage", () => {
+	it("accepts media values and image URLs", () => {
+		expect(
+			isThumbnailImage({ id: "01J8K", provider: "local", meta: { storageKey: "featured.jpg" } }),
+		).toBe(true);
+		expect(isThumbnailImage("https://example.com/photo.jpg")).toBe(true);
 	});
 
-	it("normalizes a plain image URL into a local media value", () => {
-		const result = getThumbnailImage("https://example.com/photo.jpg");
-		expect(result).toEqual({
-			id: "",
-			provider: "local",
-			src: "https://example.com/photo.jpg",
-		});
-	});
-
-	it("returns null for missing or invalid thumbnails", () => {
-		expect(getThumbnailImage(null)).toBeNull();
-		expect(getThumbnailImage(undefined)).toBeNull();
-		expect(getThumbnailImage(123)).toBeNull();
+	it("rejects missing and malformed values", () => {
+		expect(isThumbnailImage(null)).toBe(false);
+		expect(isThumbnailImage(undefined)).toBe(false);
+		expect(isThumbnailImage("")).toBe(false);
+		expect(isThumbnailImage(123)).toBe(false);
+		expect(isThumbnailImage({ src: "https://example.com/photo.jpg" })).toBe(false);
 	});
 });

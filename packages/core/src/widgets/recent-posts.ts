@@ -1,10 +1,10 @@
-import type { ImageValue, MediaValue } from "../fields/types.js";
+import type { ImageValue } from "../fields/types.js";
+
+const FALLBACK_LOCALE = "en";
+const FALLBACK_TIMEZONE = "UTC";
 
 /**
- * Convert a stored published date into a Date object.
- *
- * `getEmDashCollection()` returns `publishedAt` as a `Date`, but older data or
- * direct API consumers may pass ISO strings or numeric timestamps.
+ * Convert a post's `publishedAt` value into a valid Date, or null.
  */
 export function toPublishedDate(value: unknown): Date | null {
 	if (value instanceof Date) {
@@ -17,60 +17,46 @@ export function toPublishedDate(value: unknown): Date | null {
 	return null;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function parseDateFormatOptions(dateFormat: string | undefined): Intl.DateTimeFormatOptions {
-	if (!dateFormat) {
-		return { year: "numeric", month: "long", day: "numeric" };
-	}
-
+function isSupportedLocale(locale: string): boolean {
 	try {
-		const parsed = JSON.parse(dateFormat);
-		if (isRecord(parsed)) {
-			return parsed as Intl.DateTimeFormatOptions;
-		}
+		return Intl.DateTimeFormat.supportedLocalesOf(locale).length > 0;
 	} catch {
-		// Fall through to the default format.
+		return false;
 	}
+}
 
-	return { year: "numeric", month: "long", day: "numeric" };
+function isSupportedTimeZone(timeZone: string): boolean {
+	try {
+		Intl.DateTimeFormat(FALLBACK_LOCALE, { timeZone });
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 /**
- * Format a publication date for display, honoring the site's configured
- * timezone and date format.
- */
-export function formatPublishedDate(
-	date: Date,
-	options: { timezone?: string; dateFormat?: string } = {},
-): { datetime: string; display: string } {
-	const formatOptions = parseDateFormatOptions(options.dateFormat);
-	if (options.timezone) {
-		formatOptions.timeZone = options.timezone;
-	}
-
-	const formatter = new Intl.DateTimeFormat("en-US", formatOptions);
-	return {
-		datetime: date.toISOString(),
-		display: formatter.format(date),
-	};
-}
-
-/**
- * Prepare a thumbnail value for EmDashImage.
+ * Create the long-date formatter for the widget's publication dates.
  *
- * Media fields are stored as objects; legacy data or direct URLs may arrive as
- * strings. Anything else is treated as absent.
+ * An unsupported locale falls back to English and an unrecognized timezone
+ * to UTC. `Intl.DateTimeFormat` throws a `RangeError` for either.
  */
-export function getThumbnailImage(value: unknown): ImageValue | null {
-	if (!value) return null;
-	if (typeof value === "string") {
-		return { id: "", provider: "local", src: value } satisfies MediaValue;
-	}
-	if (isRecord(value)) {
-		return value as unknown as ImageValue;
-	}
-	return null;
+export function createPublishedDateFormatter(
+	options: { locale?: string; timezone?: string } = {},
+): Intl.DateTimeFormat {
+	const { locale, timezone } = options;
+	return new Intl.DateTimeFormat(locale && isSupportedLocale(locale) ? locale : FALLBACK_LOCALE, {
+		dateStyle: "long",
+		timeZone: timezone && isSupportedTimeZone(timezone) ? timezone : FALLBACK_TIMEZONE,
+	});
+}
+
+/**
+ * Whether a featured-image value is something `EmDashImage` can render: a
+ * media value or an image URL.
+ */
+export function isThumbnailImage(value: unknown): value is ImageValue | string {
+	if (typeof value === "string") return value !== "";
+	return (
+		typeof value === "object" && value !== null && "id" in value && typeof value.id === "string"
+	);
 }

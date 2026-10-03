@@ -1,10 +1,11 @@
 ---
 import { getEmDashCollection } from "../../query.js";
-import { getSiteSetting } from "../../settings/index.js";
+import { getI18nConfig } from "../../i18n/config.js";
+import { getSiteSettings } from "../../settings/index.js";
 import EmDashImage from "../EmDashImage.astro";
 import {
-	formatPublishedDate,
-	getThumbnailImage,
+	createPublishedDateFormatter,
+	isThumbnailImage,
 	toPublishedDate,
 } from "../../widgets/recent-posts.js";
 
@@ -16,14 +17,18 @@ interface Props {
 
 const { count = 5, showThumbnails = false, showDate = true } = Astro.props;
 
-const [{ entries: posts }, timezone, dateFormat] = await Promise.all([
+const [{ entries: posts }, settings] = await Promise.all([
 	getEmDashCollection("posts", {
 		limit: count,
 		orderBy: { published_at: "desc" },
 	}),
-	getSiteSetting("timezone"),
-	getSiteSetting("dateFormat"),
+	showDate ? getSiteSettings() : undefined,
 ]);
+
+const dateFormatter = createPublishedDateFormatter({
+	locale: Astro.currentLocale ?? getI18nConfig()?.defaultLocale,
+	timezone: settings?.timezone,
+});
 
 function getTitle(data: Record<string, unknown>): string | undefined {
 	return typeof data.title === "string" ? data.title : undefined;
@@ -35,28 +40,27 @@ function getTitle(data: Record<string, unknown>): string | undefined {
 		posts.map((post) => {
 			const title = getTitle(post.data);
 			const publishedAt = toPublishedDate(post.data.publishedAt);
-			const featuredImage = getThumbnailImage(post.data.featured_image);
-			const renderedDate = publishedAt
-				? formatPublishedDate(publishedAt, { timezone, dateFormat })
-				: null;
+			const featuredImage = post.data.featured_image;
 			return (
 				<li>
-					{showThumbnails && featuredImage && (
+					{showThumbnails && isThumbnailImage(featuredImage) && (
 						<EmDashImage
 							image={featuredImage}
 							alt=""
+							width={96}
+							height={96}
 							class="widget-recent-posts__thumbnail"
 						/>
 					)}
 					<a href={`/posts/${post.id}`} class="widget-recent-posts__link">
 						{title}
 					</a>
-					{showDate && renderedDate && (
+					{showDate && publishedAt && (
 						<time
-							datetime={renderedDate.datetime}
+							datetime={publishedAt.toISOString()}
 							class="widget-recent-posts__date"
 						>
-							{renderedDate.display}
+							{dateFormatter.format(publishedAt)}
 						</time>
 					)}
 				</li>
