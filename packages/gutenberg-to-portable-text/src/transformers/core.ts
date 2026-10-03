@@ -545,33 +545,17 @@ export const group: BlockTransformer = (block, _options, context) => {
  * core/table → table block
  */
 export const table: BlockTransformer = (block, _options, context) => {
-	const tableOpen = findFirstOpenTag(block.innerHTML, "table");
-	if (tableOpen === -1) {
+	// Parse the table HTML
+	const tableMatch = findTagPairs(block.innerHTML, ["table"], 1)[0];
+	if (!tableMatch) {
 		return [];
 	}
 
-	const tableRanges = extractTopLevelRanges(block.innerHTML, tableOpen, block.innerHTML.length, [
-		"table",
-	]);
-	if (tableRanges.length === 0) {
-		return [];
-	}
+	const tableContent = tableMatch.content;
 
-	const tableRange = tableRanges[0]!;
-	const tableContent = block.innerHTML.slice(tableRange.openEnd, tableRange.closeStart);
-	const sectionRanges = extractTopLevelRanges(tableContent, 0, tableContent.length, [
-		"thead",
-		"tbody",
-	]);
-	let theadRange: TagRange | undefined;
-	let tbodyRange: TagRange | undefined;
-	for (const range of sectionRanges) {
-		if (range.tagIndex === 0 && theadRange === undefined) {
-			theadRange = range;
-		} else if (range.tagIndex === 1 && tbodyRange === undefined) {
-			tbodyRange = range;
-		}
-	}
+	// Check for thead
+	const theadMatch = findTagPairs(tableContent, ["thead"], 1)[0];
+	const tbodyMatch = findTagPairs(tableContent, ["tbody"], 1)[0];
 
 	const rows: Array<{
 		_type: "tableRow";
@@ -585,23 +569,18 @@ export const table: BlockTransformer = (block, _options, context) => {
 		}>;
 	}> = [];
 
-	if (theadRange) {
-		const headerRows = parseTableRows(
-			tableContent.slice(theadRange.openEnd, theadRange.closeStart),
-			context,
-			true,
-		);
+	// Parse header rows
+	if (theadMatch?.content) {
+		const headerRows = parseTableRows(theadMatch.content, context, true);
 		rows.push(...headerRows);
 	}
 
-	if (tbodyRange) {
-		const bodyRows = parseTableRows(
-			tableContent.slice(tbodyRange.openEnd, tbodyRange.closeStart),
-			context,
-			false,
-		);
+	// Parse body rows
+	if (tbodyMatch?.content) {
+		const bodyRows = parseTableRows(tbodyMatch.content, context, false);
 		rows.push(...bodyRows);
-	} else if (!theadRange) {
+	} else if (!theadMatch) {
+		// No thead or tbody, parse rows directly
 		const directRows = parseTableRows(tableContent, context, false);
 		rows.push(...directRows);
 	}
@@ -615,178 +594,14 @@ export const table: BlockTransformer = (block, _options, context) => {
 			_type: "table" as const,
 			_key: context.generateKey(),
 			rows,
-			hasHeaderRow: !!theadRange,
+			hasHeaderRow: !!theadMatch,
 		},
 	];
 };
 
-interface TagRange {
-	tagIndex: number;
-	openEnd: number;
-	closeStart: number;
-}
-
-interface ParsedTag {
-	name: string;
-	isOpen: boolean;
-	selfClosing: boolean;
-	endIndex: number;
-}
-
-const VOID_TAGS = new Set([
-	"area",
-	"base",
-	"br",
-	"col",
-	"embed",
-	"hr",
-	"img",
-	"input",
-	"link",
-	"meta",
-	"param",
-	"source",
-	"track",
-	"wbr",
-]);
-
-function parseTagAt(html: string, pos: number): ParsedTag | null {
-	if (pos >= html.length || html.charCodeAt(pos) !== 60) {
-		return null;
-	}
-
-	if (
-		html.charCodeAt(pos + 1) === 33 &&
-		html.charCodeAt(pos + 2) === 45 &&
-		html.charCodeAt(pos + 3) === 45
-	) {
-		const end = html.indexOf("-->", pos + 4);
-		if (end === -1) {
-			return { name: "", isOpen: false, selfClosing: false, endIndex: html.length - 1 };
-		}
-		return { name: "", isOpen: false, selfClosing: false, endIndex: end + 2 };
-	}
-
-	if (html.charCodeAt(pos + 1) === 33) {
-		const end = html.indexOf(">", pos);
-		if (end === -1) {
-			return { name: "", isOpen: false, selfClosing: false, endIndex: html.length - 1 };
-		}
-		return { name: "", isOpen: false, selfClosing: false, endIndex: end };
-	}
-
-	let i = pos + 1;
-	let isClose = false;
-	if (html.charCodeAt(i) === 47) {
-		isClose = true;
-		i++;
-	}
-
-	let name = "";
-	while (i < html.length) {
-		const c = html.charCodeAt(i);
-		if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122) || (c >= 48 && c <= 57)) {
-			name += String.fromCharCode(c | 32);
-			i++;
-		} else {
-			break;
-		}
-	}
-
-	if (name.length === 0) {
-		return null;
-	}
-
-	const end = scanTagEnd(html, i);
-	if (end === -1) {
-		return null;
-	}
-
-	const selfClosing = html.charCodeAt(end - 1) === 47 || VOID_TAGS.has(name);
-
-	return {
-		name,
-		isOpen: !isClose,
-		selfClosing,
-		endIndex: end,
-	};
-}
-
-function scanTagEnd(html: string, start: number): number {
-	let inQuote: number | null = null;
-	for (let i = start; i < html.length; i++) {
-		const c = html.charCodeAt(i);
-		if (inQuote !== null) {
-			if (c === inQuote) {
-				inQuote = null;
-			}
-		} else {
-			if (c === 34 || c === 39) {
-				inQuote = c;
-			} else if (c === 60) {
-				return -1;
-			} else if (c === 62) {
-				return i;
-			}
-		}
-	}
-	return -1;
-}
-
-function findFirstOpenTag(html: string, tagName: string): number {
-	const lowerTagName = tagName.toLowerCase();
-	let i = 0;
-	while (i < html.length) {
-		const tag = parseTagAt(html, i);
-		if (tag?.isOpen && tag.name === lowerTagName) {
-			return i;
-		}
-		i = tag ? tag.endIndex + 1 : i + 1;
-	}
-	return -1;
-}
-
-function extractTopLevelRanges(
-	html: string,
-	start: number,
-	end: number,
-	tagNames: string[],
-): TagRange[] {
-	const ranges: TagRange[] = [];
-	const lowerTagNames = tagNames.map((n) => n.toLowerCase());
-	let pending: { tagIndex: number; openEnd: number } | undefined;
-	let i = start;
-
-	while (i < end) {
-		const tag = parseTagAt(html, i);
-		if (!tag) {
-			i++;
-			continue;
-		}
-
-		if (tag.isOpen) {
-			const tagIndex = lowerTagNames.indexOf(tag.name);
-			if (tagIndex !== -1 && !tag.selfClosing && pending === undefined) {
-				pending = { tagIndex, openEnd: tag.endIndex + 1 };
-			}
-		} else {
-			const tagIndex = lowerTagNames.indexOf(tag.name);
-			if (tagIndex !== -1 && pending?.tagIndex === tagIndex) {
-				ranges.push({
-					tagIndex,
-					openEnd: pending.openEnd,
-					closeStart: i,
-				});
-				pending = undefined;
-			}
-		}
-
-		i = tag.endIndex + 1;
-	}
-
-	return ranges;
-}
-
+/**
+ * Parse table rows from HTML
+ */
 function parseTableRows(
 	html: string,
 	context: import("../types.js").TransformContext,
@@ -814,9 +629,31 @@ function parseTableRows(
 		}>;
 	}> = [];
 
-	for (const rowRange of extractTopLevelRanges(html, 0, html.length, ["tr"])) {
-		const rowContent = html.slice(rowRange.openEnd, rowRange.closeStart);
-		const cells = parseTableCells(rowContent, context, isHeader);
+	for (const rowMatch of findTagPairs(html, ["tr"])) {
+		const rowContent = rowMatch.content;
+		const cells: Array<{
+			_type: "tableCell";
+			_key: string;
+			content: import("../types.js").PortableTextSpan[];
+			markDefs?: import("../types.js").PortableTextMarkDef[];
+			isHeader?: boolean;
+		}> = [];
+
+		// Match both th and td cells
+		for (const cellMatch of findTagPairs(rowContent, ["th", "td"])) {
+			const isHeaderCell = cellMatch.name === "th" || isHeader;
+			const cellContent = cellMatch.content;
+
+			const { children, markDefs } = context.parseInlineContent(cellContent);
+
+			cells.push({
+				_type: "tableCell" as const,
+				_key: context.generateKey(),
+				content: children,
+				markDefs: markDefs.length > 0 ? markDefs : undefined,
+				isHeader: isHeaderCell || undefined,
+			});
+		}
 
 		if (cells.length > 0) {
 			rows.push({
@@ -830,40 +667,67 @@ function parseTableRows(
 	return rows;
 }
 
-function parseTableCells(
-	html: string,
-	context: import("../types.js").TransformContext,
-	forceHeader: boolean,
-): Array<{
-	_type: "tableCell";
-	_key: string;
-	content: import("../types.js").PortableTextSpan[];
-	markDefs?: import("../types.js").PortableTextMarkDef[];
-	isHeader?: boolean;
-}> {
-	const cells: Array<{
-		_type: "tableCell";
-		_key: string;
-		content: import("../types.js").PortableTextSpan[];
-		markDefs?: import("../types.js").PortableTextMarkDef[];
-		isHeader?: boolean;
-	}> = [];
+interface TagPair {
+	name: string;
+	content: string;
+}
 
-	for (const cellRange of extractTopLevelRanges(html, 0, html.length, ["td", "th"])) {
-		const cellContent = html.slice(cellRange.openEnd, cellRange.closeStart);
-		const isHeaderCell = cellRange.tagIndex === 1 || forceHeader;
-		const { children, markDefs } = context.parseInlineContent(cellContent);
-
-		cells.push({
-			_type: "tableCell" as const,
-			_key: context.generateKey(),
-			content: children,
-			markDefs: markDefs.length > 0 ? markDefs : undefined,
-			isHeader: isHeaderCell || undefined,
-		});
+/**
+ * Finds `<name ...>content</name>` pairs in document order with the same
+ * results as the lazy regex `/<(name)[^>]*>([\s\S]*?)<\/\1>/gi`: each opening
+ * tag ends at the first `>` and pairs with the first closing tag of the same
+ * name, ignoring nesting. Names must be lowercase; they match ASCII
+ * case-insensitively and without a word boundary, so `th` also matches
+ * `<thead>`.
+ *
+ * Once an opening tag finds no closing tag, no later tag of that name can
+ * either, so the name is dropped. Retrying it from every later position would
+ * make unclosed markup quadratic.
+ */
+function findTagPairs(html: string, names: readonly string[], limit = Infinity): TagPair[] {
+	const pairs: TagPair[] = [];
+	const closable = new Set(names);
+	let lt = html.indexOf("<");
+	while (lt !== -1 && pairs.length < limit && closable.size > 0) {
+		const name = names.find((n) => closable.has(n) && matchesLowercase(html, lt + 1, n));
+		if (name !== undefined) {
+			const openEnd = html.indexOf(">", lt + 1 + name.length);
+			if (openEnd === -1) {
+				break;
+			}
+			const closeStart = indexOfCloseTag(html, name, openEnd + 1);
+			if (closeStart !== -1) {
+				pairs.push({ name, content: html.slice(openEnd + 1, closeStart) });
+				lt = html.indexOf("<", closeStart + name.length + 3);
+				continue;
+			}
+			closable.delete(name);
+		}
+		lt = html.indexOf("<", lt + 1);
 	}
+	return pairs;
+}
 
-	return cells;
+function indexOfCloseTag(html: string, name: string, from: number): number {
+	let i = html.indexOf("</", from);
+	while (i !== -1) {
+		if (matchesLowercase(html, i + 2, name) && html[i + 2 + name.length] === ">") {
+			return i;
+		}
+		i = html.indexOf("</", i + 1);
+	}
+	return -1;
+}
+
+function matchesLowercase(html: string, at: number, lowercase: string): boolean {
+	for (let i = 0; i < lowercase.length; i++) {
+		const charCode = html.charCodeAt(at + i);
+		const folded = charCode >= 65 && charCode <= 90 ? charCode + 32 : charCode;
+		if (folded !== lowercase.charCodeAt(i)) {
+			return false;
+		}
+	}
+	return true;
 }
 
 /**
