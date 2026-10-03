@@ -3814,6 +3814,7 @@ export class EmDashRuntime {
 						entryId: resolvedId,
 						data: mergedData,
 						authorId: actor?.id,
+						autosave: bodyWithoutRev.skipRevision,
 					});
 
 					let stagedUpdate: Awaited<ReturnType<typeof handleContentUpdate>>;
@@ -3879,6 +3880,7 @@ export class EmDashRuntime {
 								collection,
 								resolvedId,
 								existing.draftRevisionId,
+								{ autosaveOnly: true },
 							);
 						} catch (error) {
 							console.error(
