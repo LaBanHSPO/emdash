@@ -24,12 +24,7 @@ const P_TAG_SINGLE_PATTERN = /<p[^>]*>([\s\S]*?)<\/p>/i;
 const HREF_PATTERN = /href="([^"]*)"/i;
 const DATA_ID_PATTERN = /data-id=["'](\d+)["']/i;
 const CODE_TAG_PATTERN_SINGLE = /<code[^>]*>([\s\S]*?)<\/code>/i;
-const TABLE_TAG_PATTERN = /<table[^>]*>([\s\S]*?)<\/table>/i;
-const THEAD_TAG_PATTERN = /<thead[^>]*>([\s\S]*?)<\/thead>/i;
 const IMG_TAG_GLOBAL = /<img[^>]+>/gi;
-const TABLE_ROW_PATTERN = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-const TABLE_CELL_PATTERN = /<(th|td)[^>]*>([\s\S]*?)<\/\1>/gi;
-const TBODY_TAG_PATTERN = /<tbody[^>]*>([\s\S]*?)<\/tbody>/i;
 const CITE_TAG_PATTERN = /<cite[^>]*>([\s\S]*?)<\/cite>/i;
 const LT_ENTITY_PATTERN = /&lt;/g;
 const GT_ENTITY_PATTERN = /&gt;/g;
@@ -550,17 +545,33 @@ export const group: BlockTransformer = (block, _options, context) => {
  * core/table → table block
  */
 export const table: BlockTransformer = (block, _options, context) => {
-	// Parse the table HTML
-	const tableMatch = block.innerHTML.match(TABLE_TAG_PATTERN);
-	if (!tableMatch) {
+	const tableOpen = findFirstOpenTag(block.innerHTML, "table");
+	if (tableOpen === -1) {
 		return [];
 	}
 
-	const tableContent = tableMatch[1]!;
+	const tableRanges = extractTopLevelRanges(block.innerHTML, tableOpen, block.innerHTML.length, [
+		"table",
+	]);
+	if (tableRanges.length === 0) {
+		return [];
+	}
 
-	// Check for thead
-	const theadMatch = tableContent.match(THEAD_TAG_PATTERN);
-	const tbodyMatch = tableContent.match(TBODY_TAG_PATTERN);
+	const tableRange = tableRanges[0]!;
+	const tableContent = block.innerHTML.slice(tableRange.openEnd, tableRange.closeStart);
+	const sectionRanges = extractTopLevelRanges(tableContent, 0, tableContent.length, [
+		"thead",
+		"tbody",
+	]);
+	let theadRange: TagRange | undefined;
+	let tbodyRange: TagRange | undefined;
+	for (const range of sectionRanges) {
+		if (range.tagIndex === 0 && theadRange === undefined) {
+			theadRange = range;
+		} else if (range.tagIndex === 1 && tbodyRange === undefined) {
+			tbodyRange = range;
+		}
+	}
 
 	const rows: Array<{
 		_type: "tableRow";
@@ -574,18 +585,23 @@ export const table: BlockTransformer = (block, _options, context) => {
 		}>;
 	}> = [];
 
-	// Parse header rows
-	if (theadMatch?.[1]) {
-		const headerRows = parseTableRows(theadMatch[1], context, true);
+	if (theadRange) {
+		const headerRows = parseTableRows(
+			tableContent.slice(theadRange.openEnd, theadRange.closeStart),
+			context,
+			true,
+		);
 		rows.push(...headerRows);
 	}
 
-	// Parse body rows
-	if (tbodyMatch?.[1]) {
-		const bodyRows = parseTableRows(tbodyMatch[1], context, false);
+	if (tbodyRange) {
+		const bodyRows = parseTableRows(
+			tableContent.slice(tbodyRange.openEnd, tbodyRange.closeStart),
+			context,
+			false,
+		);
 		rows.push(...bodyRows);
-	} else if (!theadMatch) {
-		// No thead or tbody, parse rows directly
+	} else if (!theadRange) {
 		const directRows = parseTableRows(tableContent, context, false);
 		rows.push(...directRows);
 	}
@@ -599,14 +615,178 @@ export const table: BlockTransformer = (block, _options, context) => {
 			_type: "table" as const,
 			_key: context.generateKey(),
 			rows,
-			hasHeaderRow: !!theadMatch,
+			hasHeaderRow: !!theadRange,
 		},
 	];
 };
 
-/**
- * Parse table rows from HTML
- */
+interface TagRange {
+	tagIndex: number;
+	openEnd: number;
+	closeStart: number;
+}
+
+interface ParsedTag {
+	name: string;
+	isOpen: boolean;
+	selfClosing: boolean;
+	endIndex: number;
+}
+
+const VOID_TAGS = new Set([
+	"area",
+	"base",
+	"br",
+	"col",
+	"embed",
+	"hr",
+	"img",
+	"input",
+	"link",
+	"meta",
+	"param",
+	"source",
+	"track",
+	"wbr",
+]);
+
+function parseTagAt(html: string, pos: number): ParsedTag | null {
+	if (pos >= html.length || html.charCodeAt(pos) !== 60) {
+		return null;
+	}
+
+	if (
+		html.charCodeAt(pos + 1) === 33 &&
+		html.charCodeAt(pos + 2) === 45 &&
+		html.charCodeAt(pos + 3) === 45
+	) {
+		const end = html.indexOf("-->", pos + 4);
+		if (end === -1) {
+			return { name: "", isOpen: false, selfClosing: false, endIndex: html.length - 1 };
+		}
+		return { name: "", isOpen: false, selfClosing: false, endIndex: end + 2 };
+	}
+
+	if (html.charCodeAt(pos + 1) === 33) {
+		const end = html.indexOf(">", pos);
+		if (end === -1) {
+			return { name: "", isOpen: false, selfClosing: false, endIndex: html.length - 1 };
+		}
+		return { name: "", isOpen: false, selfClosing: false, endIndex: end };
+	}
+
+	let i = pos + 1;
+	let isClose = false;
+	if (html.charCodeAt(i) === 47) {
+		isClose = true;
+		i++;
+	}
+
+	let name = "";
+	while (i < html.length) {
+		const c = html.charCodeAt(i);
+		if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122) || (c >= 48 && c <= 57)) {
+			name += String.fromCharCode(c | 32);
+			i++;
+		} else {
+			break;
+		}
+	}
+
+	if (name.length === 0) {
+		return null;
+	}
+
+	const end = scanTagEnd(html, i);
+	if (end === -1) {
+		return null;
+	}
+
+	const selfClosing = html.charCodeAt(end - 1) === 47 || VOID_TAGS.has(name);
+
+	return {
+		name,
+		isOpen: !isClose,
+		selfClosing,
+		endIndex: end,
+	};
+}
+
+function scanTagEnd(html: string, start: number): number {
+	let inQuote: number | null = null;
+	for (let i = start; i < html.length; i++) {
+		const c = html.charCodeAt(i);
+		if (inQuote !== null) {
+			if (c === inQuote) {
+				inQuote = null;
+			}
+		} else {
+			if (c === 34 || c === 39) {
+				inQuote = c;
+			} else if (c === 60) {
+				return -1;
+			} else if (c === 62) {
+				return i;
+			}
+		}
+	}
+	return -1;
+}
+
+function findFirstOpenTag(html: string, tagName: string): number {
+	const lowerTagName = tagName.toLowerCase();
+	let i = 0;
+	while (i < html.length) {
+		const tag = parseTagAt(html, i);
+		if (tag?.isOpen && tag.name === lowerTagName) {
+			return i;
+		}
+		i = tag ? tag.endIndex + 1 : i + 1;
+	}
+	return -1;
+}
+
+function extractTopLevelRanges(
+	html: string,
+	start: number,
+	end: number,
+	tagNames: string[],
+): TagRange[] {
+	const ranges: TagRange[] = [];
+	const lowerTagNames = tagNames.map((n) => n.toLowerCase());
+	let pending: { tagIndex: number; openEnd: number } | undefined;
+	let i = start;
+
+	while (i < end) {
+		const tag = parseTagAt(html, i);
+		if (!tag) {
+			i++;
+			continue;
+		}
+
+		if (tag.isOpen) {
+			const tagIndex = lowerTagNames.indexOf(tag.name);
+			if (tagIndex !== -1 && !tag.selfClosing && pending === undefined) {
+				pending = { tagIndex, openEnd: tag.endIndex + 1 };
+			}
+		} else {
+			const tagIndex = lowerTagNames.indexOf(tag.name);
+			if (tagIndex !== -1 && pending?.tagIndex === tagIndex) {
+				ranges.push({
+					tagIndex,
+					openEnd: pending.openEnd,
+					closeStart: i,
+				});
+				pending = undefined;
+			}
+		}
+
+		i = tag.endIndex + 1;
+	}
+
+	return ranges;
+}
+
 function parseTableRows(
 	html: string,
 	context: import("../types.js").TransformContext,
@@ -634,35 +814,9 @@ function parseTableRows(
 		}>;
 	}> = [];
 
-	let rowMatch;
-
-	while ((rowMatch = TABLE_ROW_PATTERN.exec(html)) !== null) {
-		const rowContent = rowMatch[1]!;
-		const cells: Array<{
-			_type: "tableCell";
-			_key: string;
-			content: import("../types.js").PortableTextSpan[];
-			markDefs?: import("../types.js").PortableTextMarkDef[];
-			isHeader?: boolean;
-		}> = [];
-
-		// Match both th and td cells
-		let cellMatch;
-
-		while ((cellMatch = TABLE_CELL_PATTERN.exec(rowContent)) !== null) {
-			const isHeaderCell = cellMatch[1]!.toLowerCase() === "th" || isHeader;
-			const cellContent = cellMatch[2]!;
-
-			const { children, markDefs } = context.parseInlineContent(cellContent);
-
-			cells.push({
-				_type: "tableCell" as const,
-				_key: context.generateKey(),
-				content: children,
-				markDefs: markDefs.length > 0 ? markDefs : undefined,
-				isHeader: isHeaderCell || undefined,
-			});
-		}
+	for (const rowRange of extractTopLevelRanges(html, 0, html.length, ["tr"])) {
+		const rowContent = html.slice(rowRange.openEnd, rowRange.closeStart);
+		const cells = parseTableCells(rowContent, context, isHeader);
 
 		if (cells.length > 0) {
 			rows.push({
@@ -674,6 +828,42 @@ function parseTableRows(
 	}
 
 	return rows;
+}
+
+function parseTableCells(
+	html: string,
+	context: import("../types.js").TransformContext,
+	forceHeader: boolean,
+): Array<{
+	_type: "tableCell";
+	_key: string;
+	content: import("../types.js").PortableTextSpan[];
+	markDefs?: import("../types.js").PortableTextMarkDef[];
+	isHeader?: boolean;
+}> {
+	const cells: Array<{
+		_type: "tableCell";
+		_key: string;
+		content: import("../types.js").PortableTextSpan[];
+		markDefs?: import("../types.js").PortableTextMarkDef[];
+		isHeader?: boolean;
+	}> = [];
+
+	for (const cellRange of extractTopLevelRanges(html, 0, html.length, ["td", "th"])) {
+		const cellContent = html.slice(cellRange.openEnd, cellRange.closeStart);
+		const isHeaderCell = cellRange.tagIndex === 1 || forceHeader;
+		const { children, markDefs } = context.parseInlineContent(cellContent);
+
+		cells.push({
+			_type: "tableCell" as const,
+			_key: context.generateKey(),
+			content: children,
+			markDefs: markDefs.length > 0 ? markDefs : undefined,
+			isHeader: isHeaderCell || undefined,
+		});
+	}
+
+	return cells;
 }
 
 /**
