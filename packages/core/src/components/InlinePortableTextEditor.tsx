@@ -16,6 +16,8 @@ import Focus from "@tiptap/extension-focus";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import Subscript from "@tiptap/extension-subscript";
+import Superscript from "@tiptap/extension-superscript";
 import TextAlign from "@tiptap/extension-text-align";
 import Typography from "@tiptap/extension-typography";
 import Underline from "@tiptap/extension-underline";
@@ -30,12 +32,25 @@ import { createPortal } from "react-dom";
 import { resolveImageMedia } from "../content/converters/gallery.js";
 import { normalizeImageLink } from "../content/converters/image-link.js";
 import {
+	assertPortableTextMarksSupported,
+	assertProseMirrorMarksSupported,
+	UnsupportedPortableTextMarksError,
+} from "../content/converters/mark-safety.js";
+import {
 	deriveLegacyListId,
 	normalizeProseMirrorOrderedListJson,
 	normalizeListId,
 	normalizeListStart,
 	readOrderedListMetadata,
 } from "../content/converters/numbered-list.js";
+import type {
+	PortableTextBlock,
+	PortableTextSpan,
+	PortableTextMarkDef,
+	PortableTextTextBlock,
+	PortableTextTableBlock,
+	ProseMirrorDocument,
+} from "../content/converters/types.js";
 import { computeThumbnailSize } from "../media/thumbnail.js";
 import { CodeMarkExtension } from "./code-mark.js";
 import { InlineCodeBlockExtension } from "./inline-code-block.js";
@@ -43,34 +58,14 @@ import { EmDashOrderedList } from "./ordered-list.js";
 
 // ── Portable Text types ────────────────────────────────────────────
 
-interface PTSpan {
-	_type: "span";
-	_key: string;
-	text: string;
-	marks?: string[];
-}
+// Local aliases for the canonical converter types so the inline editor stays
+// self-contained but can delegate to shared mark-safety checks without casts.
+type PTSpan = PortableTextSpan;
+type PTMarkDef = PortableTextMarkDef;
+type PTTextBlock = PortableTextTextBlock;
+type PTTableBlock = PortableTextTableBlock;
+type PTBlock = PortableTextBlock;
 
-interface PTMarkDef {
-	_type: string;
-	_key: string;
-	[key: string]: unknown;
-}
-
-interface PTTextBlock {
-	_type: "block";
-	_key: string;
-	style?: "normal" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "blockquote";
-	listItem?: "bullet" | "number";
-	level?: number;
-	listId?: string;
-	listStart?: number;
-	children: PTSpan[];
-	markDefs?: PTMarkDef[];
-	textAlign?: "left" | "center" | "right" | "justify";
-}
-
-type PTTableBlock = { _type: "table"; [key: string]: unknown };
-type PTBlock = PTTextBlock | PTTableBlock | { _type: string; _key: string; [key: string]: unknown };
 const TABLE_BLOCK_PLACEHOLDER_HTML = /<[^>]+\bdata-emdash-table-block(?:\s|=|>)/i;
 
 /** Type guard for PTTextBlock */
@@ -82,10 +77,15 @@ function isPTTableBlock(value: unknown): value is PTTableBlock {
 	return typeof value === "object" && value !== null && "_type" in value && value._type === "table";
 }
 
-/** Type guard for ProseMirror JSON document node */
-function isPMNode(value: unknown): value is PMNode {
+/** Type guard for a ProseMirror JSON document. */
+function isProseMirrorDocument(value: unknown): value is ProseMirrorDocument {
 	return (
-		typeof value === "object" && value !== null && "type" in value && typeof value.type === "string"
+		typeof value === "object" &&
+		value !== null &&
+		"type" in value &&
+		value.type === "doc" &&
+		"content" in value &&
+		Array.isArray(value.content)
 	);
 }
 
@@ -463,6 +463,7 @@ function convertPMMark(
 
 function portableTextToPM(blocks: PTBlock[]): JSONContent {
 	if (!blocks || blocks.length === 0) return { type: "doc", content: [{ type: "paragraph" }] };
+	assertPortableTextMarksSupported(blocks);
 
 	const content: PMNode[] = [];
 	let i = 0;
@@ -571,12 +572,12 @@ function convertPTBlock(block: PTBlock): PMNode | null {
 		};
 	}
 	if (block._type === "code") {
-		const cb = block as PTBlock & { code?: string; language?: string };
-		const language = typeof cb.language === "string" && cb.language.length > 0 ? cb.language : null;
+		const language =
+			typeof block.language === "string" && block.language.length > 0 ? block.language : null;
 		return {
 			type: "codeBlock",
 			attrs: { language },
-			content: cb.code ? [{ type: "text", text: cb.code }] : undefined,
+			content: block.code ? [{ type: "text", text: block.code }] : undefined,
 		};
 	}
 	if (block._type === "break") {
@@ -589,60 +590,38 @@ function convertPTBlock(block: PTBlock): PMNode | null {
 		};
 	}
 	if (block._type === "image") {
-		const ib = block as PTBlock & {
-			asset?: {
-				_ref?: string;
-				url?: string;
-				provider?: string;
-				meta?: Record<string, unknown>;
-			};
-			url?: string;
-			alt?: string;
-			caption?: string;
-			title?: string;
-			width?: number;
-			height?: number;
-			/** LQIP — first-class field (legacy snapshots keep it in `asset.meta`). */
-			blurhash?: string;
-			dominantColor?: string;
-			displayWidth?: number;
-			displayHeight?: number;
-			alignment?: unknown;
-			/** `{ href, blank? }`, or a bare string on WordPress-imported content */
-			link?: unknown;
-		};
-		const meta = ib.asset?.meta;
-		const { asset, alt, width, height } = resolveImageMedia(ib);
+		const meta = block.asset?.meta;
+		const { asset, alt, width, height } = resolveImageMedia(block);
 		// Prefer first-class LQIP fields; fall back to `asset.meta` for legacy.
 		const blurhash =
-			typeof ib.blurhash === "string"
-				? ib.blurhash
+			typeof block.blurhash === "string"
+				? block.blurhash
 				: typeof meta?.blurhash === "string"
 					? meta.blurhash
 					: null;
 		const dominantColor =
-			typeof ib.dominantColor === "string"
-				? ib.dominantColor
+			typeof block.dominantColor === "string"
+				? block.dominantColor
 				: typeof meta?.dominantColor === "string"
 					? meta.dominantColor
 					: null;
 		return {
 			type: "image",
 			attrs: {
-				src: asset.url || ib.url || (asset._ref ? `/_emdash/api/media/file/${asset._ref}` : ""),
+				src: asset.url || block.url || (asset._ref ? `/_emdash/api/media/file/${asset._ref}` : ""),
 				alt: alt || "",
-				title: ib.title || "",
-				caption: Object.hasOwn(ib, "caption") ? ib.caption || "" : ib.title || "",
+				title: block.title || "",
+				caption: Object.hasOwn(block, "caption") ? block.caption || "" : block.title || "",
 				mediaId: asset._ref || undefined,
 				provider: canonicalMediaProviderId(asset.provider),
 				width,
 				height,
 				blurhash,
 				dominantColor,
-				displayWidth: ib.displayWidth,
-				displayHeight: ib.displayHeight,
-				alignment: imageAlignment(ib.alignment) ?? null,
-				link: normalizeImageLink(ib.link),
+				displayWidth: block.displayWidth,
+				displayHeight: block.displayHeight,
+				alignment: imageAlignment(block.alignment) ?? null,
+				link: normalizeImageLink(block.link),
 			},
 		};
 	}
@@ -831,6 +810,12 @@ function convertPTMarks(marks: string[], markDefs: Map<string, PTMarkDef>): Mark
 			case "code":
 				pm.push({ type: "code" });
 				break;
+			case "superscript":
+				pm.push({ type: "superscript" });
+				break;
+			case "subscript":
+				pm.push({ type: "subscript" });
+				break;
 			default: {
 				const md = markDefs.get(mark);
 				if (md && md._type === "link") {
@@ -965,6 +950,23 @@ function InlineBubbleMenu({ editor }: { editor: Editor }) {
 						title="Code"
 					>
 						<span style={{ fontFamily: "monospace", fontSize: "13px" }}>&lt;/&gt;</span>
+					</button>
+					<span className="emdash-bubble-divider" />
+					<button
+						type="button"
+						className={`emdash-bubble-btn ${editor.isActive("superscript") ? "emdash-bubble-btn--active" : ""}`}
+						onClick={() => editor.chain().focus().toggleSuperscript().run()}
+						title="Superscript"
+					>
+						<span style={{ fontSize: "13px" }}>x²</span>
+					</button>
+					<button
+						type="button"
+						className={`emdash-bubble-btn ${editor.isActive("subscript") ? "emdash-bubble-btn--active" : ""}`}
+						onClick={() => editor.chain().focus().toggleSubscript().run()}
+						title="Subscript"
+					>
+						<span style={{ fontSize: "13px" }}>x₂</span>
 					</button>
 					<span className="emdash-bubble-divider" />
 					<button
@@ -2188,16 +2190,33 @@ export function InlinePortableTextEditor({
 		);
 	});
 
-	const initialContent = React.useMemo(
-		() => portableTextToPM(value || []),
-		[], // Only compute once on mount
-	);
+	const [loadState] = React.useState<{
+		content: JSONContent;
+		error: UnsupportedPortableTextMarksError | null;
+	}>(() => {
+		try {
+			return { content: portableTextToPM(value || []), error: null };
+		} catch (error) {
+			if (error instanceof UnsupportedPortableTextMarksError) {
+				return {
+					content: { type: "doc", content: [{ type: "paragraph" }] },
+					error,
+				};
+			}
+			throw error;
+		}
+	});
+
+	const initialContent = loadState.content;
+	const loadError = loadState.error;
+	const [saveError, setSaveError] = React.useState<string | null>(null);
 
 	const getBlocks = React.useCallback((): PTBlock[] => {
 		const editor = editorRef.current;
 		if (!editor) return initialRef.current;
 		const json: unknown = editor.getJSON();
-		if (!isPMNode(json)) return initialRef.current;
+		if (!isProseMirrorDocument(json)) return initialRef.current;
+		assertProseMirrorMarksSupported(json);
 		return pmToPortableText(json);
 	}, []);
 
@@ -2206,11 +2225,11 @@ export function InlinePortableTextEditor({
 			// A pagehide flush must not be skipped: an in-flight blur save is
 			// cancelled by the navigation, so the keepalive request is the only
 			// one that can still land.
+			if (loadError) return;
 			if (savingRef.current && !options?.keepalive) return;
 
 			const doc = editorRef.current?.state.doc;
 			if (!doc || !savedDocRef.current || doc.eq(savedDocRef.current)) return;
-			const blocks = getBlocks();
 
 			savingRef.current = true;
 			let settle = () => {};
@@ -2220,6 +2239,7 @@ export function InlinePortableTextEditor({
 			// The visual-editing toolbar holds Publish until `done` settles.
 			document.dispatchEvent(new CustomEvent("emdash:save-pending", { detail: { done } }));
 			try {
+				const blocks = getBlocks();
 				const res = await fetch(
 					`/_emdash/api/content/${encodeURIComponent(collection)}/${encodeURIComponent(entryId)}`,
 					{
@@ -2232,6 +2252,7 @@ export function InlinePortableTextEditor({
 				);
 
 				if (res.ok) {
+					setSaveError(null);
 					initialRef.current = blocks;
 					savedDocRef.current = doc;
 					document.dispatchEvent(new CustomEvent("emdash:save", { detail: { state: "saved" } }));
@@ -2241,10 +2262,16 @@ export function InlinePortableTextEditor({
 						}),
 					);
 				} else {
+					setSaveError(`Save failed: ${res.status}`);
 					document.dispatchEvent(new CustomEvent("emdash:save", { detail: { state: "error" } }));
 					console.error("Save failed:", res.status);
 				}
 			} catch (err) {
+				setSaveError(
+					err instanceof UnsupportedPortableTextMarksError
+						? `Save failed: unsupported formatting (${err.marks.join(", ")}).`
+						: "Save failed. Please try again.",
+				);
 				document.dispatchEvent(new CustomEvent("emdash:save", { detail: { state: "error" } }));
 				console.error("Save failed:", err);
 			} finally {
@@ -2252,7 +2279,7 @@ export function InlinePortableTextEditor({
 				settle();
 			}
 		},
-		[collection, entryId, field, getBlocks],
+		[collection, entryId, field, getBlocks, loadError],
 	);
 
 	// Flush unsaved edits when the page goes away (browser back/forward,
@@ -2313,6 +2340,8 @@ export function InlinePortableTextEditor({
 				},
 			}),
 			Underline,
+			Subscript,
+			Superscript,
 			Link.configure({
 				openOnClick: false,
 				HTMLAttributes: { class: "underline text-blue-600 dark:text-blue-400" },
@@ -2413,8 +2442,22 @@ export function InlinePortableTextEditor({
 
 	return (
 		<div onBlur={handleBlur}>
-			<InlineBubbleMenu editor={editor} />
-			<EditorContent editor={editor} />
+			{loadError ? (
+				<div className="emdash-inline-editor-error" role="alert" dir="auto">
+					This field can’t be edited here because it contains unsupported Portable Text marks:{" "}
+					{loadError.marks.join(", ")}.
+				</div>
+			) : (
+				<>
+					<InlineBubbleMenu editor={editor} />
+					<EditorContent editor={editor} />
+				</>
+			)}
+			{saveError ? (
+				<div className="emdash-inline-editor-error" role="alert" dir="auto">
+					{saveError}
+				</div>
+			) : null}
 			{unsupportedFileGuidance ? (
 				<div
 					key={unsupportedFileGuidance.version}
@@ -2690,6 +2733,19 @@ export function InlinePortableTextEditor({
 					line-height: 1.4;
 					text-align: start;
 				}
+				.emdash-inline-editor-error {
+					margin-block-start: 0.75rem;
+					padding-block: 0.625rem;
+					padding-inline: 0.875rem;
+					border: 1px solid #fecaca;
+					border-radius: 0.5rem;
+					background: #fef2f2;
+					color: #991b1b;
+					font-size: 0.875rem;
+					font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+					line-height: 1.4;
+					text-align: start;
+				}
 				.emdash-plugin-block-placeholder {
 					margin: 0.75rem 0;
 					padding: 0.625rem 0.875rem;
@@ -2706,6 +2762,11 @@ export function InlinePortableTextEditor({
 						border-color: #1e40af;
 						background: #172554;
 						color: #dbeafe;
+					}
+					.emdash-inline-editor-error {
+						border-color: #991b1b;
+						background: #450a0a;
+						color: #fee2e2;
 					}
 					.emdash-plugin-block-placeholder {
 						border-color: #374151;
