@@ -2,4 +2,4 @@
 "emdash": patch
 ---
 
-Fixes local media image optimization when EmDash runs behind an HTTPS-terminating reverse proxy without a hard-coded `siteUrl`. The Astro integration now reads `EMDASH_SITE_URL` / `SITE_URL` at build time to register `image.remotePatterns` for the public origin, so local media is served through the `/_image` endpoint instead of passed through as raw originals.
+Fixes locally stored images being served as unoptimized originals on sites that set their public origin with `EMDASH_SITE_URL` or `SITE_URL` instead of `siteUrl`, such as Node.js deployments behind an HTTPS reverse proxy. The variable must be set when `astro build` runs; a value set only in the runtime environment does not enable image optimization.

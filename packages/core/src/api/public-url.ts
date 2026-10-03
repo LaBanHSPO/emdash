@@ -37,7 +37,6 @@ export function _resetEnvCache(): void {
 	_envAllowedOrigins = null;
 }
 
-/** @internal Reused by the build-time image.remotePatterns path. */
 export function getEnvSiteUrl(): string | undefined {
 	if (_envSiteUrl !== null) return _envSiteUrl || undefined;
 	try {

@@ -85,12 +85,10 @@ export interface ImageRemotePattern {
 }
 
 /**
- * Resolve the effective public origin at build/config time.
- *
- * `image.remotePatterns` are baked into the production build, so we need a
- * build-time analog of {@link getConfiguredOrigin}: prefer the configured
- * `siteUrl`, then fall back to `EMDASH_SITE_URL` / `SITE_URL` through
- * {@link getEnvSiteUrl}.
+ * Resolve the site origin for `image.remotePatterns`: the configured `siteUrl`,
+ * then `EMDASH_SITE_URL` / `SITE_URL`. Astro bakes `remotePatterns` into the
+ * build output, so the env vars only take effect if they are set when
+ * `astro build` runs.
  *
  * @internal Exported for unit testing.
  */
@@ -111,14 +109,12 @@ export function resolveBuildTimeSiteUrl(configuredSiteUrl: string | undefined): 
  *     (`/_emdash/api/media/file/**`), so same-origin proxied media is optimized.
  *     The components absolutize the media URL against this origin; EmDash's
  *     wrapped image endpoint then serves the bytes from storage (so the absolute
- *     URL is never fetched). Registered when `siteUrl` is known at build, or
- *     when the `EMDASH_SITE_URL` / `SITE_URL` environment variable supplies it.
+ *     URL is never fetched). Only registered when `siteUrl` is known at build.
  *  3. In `astro dev` the dev-server origin isn't known at build time, so we
  *     register a host-agnostic pattern scoped to the media route. Dev-only.
  *
  * Returns an empty array when no source is statically known (production build,
- * local storage, no `siteUrl` or `EMDASH_SITE_URL` / `SITE_URL`), in which case
- * media renders as a plain `<img>`.
+ * local storage, no `siteUrl`), in which case media renders as a plain `<img>`.
  *
  * @internal Exported for unit testing.
  */
@@ -160,10 +156,12 @@ export function buildImageRemotePatterns(
 
 	if (siteUrl) {
 		try {
-			patterns.push({
-				hostname: new URL(siteUrl).hostname,
-				pathname: `${INTERNAL_MEDIA_PREFIX}**`,
-			});
+			const { hostname } = new URL(siteUrl);
+			// WHATWG URL accepts `*` in a hostname, which Astro's matcher treats
+			// as a wildcard that would allowlist other hosts.
+			if (!hostname.includes("*")) {
+				patterns.push({ hostname, pathname: `${INTERNAL_MEDIA_PREFIX}**` });
+			}
 		} catch {
 			// ignore an unparseable site URL
 		}
@@ -475,9 +473,11 @@ export function emdash(config: EmDashConfig = {}): AstroIntegration {
 		}
 	}
 
-	// Validate siteUrl if provided in astro.config.mjs. Runtime fallback to
-	// EMDASH_SITE_URL / SITE_URL is handled by getPublicOrigin(); only the
-	// build-time image.remotePatterns path reads the env vars here.
+	// Validate siteUrl if provided in astro.config.mjs.
+	// Env-var fallback (EMDASH_SITE_URL / SITE_URL) is handled at runtime by
+	// getPublicOrigin() in api/public-url.ts — don't fold it into
+	// resolvedConfig.siteUrl here — so Docker images built without a domain can
+	// pick it up at container start via process.env.
 	if (resolvedConfig.siteUrl) {
 		const raw = resolvedConfig.siteUrl;
 		try {
@@ -536,7 +536,7 @@ export function emdash(config: EmDashConfig = {}): AstroIntegration {
 		}
 	}
 
-	// Validate: non-standard plugins cannot be placed in sandboxed:[]
+	// Validate: non-standard plugins cannot be placed in sandboxed: []
 	for (const descriptor of sandboxedDescriptors) {
 		if (descriptor.format !== "standard") {
 			throw new Error(

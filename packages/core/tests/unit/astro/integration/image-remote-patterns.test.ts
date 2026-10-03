@@ -50,6 +50,11 @@ describe("buildImageRemotePatterns", () => {
 		]);
 	});
 
+	it("ignores a site URL whose hostname is a wildcard", () => {
+		expect(buildImageRemotePatterns(localStorage, "https://*.example.com", "build")).toEqual([]);
+		expect(buildImageRemotePatterns(localStorage, "https://**.com", "build")).toEqual([]);
+	});
+
 	it("adds a host-agnostic media pattern only in dev", () => {
 		expect(buildImageRemotePatterns(localStorage, undefined, "dev")).toEqual([
 			{ pathname: MEDIA_PATH },
@@ -263,15 +268,19 @@ async function runtimeConfigFor(
 
 describe("image remotePatterns from env", () => {
 	const origEmdashSiteUrl = process.env.EMDASH_SITE_URL;
+	const origSiteUrl = process.env.SITE_URL;
 
 	beforeEach(() => {
 		delete process.env.EMDASH_SITE_URL;
+		delete process.env.SITE_URL;
 		_resetEnvCache();
 	});
 
 	afterEach(() => {
 		if (origEmdashSiteUrl === undefined) delete process.env.EMDASH_SITE_URL;
 		else process.env.EMDASH_SITE_URL = origEmdashSiteUrl;
+		if (origSiteUrl === undefined) delete process.env.SITE_URL;
+		else process.env.SITE_URL = origSiteUrl;
 		_resetEnvCache();
 	});
 
@@ -282,7 +291,17 @@ describe("image remotePatterns from env", () => {
 			hostname: "env.example.com",
 			pathname: MEDIA_PATH,
 		});
+		expect(image.remotePatterns?.every((pattern) => pattern.hostname)).toBe(true);
 	});
+
+	it.each(["not-a-url", "file:///etc/passwd", "https://*.example.com", "https://**.com"])(
+		"allowlists nothing for a malformed EMDASH_SITE_URL (%s)",
+		async (value) => {
+			process.env.EMDASH_SITE_URL = value;
+			const image = await imageConfigFor({});
+			expect(image.remotePatterns).toBeUndefined();
+		},
+	);
 });
 
 describe("image endpoint route in the runtime config", () => {
