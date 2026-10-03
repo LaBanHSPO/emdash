@@ -28,13 +28,6 @@ import { EmDashStorageError } from "emdash";
 /** Regex to remove trailing slashes from URLs */
 const TRAILING_SLASH_REGEX = /\/$/;
 
-/** R2's error code for a range that starts at or past the end of the object */
-const R2_INVALID_RANGE = 10039;
-
-function isInvalidRangeError(error: unknown): boolean {
-	return error instanceof Error && error.message.includes(`(${R2_INVALID_RANGE})`);
-}
-
 /** The bytes of an object of `size` bytes that an R2 range covers */
 function servedRange(
 	{ offset = 0, length, suffix }: { offset?: number; length?: number; suffix?: number },
@@ -116,13 +109,17 @@ export class R2Storage implements Storage {
 		}
 	}
 
-	/** Resolves to undefined when R2 can't satisfy the range */
+	/**
+	 * Resolves to undefined when the ranged read fails, so the caller reads the
+	 * whole object instead. A range past the end of the object doesn't always
+	 * fail with R2's invalid-range error, and a persistent failure fails the
+	 * whole read too.
+	 */
 	private async getRange(key: string, range: ByteRange): Promise<R2ObjectBody | null | undefined> {
 		try {
 			return await this.bucket.get(key, { range });
-		} catch (error) {
-			if (isInvalidRangeError(error)) return undefined;
-			throw error;
+		} catch {
+			return undefined;
 		}
 	}
 

@@ -28,13 +28,16 @@ describe("R2Storage ranged download", () => {
 		expect(await new Response(result.body).text()).toBe(body);
 	});
 
-	it("returns the whole object for a range past its end", async () => {
-		const result = await storage.download("clip.mp4", { range: { offset: 10 } });
+	it.each([{ offset: 10 }, { offset: 10, length: 5 }])(
+		"returns the whole object when %o starts past its end",
+		async (range) => {
+			const result = await storage.download("clip.mp4", { range });
 
-		expect(result.range).toBeUndefined();
-		expect(result.size).toBe(10);
-		expect(await new Response(result.body).text()).toBe("0123456789");
-	});
+			expect(result.range).toBeUndefined();
+			expect(result.size).toBe(10);
+			expect(await new Response(result.body).text()).toBe("0123456789");
+		},
+	);
 
 	it("reports no range for a plain download", async () => {
 		const result = await storage.download("clip.mp4");
