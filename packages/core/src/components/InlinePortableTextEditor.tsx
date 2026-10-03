@@ -37,6 +37,7 @@ import {
 	readOrderedListMetadata,
 } from "../content/converters/numbered-list.js";
 import { computeThumbnailSize } from "../media/thumbnail.js";
+import { getVisualEditingWriteSession } from "../visual-editing/write-session.js";
 import { CodeMarkExtension } from "./code-mark.js";
 import { InlineCodeBlockExtension } from "./inline-code-block.js";
 import { EmDashOrderedList } from "./ordered-list.js";
@@ -2130,6 +2131,7 @@ export interface InlinePortableTextEditorProps {
 	collection: string;
 	entryId: string;
 	field: string;
+	_rev?: string;
 	tablePlaceholder?: string;
 }
 
@@ -2138,6 +2140,7 @@ export function InlinePortableTextEditor({
 	collection,
 	entryId,
 	field,
+	_rev,
 	tablePlaceholder = TableBlockNode.options.placeholder,
 }: InlinePortableTextEditorProps) {
 	const initialRef = React.useRef(value);
@@ -2145,8 +2148,17 @@ export function InlinePortableTextEditor({
 	// produced, then the one each successful save sent. `save()` does nothing
 	// while the current document is structurally equal to it (`Node.eq`).
 	const savedDocRef = React.useRef<Editor["state"]["doc"] | null>(null);
-	const savingRef = React.useRef(false);
 	const editorRef = React.useRef<ReturnType<typeof useEditor>>(null);
+	const session = React.useMemo(
+		() => getVisualEditingWriteSession(collection, entryId, _rev),
+		[collection, entryId, _rev],
+	);
+	const verifiedRef = React.useRef(!!_rev && _rev === session.rev);
+	const fieldRevisionRef = React.useRef(session.fieldRevisions.get(field));
+	const verificationRef = React.useRef<Promise<boolean> | null>(null);
+	const pendingDocsRef = React.useRef<Editor["state"]["doc"][]>([]);
+	const editorId = React.useId();
+	const fieldKey = `${field}:${editorId}`;
 
 	// Media picker state
 	const [mediaPickerOpen, setMediaPickerOpen] = React.useState(false);
@@ -2201,58 +2213,142 @@ export function InlinePortableTextEditor({
 		return pmToPortableText(json);
 	}, []);
 
+	const verifyStored = React.useCallback((): Promise<boolean> => {
+		if (verifiedRef.current) return Promise.resolve(true);
+		if (verificationRef.current) return verificationRef.current;
+		const editor = editorRef.current;
+		const savedDoc = savedDocRef.current;
+		if (!editor || !savedDoc) return Promise.resolve(false);
+		verificationRef.current = session
+			.enqueue(async () => {
+				try {
+					const response = await fetch(
+						`/_emdash/api/content/${encodeURIComponent(collection)}/${encodeURIComponent(entryId)}`,
+						{ credentials: "same-origin" },
+					);
+					const body = await response.json();
+					if (!response.ok || body?.success !== true) {
+						const code = body?.error?.code || "SAVE_FAILED";
+						session.errors.set(fieldKey, code);
+						document.dispatchEvent(
+							new CustomEvent("emdash:save", { detail: { state: "error", code } }),
+						);
+						return false;
+					}
+					const stored = body?.data?.item?.data?.[field] ?? [];
+					const rev = body?.data?._rev;
+					if (typeof rev !== "string" || !body?.data?.item?.data || !Array.isArray(stored))
+						throw new Error("Invalid content snapshot");
+					if (
+						(session.rev && session.rev !== rev) ||
+						!savedDoc.eq(editor.schema.nodeFromJSON(portableTextToPM(stored)))
+					) {
+						session.errors.set(fieldKey, "CONFLICT");
+						document.dispatchEvent(
+							new CustomEvent("emdash:save", { detail: { state: "error", code: "CONFLICT" } }),
+						);
+						return false;
+					}
+					session.rev = rev;
+					session.errors.delete(fieldKey);
+					fieldRevisionRef.current = session.fieldRevisions.get(field);
+					verifiedRef.current = true;
+					editor.setEditable(true);
+					return true;
+				} catch {
+					session.errors.set(fieldKey, "SAVE_FAILED");
+					document.dispatchEvent(new CustomEvent("emdash:save", { detail: { state: "error" } }));
+					return false;
+				}
+			})
+			.then((verified) => {
+				if (!verified && session.errors.get(fieldKey) !== "CONFLICT")
+					verificationRef.current = null;
+				return verified;
+			});
+		return verificationRef.current;
+	}, [collection, entryId, field, fieldKey, session]);
+
 	const save = React.useCallback(
 		async (options?: { keepalive?: boolean }) => {
-			// A pagehide flush must not be skipped: an in-flight blur save is
-			// cancelled by the navigation, so the keepalive request is the only
-			// one that can still land.
-			if (savingRef.current && !options?.keepalive) return;
-
 			const doc = editorRef.current?.state.doc;
 			if (!doc || !savedDocRef.current || doc.eq(savedDocRef.current)) return;
+			if (!options?.keepalive && pendingDocsRef.current.some((pending) => pending.eq(doc))) return;
 			const blocks = getBlocks();
+			session.dirty.add(fieldKey);
+			if (!options?.keepalive) void verifyStored();
 
-			savingRef.current = true;
-			let settle = () => {};
-			const done = new Promise<void>((resolve) => {
-				settle = () => resolve();
-			});
-			// The visual-editing toolbar holds Publish until `done` settles.
+			const write = async (): Promise<boolean> => {
+				if (!verifiedRef.current || !session.rev) return false;
+				if (fieldRevisionRef.current !== session.fieldRevisions.get(field)) {
+					session.errors.set(fieldKey, "CONFLICT");
+					document.dispatchEvent(
+						new CustomEvent("emdash:save", { detail: { state: "error", code: "CONFLICT" } }),
+					);
+					return false;
+				}
+				if (doc.eq(savedDocRef.current!)) return true;
+				try {
+					const res = await fetch(
+						`/_emdash/api/content/${encodeURIComponent(collection)}/${encodeURIComponent(entryId)}`,
+						{
+							method: "PUT",
+							credentials: "same-origin",
+							headers: { "Content-Type": "application/json", "X-EmDash-Request": "1" },
+							body: JSON.stringify({ data: { [field]: blocks }, _rev: session.rev }),
+							keepalive: options?.keepalive ?? false,
+						},
+					);
+
+					const body = await res.json().catch(() => null);
+					if (res.ok && typeof body?.data?._rev === "string") {
+						session.rev = body.data._rev;
+						session.fieldRevisions.set(field, session.rev!);
+						fieldRevisionRef.current = session.rev;
+						initialRef.current = blocks;
+						savedDocRef.current = doc;
+						session.errors.delete(fieldKey);
+						const unchanged = editorRef.current?.state.doc.eq(doc);
+						if (unchanged) session.dirty.delete(fieldKey);
+						else session.dirty.add(fieldKey);
+						document.dispatchEvent(
+							new CustomEvent("emdash:save", {
+								detail: session.errors.size
+									? { state: "error", code: session.errors.values().next().value }
+									: { state: session.dirty.size ? "unsaved" : "saved" },
+							}),
+						);
+						document.dispatchEvent(
+							new CustomEvent("emdash:content-changed", {
+								detail: { collection, id: entryId },
+							}),
+						);
+						return true;
+					} else {
+						const code = body?.error?.code || "SAVE_FAILED";
+						session.errors.set(fieldKey, code);
+						document.dispatchEvent(
+							new CustomEvent("emdash:save", { detail: { state: "error", code } }),
+						);
+						console.error("Save failed:", res.status);
+					}
+				} catch (err) {
+					session.errors.set(fieldKey, "SAVE_FAILED");
+					document.dispatchEvent(new CustomEvent("emdash:save", { detail: { state: "error" } }));
+					console.error("Save failed:", err);
+				}
+				return false;
+			};
+			const done = session.enqueue(write);
+			pendingDocsRef.current.push(doc);
 			document.dispatchEvent(new CustomEvent("emdash:save-pending", { detail: { done } }));
 			try {
-				const res = await fetch(
-					`/_emdash/api/content/${encodeURIComponent(collection)}/${encodeURIComponent(entryId)}`,
-					{
-						method: "PUT",
-						credentials: "same-origin",
-						headers: { "Content-Type": "application/json", "X-EmDash-Request": "1" },
-						body: JSON.stringify({ data: { [field]: blocks } }),
-						keepalive: options?.keepalive ?? false,
-					},
-				);
-
-				if (res.ok) {
-					initialRef.current = blocks;
-					savedDocRef.current = doc;
-					document.dispatchEvent(new CustomEvent("emdash:save", { detail: { state: "saved" } }));
-					document.dispatchEvent(
-						new CustomEvent("emdash:content-changed", {
-							detail: { collection, id: entryId },
-						}),
-					);
-				} else {
-					document.dispatchEvent(new CustomEvent("emdash:save", { detail: { state: "error" } }));
-					console.error("Save failed:", res.status);
-				}
-			} catch (err) {
-				document.dispatchEvent(new CustomEvent("emdash:save", { detail: { state: "error" } }));
-				console.error("Save failed:", err);
+				await done;
 			} finally {
-				savingRef.current = false;
-				settle();
+				pendingDocsRef.current = pendingDocsRef.current.filter((pending) => pending !== doc);
 			}
 		},
-		[collection, entryId, field, getBlocks],
+		[collection, entryId, field, fieldKey, getBlocks, session, verifyStored],
 	);
 
 	// Flush unsaved edits when the page goes away (browser back/forward,
@@ -2265,9 +2361,16 @@ export function InlinePortableTextEditor({
 	// while typing (like the admin editor) so unload flushes are rare.
 	React.useEffect(() => {
 		const flush = () => void save({ keepalive: true });
+		const beforePublish = () => {
+			if (!session.errors.size) void save();
+		};
 		window.addEventListener("pagehide", flush);
-		return () => window.removeEventListener("pagehide", flush);
-	}, [save]);
+		document.addEventListener("emdash:before-publish", beforePublish);
+		return () => {
+			window.removeEventListener("pagehide", flush);
+			document.removeEventListener("emdash:before-publish", beforePublish);
+		};
+	}, [save, session]);
 
 	// Create slash commands extension once — uses refs to avoid re-render loop
 	const slashCommandsExtension = React.useMemo(
@@ -2338,6 +2441,7 @@ export function InlinePortableTextEditor({
 			slashCommandsExtension,
 		],
 		content: initialContent,
+		editable: verifiedRef.current,
 		immediatelyRender: false,
 		editorProps: {
 			attributes: {
@@ -2347,7 +2451,23 @@ export function InlinePortableTextEditor({
 			...unsupportedFileHandlers,
 		},
 		onUpdate: () => {
-			document.dispatchEvent(new CustomEvent("emdash:save", { detail: { state: "unsaved" } }));
+			const doc = editorRef.current?.state.doc;
+			if (
+				doc &&
+				savedDocRef.current &&
+				doc.eq(savedDocRef.current) &&
+				!session.errors.has(fieldKey)
+			)
+				session.dirty.delete(fieldKey);
+			else session.dirty.add(fieldKey);
+			void verifyStored();
+			document.dispatchEvent(
+				new CustomEvent("emdash:save", {
+					detail: session.errors.size
+						? { state: "error", code: session.errors.values().next().value }
+						: { state: session.dirty.size ? "unsaved" : "idle" },
+				}),
+			);
 		},
 	});
 
@@ -2355,7 +2475,8 @@ export function InlinePortableTextEditor({
 	React.useEffect(() => {
 		editorRef.current = editor;
 		if (editor && !savedDocRef.current) savedDocRef.current = editor.state.doc;
-	}, [editor]);
+		if (editor && !verifiedRef.current) void verifyStored();
+	}, [editor, verifyStored]);
 
 	// Slash menu command handler
 	const handleSlashCommand = React.useCallback(
@@ -2412,7 +2533,15 @@ export function InlinePortableTextEditor({
 	if (!editor) return null;
 
 	return (
-		<div onBlur={handleBlur}>
+		<div
+			onBlur={handleBlur}
+			onPointerDown={() => {
+				if (!verifiedRef.current) void verifyStored();
+			}}
+			onFocus={() => {
+				if (!verifiedRef.current) void verifyStored();
+			}}
+		>
 			<InlineBubbleMenu editor={editor} />
 			<EditorContent editor={editor} />
 			{unsupportedFileGuidance ? (
