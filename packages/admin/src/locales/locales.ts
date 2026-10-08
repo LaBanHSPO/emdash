@@ -177,6 +177,13 @@ export const LOCALES: LocaleDefinition[] = [
 		enabled: true,
 		dateLocale: () => import("react-day-picker/locale/id").then((m) => m.id),
 	},
+	// Italian
+	{
+		code: "it",
+		label: "Italiano",
+		enabled: false,
+		dateLocale: () => import("react-day-picker/locale/it").then((m) => m.it),
+	},
 	// Japanese
 	{
 		code: "ja",
