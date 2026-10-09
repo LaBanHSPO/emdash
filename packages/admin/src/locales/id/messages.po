@@ -5483,8 +5483,10 @@ msgstr "Gagal membuat widget"
 msgid "Failed to create widget area"
 msgstr "Gagal membuat area widget"
 
-#: packages/admin/src/router.tsx:580 packages/admin/src/router.tsx:609
-#: packages/admin/src/router.tsx:692 packages/admin/src/router.tsx:1567
+#: packages/admin/src/router.tsx:580
+#: packages/admin/src/router.tsx:609
+#: packages/admin/src/router.tsx:692
+#: packages/admin/src/router.tsx:1567
 msgid "Failed to delete"
 msgstr "Gagal menghapus"
 
@@ -5873,7 +5875,8 @@ msgstr "Gagal mengambil status pembaruan"
 
 #: packages/admin/src/lib/api/current-user.ts:22
 #: packages/admin/src/lib/api/users.ts:91
-#: packages/admin/src/lib/api/users.ts:96 packages/admin/src/router.tsx:1127
+#: packages/admin/src/lib/api/users.ts:96
+#: packages/admin/src/router.tsx:1127
 #: packages/admin/src/router.tsx:2263
 msgid "Failed to fetch user"
 msgstr "Gagal mengambil pengguna"
@@ -6084,7 +6087,8 @@ msgstr "Gagal menyiapkan impor"
 msgid "Failed to probe URL"
 msgstr "Gagal menyelidiki URL"
 
-#: packages/admin/src/router.tsx:648 packages/admin/src/router.tsx:1389
+#: packages/admin/src/router.tsx:648
+#: packages/admin/src/router.tsx:1389
 msgid "Failed to publish"
 msgstr "Gagal memublikasikan"
 
@@ -6173,7 +6177,8 @@ msgstr "Gagal mencabut token API"
 msgid "Failed to rewrite URLs"
 msgstr "Gagal menulis ulang URL"
 
-#: packages/admin/src/router.tsx:841 packages/admin/src/router.tsx:1250
+#: packages/admin/src/router.tsx:841
+#: packages/admin/src/router.tsx:1250
 #: packages/admin/src/router.tsx:2959
 msgid "Failed to save"
 msgstr "Gagal menyimpan"
@@ -7920,7 +7925,8 @@ msgstr "Memuat koleksi..."
 msgid "Loading comments..."
 msgstr "Memuat komentar..."
 
-#: packages/admin/src/router.tsx:3212 packages/admin/src/router.tsx:3224
+#: packages/admin/src/router.tsx:3212
+#: packages/admin/src/router.tsx:3224
 msgid "Loading configuration..."
 msgstr "Memuat konfigurasi..."
 
@@ -10034,7 +10040,8 @@ msgstr "Registri Pengaya"
 msgid "Plugin registry configuration error"
 msgstr "Galat konfigurasi registri pengaya"
 
-#: packages/admin/src/router.tsx:2555 packages/admin/src/router.tsx:2586
+#: packages/admin/src/router.tsx:2555
+#: packages/admin/src/router.tsx:2586
 msgid "Plugin registry is not configured."
 msgstr "Registri pengaya tidak dikonfigurasikan."
 
@@ -11577,6 +11584,7 @@ msgid "SCSS"
 msgstr "SCSS"
 
 #: packages/admin/src/components/ContentTypeEditor.tsx:106
+#: packages/admin/src/components/Settings.tsx:165
 #: packages/admin/src/components/Settings.tsx:165
 #: packages/admin/src/components/Widgets.tsx:152
 msgid "Search"
