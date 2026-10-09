@@ -92,6 +92,7 @@ export function sweepAction({
 	createdAt,
 	isBotAuthor,
 	isDraft,
+	isDesign = false,
 	labels,
 	mergeable,
 	lastActivity,
@@ -115,7 +116,8 @@ export function sweepAction({
 	if (!reason) return none;
 
 	if (staleWarningAt && staleWarningAt > lastActivity) {
-		const action = now - staleWarningAt >= STALE_CLOSE_AFTER_WARNING ? "stale-close" : "none";
+		const action =
+			!isDesign && now - staleWarningAt >= STALE_CLOSE_AFTER_WARNING ? "stale-close" : "none";
 		return { action, stale: true, reason };
 	}
 	if (now - lastActivity >= STALE_WARN_AFTER) return { action: "stale-warn", stale: true, reason };

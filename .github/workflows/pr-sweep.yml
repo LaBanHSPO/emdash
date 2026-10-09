@@ -27,6 +27,8 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const now = new Date();
+            const isDesignPR = pr =>
+              (pr.body || '').includes('<!-- design-pr -->') || /^design:/i.test(pr.title);
             const { fetchHumanActivity, sweepAction } = await import(
               `${process.env.GITHUB_WORKSPACE}/.github/scripts/pr-staleness.mjs`
             );
@@ -80,6 +82,7 @@ jobs:
 
             for (const pr of prs) {
               const prLabels = new Set(pr.labels.map(l => l.name));
+              const isDesign = isDesignPR(pr);
               const toAdd = [];
               const toRemove = [];
 
@@ -137,6 +140,7 @@ jobs:
                 createdAt: new Date(pr.created_at),
                 isBotAuthor: pr.user?.type === 'Bot',
                 isDraft: pr.draft,
+                isDesign,
                 labels: prLabels,
                 mergeable,
                 lastActivity: humanActivity.get(pr.number) ?? new Date(pr.created_at),
@@ -179,7 +183,10 @@ jobs:
                 core.info(`#${pr.number}: closed (CLA unsigned)`);
                 continue;
               } else if (sweep.action === 'stale-warn') {
-                await comment(`${markers.staleWarning}\nThis PR is waiting on its author because ${waitingFor[sweep.reason]}, and it has had no activity for 14 days. It will be closed in 7 days unless there is activity: push an update or leave a comment to keep it open.`);
+                const body = isDesign
+                  ? `${markers.staleWarning}\nThis design PR is waiting on its author because ${waitingFor[sweep.reason]}, and it has had no human activity for 14 days. Design PRs are not closed for inactivity. If the proposal is withdrawn, please close it.`
+                  : `${markers.staleWarning}\nThis PR is waiting on its author because ${waitingFor[sweep.reason]}, and it has had no activity for 14 days. It will be closed in 7 days unless there is activity: push an update or leave a comment to keep it open.`;
+                await comment(body);
               } else if (sweep.action === 'stale-close') {
                 await comment(`${markers.staleClose}\nClosing after 21 days without activity while waiting on its author because ${waitingFor[sweep.reason]}. ${reopenHint}`);
                 await close();

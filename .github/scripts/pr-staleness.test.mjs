@@ -166,6 +166,27 @@ describe("sweepAction", () => {
 			assert.equal(sweepAction(state({ ...idle, mergeable: false })).reason, "conflicts");
 			assert.equal(sweepAction(state({ ...idle, isDraft: true })).action, "stale-warn");
 		});
+
+		it("warns on inactive design PRs but never closes them for staleness", () => {
+			for (const authorState of [
+				{},
+				{ isDraft: true, labels: new Set(["review/needs-review"]) },
+				{ mergeable: false, labels: new Set(["review/needs-review"]) },
+			]) {
+				const design = state({ ...authorState, isDesign: true, lastActivity: daysAgo(90) });
+				assert.equal(sweepAction(design).action, "stale-warn");
+				const warned = sweepAction({ ...design, staleWarningAt: daysAgo(30) });
+				assert.equal(warned.action, "none");
+				assert.equal(warned.stale, true);
+			}
+		});
+
+		it("still closes design PRs whose CLA remains unsigned", () => {
+			const result = sweepAction(
+				state({ isDesign: true, labels: new Set(["cla: needed"]), claReminderAt: daysAgo(6) }),
+			);
+			assert.equal(result.action, "cla-close");
+		});
 	});
 
 	describe("not waiting on the author", () => {
